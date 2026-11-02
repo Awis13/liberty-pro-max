@@ -140,6 +140,19 @@ several times their size: keep the game's texture quality at its default,
 or the Apple TV's 2.1 GB per app runs out. The log is `log.txt` in the
 app's Library/Caches (`devicectl`).
 
+### Saves on every device
+
+With iCloud Drive on, the iPad keeps a copy of every save in its iCloud
+folder (**Liberty Pro Max** in iCloud Drive) and the Mac uses the same
+folder: each device takes the newer saves when the game starts and sends
+its own while it runs and when it quits. Per save the newer one wins; the
+one it replaces, on either side, is kept in that folder's `Backups`.
+`install-ios.sh` turns on iCloud for the app (its signing profile then
+needs your Apple ID signed in to Xcode). The Apple TV has no iCloud Drive:
+the Mac copies its saves to and from it at start and quit, over the cable
+or the network, when Xcode is installed. The launcher's "Saves synced"
+option turns both off.
+
 ### Recommended (Mac)
 
 Put a `commandline.txt` with `-norestrictions -availablevidmem 2047` in the

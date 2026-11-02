@@ -48,10 +48,14 @@ Args ParseArgs(int argc, char** argv) {
   return a;
 }
 
+extern "C" void GtaivSyncSaves(const char* when);  // save_sync_mac.mm
+
 // Runs the game: this executable again, with the options in its
 // environment. Returns only if that failed.
 void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
   ApplyOptions(d);
+  // The newest saves from the player's iPad and Apple TV first.
+  GtaivSyncSaves("before the game");
 
   // The game's log: ~/Library/Logs/gtaiv.log unless given (main.cpp).
   setenv("GTAIV_LOG", [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs/gtaiv.log"].fileSystemRepresentation, 0);

@@ -94,6 +94,26 @@ for k in application-identifier com.apple.developer.team-identifier; do
   /usr/libexec/PlistBuddy -c "Delete :$k" $ent 2>/dev/null || true
   /usr/libexec/PlistBuddy -c "Add :$k string $v" $ent
 done
+# iCloud Drive for the saves (src/save_cloud.mm): the app's own container,
+# iCloud.<bundle id>, shown in iCloud Drive as "Liberty Pro Max" (and so on
+# the Mac too). Left out when the profile has no iCloud (the saves then
+# stay on the device).
+container=iCloud.${appid#*.}
+if /usr/libexec/PlistBuddy -c "Print :com.apple.developer.ubiquity-container-identifiers" $prof_ent > /dev/null 2>&1; then
+  sed -i '' "s/iCloud\.\$(PRODUCT_BUNDLE_IDENTIFIER)/$container/g" $ent
+  /usr/libexec/PlistBuddy -c "Delete :NSUbiquitousContainers" $app/Info.plist 2>/dev/null || true
+  /usr/libexec/PlistBuddy -c "Add :NSUbiquitousContainers dict" \
+    -c "Add :NSUbiquitousContainers:$container dict" \
+    -c "Add :NSUbiquitousContainers:$container:NSUbiquitousContainerIsDocumentScopePublic bool true" \
+    -c "Add :NSUbiquitousContainers:$container:NSUbiquitousContainerName string Liberty Pro Max" \
+    -c "Add :NSUbiquitousContainers:$container:NSUbiquitousContainerSupportedFolderLevels string Any" \
+    $app/Info.plist
+else
+  for k in com.apple.developer.icloud-container-identifiers com.apple.developer.icloud-services \
+           com.apple.developer.ubiquity-container-identifiers; do
+    /usr/libexec/PlistBuddy -c "Delete :$k" $ent 2>/dev/null || true
+  done
+fi
 # Every library must be built for this platform: dyld refuses an iOS one
 # on tvOS only at launch, with the app already installed.
 want=${${PLATFORM:-ios}:u}

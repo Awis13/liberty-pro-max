@@ -77,11 +77,16 @@ if(TARGET gtaiv_lifted)
     # The settings screen before the game (Objective-C++, ARC).
     target_sources(gtaiv PRIVATE src/launcher_ios.mm)
     set_source_files_properties(src/launcher_ios.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    if(NOT CMAKE_SYSTEM_NAME STREQUAL "tvOS")  # saves through iCloud Drive (tvOS has none)
+      target_sources(gtaiv PRIVATE src/save_cloud.mm)
+      set_source_files_properties(src/save_cloud.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    endif()
     target_link_libraries(gtaiv PRIVATE "-framework UIKit" "-framework Foundation" "-framework CoreGraphics")
   elseif(APPLE)
     # The app's launcher window (Objective-C++, ARC).
-    target_sources(gtaiv PRIVATE src/launcher_mac.mm)
-    set_source_files_properties(src/launcher_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_sources(gtaiv PRIVATE src/launcher_mac.mm src/save_sync_mac.mm src/save_cloud.mm)
+    set_source_files_properties(src/launcher_mac.mm src/save_sync_mac.mm src/save_cloud.mm
+                                PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
     target_link_libraries(gtaiv PRIVATE "-framework AppKit")
     # "Liberty Pro Max.app" next to the plain executable: a bundle that says
     # it is a game (macos/Info.plist), so that macOS turns Game Mode on

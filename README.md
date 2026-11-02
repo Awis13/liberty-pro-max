@@ -68,7 +68,25 @@ Measured on an M3 Pro at 3440×1440, maximum settings, on the same street:
 
 ## Install
 
-### Mac
+### Mac, without the Terminal: Liberty Pro Max Builder
+
+Download **Liberty Pro Max Builder** from the
+[releases](https://github.com/Awis13/liberty-pro-max/releases), open it
+(the first time: right-click it, **Open**), and:
+
+1. drop your Grand Theft Auto IV folder (or `GTAIV.exe`) on it;
+2. if asked, install Apple's Command Line Tools with its button (free);
+3. optionally drop the [Radio Restoration mod](https://github.com/Tomasak/GTA-Downgraders)
+   as downloaded, for the original 2008 radio songs;
+4. press **Build Liberty Pro Max**.
+
+About 5 to 20 minutes later **Liberty Pro Max** is in Applications. No
+Homebrew and nothing else to install: the Builder carries everything that
+is not the game's code (the runtime, its libraries, the translator) and
+compiles only what it translates from your own `GTAIV.exe`, with Apple's
+compiler. `builder/make_builder.sh` makes it.
+
+### Mac, from the Terminal
 
 ```bash
 git clone https://github.com/Awis13/liberty-pro-max

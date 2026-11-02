@@ -2,7 +2,8 @@
 # apple_deps.sh
 # Builds what the iPad build links against into $GTAIV_APPLE_BUILD/prefix-ios
 # (default out/apple); PLATFORMS=tvos (or "ios tvos") the Apple TV's into
-# prefix-tvos:
+# prefix-tvos; PLATFORMS=macos the Mac's into prefix-macos (the Builder's kit,
+# no Homebrew):
 #   SDL3 3.4.18           as a dylib (it goes into the app's Frameworks)
 #   FFmpeg 9.0.2          static, only what the game uses: the Bink and MP3
 #                         decoders and demuxers, swscale
@@ -39,11 +40,14 @@ for p in $platforms; do
   case $p in
     ios)  system=iOS  sdk=iphoneos  minflag=-miphoneos-version-min=17.0 ;;
     tvos) system=tvOS sdk=appletvos minflag=-mappletvos-version-min=17.0 ;;
+    macos) system=Darwin sdk=macosx minflag=-mmacosx-version-min=14.0 ;;
     *) echo "unknown platform $p" >&2; exit 2 ;;
   esac
   prefix=$w/prefix-$p
+  # macOS (the Builder's kit): the same libraries for the Mac, from 14.
+  [[ $p == macos ]] && target=14.0 || target=17.0
   cmake_common=(-G Ninja -DCMAKE_SYSTEM_NAME=$system -DCMAKE_OSX_ARCHITECTURES=arm64
-                -DCMAKE_OSX_DEPLOYMENT_TARGET=17.0 -DCMAKE_BUILD_TYPE=Release
+                -DCMAKE_OSX_DEPLOYMENT_TARGET=$target -DCMAKE_BUILD_TYPE=Release
                 -DCMAKE_INSTALL_PREFIX=$prefix)
   echo "== $p: SDL3"
   cmake -S SDL3-3.4.18 -B $w/deps-$p/sdl3 $cmake_common -DSDL_SHARED=ON -DSDL_STATIC=OFF \

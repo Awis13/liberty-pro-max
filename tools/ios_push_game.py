@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""Copy the game's files into the iPad app's Documents/game with devicectl.
+
+  ios_push_game.py GAME_DIR DEVICE BUNDLE_ID
+
+Only what the port reads goes over (GTAIV.exe, its .cfg, common/, pc/,
+movies/, index.bin, lang.ini, metadata.dat, commandline.txt, .rpf_key);
+symbolic links are followed. devicectl stages a folder on the Mac's system
+disk before sending it, so a folder is sent in one call only when it is under
+CHUNK bytes; bigger folders are split and their loose files go one by one.
+Before every call the Mac's free space is checked. Finished items are
+recorded in a state file next to this script's output (STATE), so a rerun
+continues where it stopped. Use the cable: over Wi-Fi it crawls.
+"""
+import os
+import shutil
+import subprocess
+import sys
+
+ENTRIES = [".rpf_key", "commandline.txt", "GTAIV.exe", "GTAIV.exe.cfg", "index.bin",
+           "lang.ini", "metadata.dat", "common", "movies", "pc"]
+CHUNK = 1 << 30          # send a folder whole below 1 GB
+MIN_FREE = 15 << 30      # stop when the Mac has less than 15 GB free
+
+
+def size_of(path):
+    if os.path.isfile(path):
+        return os.path.getsize(path)
+    total = 0
+    for root, _, files in os.walk(path, followlinks=True):
+        for name in files:
+            total += os.path.getsize(os.path.join(root, name))
+    return total
+
+
+def plan(src, rel):
+    """Yield (relative path, bytes) items to send, folders under CHUNK whole."""
+    full = os.path.join(src, rel)
+    if not os.path.isdir(full):
+        yield rel, os.path.getsize(full)
+        return
+    size = size_of(full)
+    if size < CHUNK:
+        yield rel, size
+        return
+    for name in sorted(os.listdir(full)):
+        yield from plan(src, os.path.join(rel, name))
+
+
+def main():
+    src, device = os.path.realpath(sys.argv[1]), sys.argv[2]
+    app = sys.argv[3]
+    state = os.environ.get("STATE", os.path.join(os.getcwd(), "ios_push_game.state"))
+    done = set()
+    if os.path.exists(state):
+        with open(state) as f:
+            done = set(line.rstrip("\n") for line in f)
+    items = [it for e in ENTRIES if os.path.exists(os.path.join(src, e)) for it in plan(src, e)]
+    total = sum(size for _, size in items)
+    sent = sum(size for item, size in items if item in done)
+    for item, size in items:
+        if item in done:
+            continue
+        free = shutil.disk_usage("/").free
+        if free < MIN_FREE + size:
+            print(f"STOP: Mac free {free >> 30} GB, next item {size >> 20} MB: {item}", flush=True)
+            sys.exit(2)
+        cmd = ["xcrun", "devicectl", "device", "copy", "to", "--device", device,
+               "--domain-type", "appDataContainer", "--domain-identifier", app,
+               "--source", os.path.realpath(os.path.join(src, item)),
+               "--destination", f"Documents/game/{item}", "--timeout", "3600"]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"FAIL {item}: {(result.stderr or result.stdout).strip()[-400:]}", flush=True)
+            sys.exit(1)
+        with open(state, "a") as f:
+            f.write(item + "\n")
+        sent += size
+        print(f"ok {sent * 100 // total}% {sent >> 20}/{total >> 20} MB  {item}", flush=True)
+    print("DONE", flush=True)
+
+
+if __name__ == "__main__":
+    main()

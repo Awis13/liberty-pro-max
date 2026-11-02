@@ -19,6 +19,21 @@
 #include "runtime/log.h"
 #include "runtime/runtime.h"
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+#if TARGET_OS_IOS
+// iPad: SDL owns UIKit's startup and calls main (SDL_main) on the main
+// thread. The game's files are in Documents/game (copied there over the
+// cable: too big for the bundle), what the game writes (the C: drive, the
+// saves, the settings) below Documents/gtaiv, the log to Documents/log.txt.
+#include <unistd.h>
+
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
+#define GTAIV_IOS 1
+#endif
+
 // integrity.cpp: answers the messages the game sends LaunchGTAIV.exe.
 bool GtaivSendMessage(uint32_t hwnd, uint32_t msg, uint32_t wparam, uint32_t lparam,
                       uint32_t* result);
@@ -34,6 +49,10 @@ std::string GtaivRadioRedirect(const std::string& guest_path);
 #if defined(__APPLE__) && !defined(GTAIV_IOS)
 // launcher_mac.mm: the app's launcher window, when run from the bundle.
 void RunLauncherIfWanted(int argc, char** argv);
+#endif
+#if GTAIV_IOS
+// launcher_ios.mm: the iPad's settings screen, until Play.
+void RunIosLauncher(std::string* game_args);
 #endif
 
 namespace recomp::gen {
@@ -64,6 +83,30 @@ int main(int argc, char** argv) {
   if (const char* log = std::getenv("GTAIV_LOG"); log && *log) std::freopen(log, "w", stderr);
 #endif
   std::string game_dir, game_args;
+#if GTAIV_IOS
+  if (const char* home = std::getenv("HOME")) {
+    const std::string docs = std::string(home) + "/Documents";
+    // (GTAIV_LOG_CONSOLE=1: stderr stays the console, for devicectl --console.)
+    const char* console = std::getenv("GTAIV_LOG_CONSOLE");
+    if (!(console && *console == '1')) {
+      std::freopen((docs + "/log.txt").c_str(), "w", stderr);
+      std::setvbuf(stderr, nullptr, _IOLBF, 0);
+    }
+    setenv("XDG_DATA_HOME", docs.c_str(), 0);
+    game_dir = docs + "/game";
+    chdir(docs.c_str());
+  }
+  // What the Mac's launcher would set: the Metal renderer, SMAA, vsync (60
+  // Hz: the energy the iPad can keep up), no start screens.
+  setenv("GTAIV_GFX", "metal", 0);
+  setenv("RECOMP_UPSCALER", "smaa", 0);
+  setenv("GTAIV_VSYNC", "1", 0);
+  setenv("GTAIV_SKIP_INTRO", "1", 0);
+  setenv("GTAIV_FPS_REPORT", "10", 0);
+  // The launcher (the radio payload, when imported, is in
+  // Documents/gtaiv/drive_c/radio-restored).
+  RunIosLauncher(&game_args);
+#endif
   if (const char* e = std::getenv("GTAIV_GAME_DIR")) game_dir = e;
   for (int i = 1; i < argc; i++) {
     if (!std::strcmp(argv[i], "--game-dir") && i + 1 < argc) {
@@ -111,7 +154,9 @@ int main(int argc, char** argv) {
   // signed 32-bit byte count holds.
   game.video_memory_mb = 2047;
   // Full screen as macOS does it: Game Mode turns on (Liberty Pro Max.app).
+#if !GTAIV_IOS
   game.mac_fullscreen_space = true;
+#endif
   // The launcher's window (integrity.cpp).
   game.send_message = GtaivSendMessage;
   // Threads by what they do, not by the game's priorities (threads.cpp).

@@ -1,6 +1,6 @@
 # Liberty Pro Max
 
-**Grand Theft Auto IV (PC 1.0.8.0) running natively on Apple silicon Macs.**
+**Grand Theft Auto IV (PC 1.0.8.0) running natively on Apple silicon Macs and iPads.**
 
 Liberty Pro Max is a native macOS port of the PC version of GTA IV, made by
 statically recompiling the game's own x86 code with
@@ -70,6 +70,37 @@ press **Play**. Saves and settings are kept in
 `~/Library/Application Support/gtaiv`; the game's log is
 `~/Library/Logs/gtaiv.log`.
 
+### iPad
+
+Liberty Pro Max also runs on iPad (tested on an iPad Air with M4): the same
+game code, a settings screen before the game with **Play**, the app icon made
+from the game's own logo.
+
+You need, besides the Mac install above:
+
+- an iPad with an M-series chip, connected to the Mac by cable, in
+  Developer Mode;
+- full **Xcode** with a **paid Apple developer account** signed in
+  (Xcode › Settings › Accounts): the app needs the *Extended Virtual
+  Addressing* and *Increased Memory Limit* capabilities, which free accounts
+  do not have;
+- about 16 GB free on the iPad.
+
+```bash
+./install.sh "/path/to/Grand Theft Auto IV"   # first, if not done yet
+./install-ios.sh YOUR_TEAM_ID
+```
+
+`install-ios.sh` builds the iPad's libraries (SDL3, FFmpeg, glslang,
+SPIRV-Cross), makes a signing profile with those capabilities, builds and
+installs the app, then copies the game's files (15 GB) into it over the
+cable. The first run takes about 40 minutes. A controller or a keyboard
+plays the game; there are no touch controls.
+
+On the iPad the defaults are 1792×1344 with SMAA at 60 fps. The game's own
+graphics menu decides the rest: lower its view and detail distance if busy
+streets drop below 60.
+
 ### Recommended
 
 Put a `commandline.txt` with `-norestrictions -availablevidmem 2047` in the
@@ -123,7 +154,9 @@ launcher.
 
 ## Known limits
 
-- Mac only for now. Linux (and the Steam Deck), iPad and Apple TV are planned.
+- Mac and iPad for now. Linux (and the Steam Deck) and Apple TV are planned.
+- iPad: no touch controls; busy streets need the game's distances lowered
+  for a steady 60 fps.
 - Multiplayer is not available.
 - MetalFX temporal upscaling costs about 5 ms a frame at 3440×1440 output,
   more than it saves in this game; TAA at native resolution is the default.

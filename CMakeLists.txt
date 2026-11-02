@@ -5,6 +5,12 @@ if(APPLE)
 endif()
 
 set(CMAKE_CXX_STANDARD 20)
+# iPad: the runtime's dylibs go into the app's Frameworks.
+if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
+  set(CMAKE_INSTALL_RPATH "@executable_path/Frameworks")
+  set(CMAKE_INSTALL_NAME_DIR "@rpath")
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # x86recomp's runtime and HLE modules are shared libraries: rebuilding one
@@ -54,7 +60,20 @@ if(TARGET gtaiv_lifted)
                         recomp_dinput8 recomp_xinput recomp_d3d9 recomp_xlive
                         recomp_dbghelp)
   set_target_properties(gtaiv PROPERTIES ENABLE_EXPORTS ON)  # names in fault backtraces
-  if(APPLE)
+  if(RECOMP_IOS)
+    # The .app with its Info.plist; tools/ios_bundle.sh adds the runtime
+    # dylibs (Frameworks/), the icon, and signs it. The game's files go into
+    # its Documents over the cable (tools/ios_push_game.py).
+    set_target_properties(gtaiv PROPERTIES
+      MACOSX_BUNDLE ON
+      MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/port/ios/Info.plist"
+      INSTALL_RPATH "@executable_path/Frameworks"
+      BUILD_WITH_INSTALL_RPATH ON)
+    # The settings screen before the game (Objective-C++, ARC).
+    target_sources(gtaiv PRIVATE src/launcher_ios.mm)
+    set_source_files_properties(src/launcher_ios.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+    target_link_libraries(gtaiv PRIVATE "-framework UIKit" "-framework Foundation" "-framework CoreGraphics")
+  elseif(APPLE)
     # The app's launcher window (Objective-C++, ARC).
     target_sources(gtaiv PRIVATE src/launcher_mac.mm)
     set_source_files_properties(src/launcher_mac.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")

@@ -23,6 +23,31 @@
         "RECOMP_SSE_HOST": "ON",
         "RECOMP_HOST_CPU": "apple-m1"
       }
+    },
+    {
+      "name": "iphoneos",
+      "displayName": "iPad (tools/apple_deps.sh first)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/apple/build-ios",
+      "environment": {
+        "PKG_CONFIG_LIBDIR": "${sourceDir}/out/apple/prefix-ios/lib/pkgconfig",
+        "PKG_CONFIG_SYSROOT_DIR": ""
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_SYSTEM_NAME": "iOS",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "17.0",
+        "CMAKE_FIND_ROOT_PATH": "${sourceDir}/out/apple/prefix-ios",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/out/apple/prefix-ios",
+        "RECOMP_LLVM_DEMANGLE_SRC": "${sourceDir}/out/apple/src/llvm-demangle",
+        "RECOMP_LLVM_ROOT": "/opt/homebrew/opt/llvm@22",
+        "RECOMP_LTO": "ON",
+        "RECOMP_SSE_HOST": "ON",
+        "RECOMP_HOST_CPU": "apple-m1"
+      }
     }
   ],
   "buildPresets": [
@@ -33,6 +58,10 @@
     {
       "name": "release",
       "configurePreset": "release"
+    },
+    {
+      "name": "iphoneos",
+      "configurePreset": "iphoneos"
     }
   ]
 }

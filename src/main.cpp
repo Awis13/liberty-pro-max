@@ -71,6 +71,14 @@ std::string ReadRedirect(const std::string& guest_path) {
 }
 }  // namespace
 
+#if !GTAIV_IOS
+extern "C" void GtaivSyncSaves(const char* when);  // save_sync_mac.mm
+#endif
+#if defined(__APPLE__) && !TARGET_OS_TV
+extern "C" void GtaivCloudSavesStart();  // save_cloud.mm
+extern "C" void GtaivCloudSavesFlush();
+#endif
+
 #ifdef GTAIV_PGO_GENERATE
 // An instrumented build (RECOMP_PGO=generate): the counts, written on
 // ExitProcess.
@@ -185,8 +193,21 @@ int main(int argc, char** argv) {
     g_radio = true;
   }
   game.read_redirect = ReadRedirect;
+#if !GTAIV_IOS
+  // Saves to the player's iPad and Apple TV (save_sync_mac.mm).
+  game.before_exit = [] {
 #ifdef GTAIV_PGO_GENERATE
+    WriteProfile();
+#endif
+    GtaivCloudSavesFlush();
+    GtaivSyncSaves("after the game");
+  };
+#elif defined(GTAIV_PGO_GENERATE)
   game.before_exit = WriteProfile;
+#endif
+#if defined(__APPLE__) && !TARGET_OS_TV
+  // The newest saves from iCloud before the game reads any (save_cloud.mm).
+  GtaivCloudSavesStart();
 #endif
   return recomp::RunProcess(game, exe, game_dir, game_args);
 }

@@ -41,6 +41,190 @@ Measured on an M3 Pro at 3440×1440, maximum settings, on the same street:
 | Native SSE math, host CRT math, PGO, ThinLTO | 71–83 |
 | Physics and job threads helped by the main thread, 397 hot functions translated to plain C++ | about 90 on average |
 
+## Fixes and options
+
+On the launcher's **General** tab: resolution and display, anti-aliasing
+(TAA, SMAA, MetalFX), shadow and reflection resolution, field of view, fast
+loading, skipping the logo screens, continuing the last save, the original
+radio songs, the performance overlay. On the **Advanced** tab, every fix
+below, each a switch. Most follow FusionFix's and ZolikaPatch's (by what
+they do; their code is not used), some are this port's own.
+
+<details>
+<summary>All fixes and options</summary>
+
+<!-- fixes:begin -->
+114 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
+
+#### High frame rates
+
+The game was made for 30 fps; these keep it right at any frame rate.
+
+| Option | Default |
+|---|---|
+| Ladders: no stalls before climbing at high frame rates | on |
+| No speed-up above 300 fps | on |
+| Vehicle and ragdoll physics steady at high frame rates | on |
+| Scripted doors and gates move at the right speed | on |
+| Camera shake as strong at any frame rate | on |
+| Helicopter rotors break as easily at any frame rate | on |
+| Loading screen pictures move at console speed | on |
+| 30 fps in pool, air hockey, arm wrestling, bowling, drinking | on |
+| Radar moves smoothly at high frame rates | on |
+| Bonnet camera sway smooth at high frame rates | on |
+| Final mission: helicopter climb not harder at high frame rates | on |
+| Cutscene animations smooth and in sync with their audio | on |
+| No water flicker (buffers swapped in step with rendering) | on |
+
+#### Cameras
+
+| Option | Default |
+|---|---|
+| No forced camera centring at the edge of cover | on |
+| Camera shake (hand-held, drunk, vehicles) | on |
+| Cutscene cameras without zoom fits and flicker at cuts | on |
+| Car camera swings back faster with keyboard and mouse | on |
+| Cinematic camera when vaulting walls and jacking cars | on |
+| Cinematic camera and slow motion on stunt jumps | on |
+| On foot, the camera waits 2 s after the mouse before recentring | on |
+| Car camera centred behind the car | off |
+| On-foot camera centred behind Niko | off |
+| On foot with a gamepad: camera waits 2 s before recentring | off |
+| In vehicles: camera waits 2 s before recentring | off |
+| Aiming zoom remembered between aims (as on Xbox) | off |
+| First-person helicopter reticle with a gamepad | on |
+| Stunt jumps: mouse wheel sets the slow motion | on |
+| Video editor: free camera without bounds | on |
+| Drive-by shots land in the crosshair when high up | on |
+| No motion blur flicker while the camera shakes (drunk) | on |
+
+#### Wide screens and the interface
+
+| Option | Default |
+|---|---|
+| Pause menu map fits wide screens | on |
+| Cutscenes framed 16:9 with side bars on wide screens | on |
+| In-game internet and police computer fit wide screens | on |
+| Mouse cursor scaled to the screen | on |
+| Menu cursor hidden while playing with a gamepad | on |
+| Target health on the reticle with the mouse | on |
+| Radar stays zoomed out for 3 seconds | on |
+| Pause menu opens and closes without delay | on |
+| Right click goes back in menus | on |
+| Pause menu: version, IMG files and streaming memory | off |
+| Pause menu time and money spaced as on consoles | on |
+| Menu lists show 32 rows before scrolling | on |
+
+#### FusionFix's shaders
+
+Need FusionFix's update folder in the game folder.
+
+| Option | Default |
+|---|---|
+| Use FusionFix's mission and model fixes if installed (update folder) | on |
+| FusionFix shaders: tone mapping (highlights not clipped) | off |
+| FusionFix shaders: bloom keeps its colour with tone mapping | on |
+| FusionFix shaders: exposure adapts as on consoles | on |
+| FusionFix shaders: definition (sharper image) | on |
+| FusionFix shaders: unclamped sunlight | off |
+| FusionFix shaders: smooth shorelines | on |
+| FusionFix shaders: smooth light volumes | on |
+| FusionFix shaders: cascaded shadow fixes (atlas, ranges) | on |
+| FusionFix shaders: high resolution cascaded shadows (heavy) | off |
+| FusionFix shaders: volumetric fog | off |
+| Shadow filter: Sharp, Soft, Contact hardening | Sharp |
+| Tree lighting: PC, PC+, Console | PC+ |
+| Tree leaves: PC, PC+, Console | PC |
+
+#### Lights, shadows and effects
+
+| Option | Default |
+|---|---|
+| Distant city lights as on consoles (from 7 pm, street level) | on |
+| Reflections and car dirt as on consoles | on |
+| Mirrors show decals near them | on |
+| Water surface tiling as on consoles | on |
+| No flickering lights where there are many (corona limit 768 -> 49152) | on |
+| Reversing lights at the back of the car | on |
+| Rain lit as on consoles (visible at night) | on |
+| Police helicopter searchlights do not flicker | on |
+| Night shadows setting sets their sharpness | on |
+| Brake lights stay on while your car stands | off |
+| Bloom (glow around bright lights) | on |
+| Depth of field blur | on |
+| Motion blur: Off, 1/8, 1/4, 1/2, Full | 1/4 |
+| Vehicles cast shadows from street lights (needs FusionFix shaders) | on |
+| Glowing lights and signs without depth artifacts | on |
+| Every light casts moving shadows (very slow) | off |
+| Shadow under cars at any distance | on |
+| No shadow patch under cars | off |
+| No shadow patch under cars in cutscenes | off |
+| High detail reflections (heavy for the GPU) | off |
+| Red and amber glass from broken tail lights and indicators | on |
+| Tracer on every shot | off |
+| TBoGT: tracers drawn in the right place | on |
+| Trees and bushes cast real shadows (needs FusionFix shaders) | on |
+| Turn indicators when steering, hazard lights after a crash | off |
+| Turn indicators by hand: [ and ] or bumpers, both for hazards | off |
+
+#### Gameplay
+
+| Option | Default |
+|---|---|
+| Weapon recoil with the mouse as with a gamepad | on |
+| Niko takes full damage (the game gives him a third of it) | on |
+| Health from a save at most a full bar (trainer saves) | on |
+| Saving from the phone works in vehicles | on |
+| Radio keeps playing after cutscenes | on |
+| Cars do not swerve under trains | on |
+| Date does not go back after dying or arrest | on |
+| Helicopters fly up to 770 m (as in TBoGT) | off |
+| Cops take off their hats in vehicles (as on consoles) | on |
+| No double death animation after a melee counter | on |
+| Bikes: feet down when stopped on the phone and when reversing | on |
+| Walk while zoomed in with a sniper rifle | on |
+| Climb ladders by walking into them | off |
+| Death and arrest music (cut on PC) | off |
+| Cars roll to a stop instead of freezing (costs CPU) | off |
+| Parked vehicles keep their wheels turned | off |
+| Always run (tap sprint: run or jog, hold: sprint) | off |
+| Sniper rifles aim over the shoulder; Jump toggles the scope | off |
+| Distant traffic on every road at any height | on |
+| Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100) | on |
+| Missions play the alternative car banter | off |
+
+#### Limits, streaming and stability
+
+| Option | Default |
+|---|---|
+| Draw distance settings apply from the start (costs fps) | off |
+| Twice the vehicle budget (no streets full of taxis) | on |
+| Bigger task and pointer pools | on |
+| No crash in "In the Crosshairs" at long draw distance | on |
+| Streaming not held back by the memory budget | on |
+| Extra streaming memory while there is room | off |
+| No script crash comparing missing strings (TLAD calls) | on |
+| Game errors only to the log, no error box (may crash later) | off |
+| No crash aiming thrown weapons with a ped that has no pad | on |
+
+#### Mac, iPad and Apple TV
+
+| Option | Default |
+|---|---|
+| Saves synced with your iPad and Apple TV at start and quit (needs Xcode) | on |
+| Keep running when the window is not in front | off |
+
+<!-- fixes:end -->
+
+</details>
+
+Not yet here from FusionFix: its ambient occlusion (SAO), console gamma,
+HDR output, depth effects through transparent surfaces (pre-alpha depth),
+MSAA in reflections, gamepad button icons, camera sensitivity ranges and
+ragdoll on demand. The episodes' content in IV (episodic vehicles and
+weapons) waits for the episodes. On a Mac FusionFix's raw input, keyboard
+lighting, graphics API choice and plugin loaders have nothing to do.
+
 ## What you need
 
 - **GTA IV for PC, version 1.0.8.0**: the folder with `GTAIV.exe`

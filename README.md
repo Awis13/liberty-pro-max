@@ -2,31 +2,33 @@
 
 **Grand Theft Auto IV (PC 1.0.8.0) running natively on Apple silicon Macs and iPads.**
 
-Liberty Pro Max is a native macOS port of the PC version of GTA IV, made by
-statically recompiling the game's own x86 code with
+Liberty Pro Max is a native port of the PC version of GTA IV to Mac and iPad,
+made by statically recompiling the game's own x86 code with
 [x86recomp](https://github.com/JTM-rootstorm/x86recomp). The executable is
 translated to C++ and compiled for Apple silicon, so the game runs as it does
 on Windows, with no Wine, no emulation and no virtual machine. Only the
-platform underneath is new, and it is built for the Mac: a Metal renderer,
-a real-time audio mixer, Game Mode, ultrawide screens.
+platform underneath is new, and it is built for Apple's devices: a Metal
+renderer, a real-time audio mixer, a launcher with all of the port's options,
+Game Mode, ultrawide screens on the Mac.
 
 > **This repository contains no part of the game.** You build it on your own
-> Mac from your own copy of GTA IV.
+> Mac from your own copy of GTA IV, for the Mac and, if you like, your iPad.
 
-**Beta.** The story can be played from a save and around the city. Expect
-rough edges, and please report what you find.
+**Beta.** The story can be played from a save and around the city on both.
+Expect rough edges, and please report what you find.
 
 ## What you get
 
-| | |
-|---|---|
-| **Renderer** | Metal, written for this port: drawing is encoded on its own thread, geometry is read in place from the game's memory, several frames are in flight |
-| **Frame rate** | about 125 fps indoors and 60–100 fps outdoors at 3440×1440 with maximum settings on an M3 Pro, no 30/60 fps cap |
-| **Anti-aliasing** | TAA (default, sharpened), SMAA, MetalFX temporal and SMAA + MetalFX spatial upscaling |
-| **Screens** | any resolution, ultrawide included, field-of-view option, full screen as a macOS Space with Game Mode |
-| **Fixes built in** | about 100 fixes from FusionFix and ZolikaPatch (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher |
-| **Extras** | the original 2008 radio songs (with the Radio Restoration mod), stun punch and executions on anyone, fast loading |
-| **Launcher** | all of the port's options in one window before the game starts |
+| | Mac | iPad |
+|---|---|---|
+| **Renderer** | Metal, written for this port: drawing encoded on its own thread, geometry read in place from the game's memory, several frames in flight | the same |
+| **Frame rate** | about 125 fps indoors, 60–100 fps outdoors at 3440×1440, maximum settings, M3 Pro; no 30/60 fps cap | 60 fps indoors, 45–60 outdoors at 1792×1344, iPad Air (M4) |
+| **Anti-aliasing** | TAA (default, sharpened), SMAA, MetalFX temporal and SMAA + MetalFX spatial upscaling | SMAA (default), TAA |
+| **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048, field of view |
+| **Launcher** | a window with all options before the game | a settings screen with all options and **Play**; the icon is the game's own IV |
+| **Fixes built in** | about 100 fixes from FusionFix and ZolikaPatch (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
+| **Extras** | the original 2008 radio songs (with the Radio Restoration mod), stun punch and executions on anyone, fast loading | the same |
+| **Controls** | keyboard and mouse, controllers | controllers, keyboard (no touch controls) |
 
 ### Speed
 
@@ -47,12 +49,22 @@ Measured on an M3 Pro at 3440×1440, maximum settings, on the same street:
   Edition (1.2.0.x) is not supported as it is; the community
   [GTA Downgraders](https://github.com/Tomasak/GTA-Downgraders) turn it into
   1.0.8.0.
-- **A Mac with Apple silicon** (M1 or newer) and macOS 14 or newer.
-- **Xcode Command Line Tools** (`xcode-select --install`) and
-  [Homebrew](https://brew.sh).
-- About 6 GB free for the build.
+- **A Mac with Apple silicon** (M1 or newer), macOS 14 or newer, with the
+  **Xcode Command Line Tools** (`xcode-select --install`) and
+  [Homebrew](https://brew.sh); about 6 GB free for the build. The Mac builds
+  both versions.
+- **For the iPad**, also:
+  - an iPad with an M-series chip, iPadOS 17 or newer, in Developer Mode and
+    connected to the Mac by cable, with about 16 GB free;
+  - full **Xcode** with a **paid Apple developer account** signed in
+    (Xcode › Settings › Accounts): the app needs the *Extended Virtual
+    Addressing* and *Increased Memory Limit* capabilities, which free
+    accounts do not have;
+  - a controller or a keyboard.
 
 ## Install
+
+### Mac
 
 ```bash
 git clone https://github.com/Awis13/liberty-pro-max
@@ -72,39 +84,30 @@ press **Play**. Saves and settings are kept in
 
 ### iPad
 
-Liberty Pro Max also runs on iPad (tested on an iPad Air with M4): the same
-game code, a settings screen before the game with **Play**, the app icon made
-from the game's own logo.
-
-You need, besides the Mac install above:
-
-- an iPad with an M-series chip, connected to the Mac by cable, in
-  Developer Mode;
-- full **Xcode** with a **paid Apple developer account** signed in
-  (Xcode › Settings › Accounts): the app needs the *Extended Virtual
-  Addressing* and *Increased Memory Limit* capabilities, which free accounts
-  do not have;
-- about 16 GB free on the iPad.
+After the Mac install (the iPad build uses the game's code it translated),
+with the iPad connected:
 
 ```bash
-./install.sh "/path/to/Grand Theft Auto IV"   # first, if not done yet
 ./install-ios.sh YOUR_TEAM_ID
 ```
 
 `install-ios.sh` builds the iPad's libraries (SDL3, FFmpeg, glslang,
-SPIRV-Cross), makes a signing profile with those capabilities, builds and
-installs the app, then copies the game's files (15 GB) into it over the
-cable. The first run takes about 40 minutes. A controller or a keyboard
-plays the game; there are no touch controls.
+SPIRV-Cross), makes a signing profile with those capabilities, builds the app
+with its icon and installs it, then copies the game's files (15 GB) into it
+over the cable, and the restored radio songs if you imported them on the Mac.
+The first run takes about 40 minutes.
 
-On the iPad the defaults are 1792×1344 with SMAA at 60 fps. The game's own
+Then open **Liberty Pro Max** on the iPad, check the settings, press
+**Play**. The defaults are 1792×1344 with SMAA at 60 fps; the game's own
 graphics menu decides the rest: lower its view and detail distance if busy
-streets drop below 60.
+streets drop below 60. The game's log is `log.txt` in the app's Documents
+(Files › On My iPad, or `devicectl`).
 
-### Recommended
+### Recommended (Mac)
 
 Put a `commandline.txt` with `-norestrictions -availablevidmem 2047` in the
-game folder to unlock the highest graphics settings.
+game folder to unlock the highest graphics settings. (The iPad's launcher
+passes both itself.)
 
 ### Original radio songs
 
@@ -117,7 +120,8 @@ GTAIV_RADIO_SRC=/path/to/unpacked/mod tools/radio_import.sh
 ```
 
 and turn on **Original 2008 radio songs** in the launcher. Your game folder is
-not changed.
+not changed. Import it before `install-ios.sh` to have the songs on the iPad
+too.
 
 ## Build by hand
 
@@ -136,6 +140,12 @@ The app is `out/build/release/Liberty Pro Max.app`; the plain executable,
 `out/build/release/gtaiv --game-dir "$GTAIV_GAME_DIR"`, starts without the
 launcher.
 
+For the iPad, after that: `tools/apple_deps.sh`, `cmake --preset iphoneos &&
+cmake --build --preset iphoneos`, then `tools/ios_profile.sh`,
+`tools/make_ios_icon.py`, `tools/ios_bundle.sh <device>` and
+`tools/ios_push_game.py` (each script says what it takes; `install-ios.sh`
+runs them in order).
+
 ## How it works
 
 - `symbols/` holds the addresses and names of the game's functions (exported
@@ -148,6 +158,8 @@ launcher.
 - `src/` is the port: the game's settings and fixes, the launcher, the
   protection layer and Games for Windows Live answered offline, thread
   priorities, and the FusionFix and ZolikaPatch fixes.
+- `src/launcher_mac.mm` and `src/launcher_ios.mm` are the two launchers;
+  `src/launcher_options.h` the options they share.
 - The Metal renderer, audio and Windows layer live in x86recomp, on the
   [`liberty`](https://github.com/Awis13/x86recomp/tree/liberty) branch pinned
   in `X86RECOMP`.

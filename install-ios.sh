@@ -46,5 +46,15 @@ BUILD=out/apple/build-ios PREFIX=out/apple/prefix-ios ICONS=out/icons tools/ios_
 say "The game's files (15 GB over the cable)"
 STATE=out/apple/push.state python3 tools/ios_push_game.py "$GTAIV_GAME_DIR" $device $bundle
 
+radio="$HOME/Library/Application Support/gtaiv/drive_c/radio-restored"
+if [[ -d $radio ]]; then
+  say "The restored radio songs"
+  (cd $radio && find . -type f) | while read -r f; do
+    xcrun devicectl device copy to --device $device --domain-type appDataContainer \
+      --domain-identifier $bundle --source "$radio/${f#./}" \
+      --destination "Documents/gtaiv/drive_c/radio-restored/${f#./}" --timeout 600 > /dev/null
+  done
+fi
+
 say "Done"
 echo "Open Liberty Pro Max on the iPad, press Play. A controller or a keyboard plays it."

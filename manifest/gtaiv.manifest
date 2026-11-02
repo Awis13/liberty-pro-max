@@ -1,0 +1,814 @@
+# Lifter manifest: GTAIV.exe 1.0.8.0
+# (SHA-256 3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f).
+# Line based, guest VAs in hex (see x86recomp tools/lifter/main.cpp):
+#   entry <va> [name] | name <va> <name> | probe <va> [name]
+#   resume <va> | setjmp <va> [name] | replace <va> [name] | hook <va> <end>
+
+# Function entries Ghidra did not find (reached by indirect branches): the
+# CRT's x87 exp/sin/cos/tan dispatch handlers, listed (unaligned) in the
+# records at .data F63780..F63860.
+entry 00D03451
+entry 00D03591
+entry 00D0374C
+entry 00D0375D
+entry 00D03762
+entry 00D04110
+entry 00D04129
+entry 00D04162
+entry 00D04184
+entry 00D04191
+entry 00D041B1
+
+# The PAUL copy-protection layer (src/paul.cpp): its wrappers run code the
+# game builds at start, so they are replaced by what they stand for.
+replace 00D18223 Paul_Init
+replace 00D176A0 Paul_Load
+replace 00D16A9F Paul_CommandLine
+replace 00D17BFF Paul_CheckFile
+replace 00D17BD7 Paul_CheckFile2
+replace 00D17CD3 Paul_CreateFileA
+replace 00D17E6B Paul_CloseHandle
+replace 00D17E92 Paul_SetFilePointer
+replace 00D17D38 Paul_ReadFile
+replace 00D17EBA Paul_GetFileSize
+
+# Start-up integrity checks (src/integrity.cpp).
+replace 004906B0 VerifySigner
+replace 0048F900 CheckLauncher
+hook 0048FF22 004900DE   # launcher image hash check (EFC2x)
+replace 00D49410 launcher_state      # the launcher's shared state: its window and message
+replace 00B4FAA0 launcher_seq_a      # the launcher's sequence checks: passed
+replace 00B4FAC0 launcher_seq_b
+replace 00B4FAD0 launcher_seq_c
+replace 00B4FB00 launcher_seq_d
+
+# Aspect ratio (src/widescreen.cpp, from FusionFix's widescreenfix).
+hook 0089BA65 0089BAC2   # auto aspect: from the active resolution
+hook 004A158D 004A158F   # push 1 -> push 0
+hook 00492428 00492430   # cellphone width
+hook 00D44C99 00D44CA1   # frontend width
+hook 004A1729 004A172E   # loading-screen art: 16:9, centred, pillars
+hook 004A179E 004A17A3
+hook 004A1840 004A1845
+hook 004B1248 004B1250   # pause map: the screen's aspect
+hook 008739AC 008739B3   # pause map: tile columns for the width
+hook 00870B0E 00870B14   # pause map: round area blips
+hook 00486DDC 00486DE2   # pause map crosshair: thickness
+hook 00486E0D 00486E13
+hook 00486E9E 00486EA6   # pause map crosshair: fade
+
+# Diagnostics (src/diagnostics.cpp).
+replace 00454860 SimpleAllocator_Allocate
+
+
+replace 007BDD80 Frontend_SetState
+
+# The CRT's memmove and SSE2 math, run as the host's (src/crt_math.cpp).
+replace 00CF52B0 crt_memmove
+replace 00CF59F9 crt_cos
+replace 00CF5841 crt_sin
+replace 00CF99C0 crt_atan2
+replace 00CF6861 crt_pow
+replace 00CF7456 crt_acos
+replace 00CF7930 crt_tan
+
+# Benchmark scene (src/bench.cpp): runs after the main loop's render wait.
+replace 008A1860 MainLoop_WaitRender
+
+# GTAIV_PERF counters (src/perf.cpp): the frame handoff, job waits, polls
+# and thread starts.
+replace 004563D0 sysIpcWaitSema
+replace 004563B0 sysIpcPollSema
+replace 00456610 sysIpcSleep
+replace 00964B90 Rmptfx_WaitUpdate
+replace 007BBCD0 Audio_WaitUpdate
+replace 00863B50 RenderThread_RunFrame
+replace 00460D50 Jobs_Wait
+replace 00456500 sysIpcCreateThread
+replace 00456460 sysIpcThreadStart
+
+# Fixes of the game's own bugs (src/fixes.cpp).
+replace 008CC970 Pool_SweepAtShutdown   # quit before the world loaded: no streaming table
+replace 0094A6D0 PedIntelligence_DecreasePinnedDown   # above 30 fps it never decreased: cops stuck in cover
+# Millisecond clocks and script timers keep their fractions (src/fixes.cpp).
+hook 007CC06F 007CC075   # CTimer: the game's clock
+hook 007CC1BB 007CC1C1   # CTimer: a second clock
+hook 007CC33E 007CC344   # CTimer: a third clock (the screen fades')
+hook 00625414 0062541D   # scrThread::Update: TIMERA, TIMERB, WAIT
+replace 0094AC20 PedIntelligence_ProcessStaticCounter   # 30 Hz: tasks gave up early above 30 fps
+hook 00A53E4E 00A53E56   # drunk steering bias, cars: per time
+hook 00B9A94F 00B9A957   # drunk steering bias, bikes: per time
+replace 00A7C8E0 CamFollowVehicle_ProcessHandBrakeSwing   # per time: the camera spun round the car in handbrake turns
+hook 00A810F4 00A810FC   # vehicle camera auto-centring: no per-frame clamp (x)
+hook 00A813DC 00A813E9   # vehicle camera auto-centring: no per-frame clamp (y)
+hook 00A9C466 00A9C46E   # aim zoom smoothing, weapons: per time
+hook 00A98D7B 00A98D83   # aim zoom smoothing, melee: per time
+hook 004AF577 004AF57C   # chase blips' flashing: 30 Hz
+hook 008ACE69 008ACE6F   # saving/loading spinner: 30 Hz
+hook 009C8239 009C823F   # helicopter blinking lights: 30 Hz
+hook 00AB8DB7 00AB8DB9   # downwash wind particles: per second
+hook 00AF1FCC 00AF1FCE   # boat wake ripples: per second
+hook 00B91371 00B91373   # swim splash ripples: per second
+replace 009AE2C0 Water_AddToDynamicWaterSpeed   # per time
+replace 009AE360 Water_ModifyDynamicWaterSpeed  # per time
+hook 009CB59C 009CB5A4   # helicopter main rotor speed: per time
+hook 009CB5DA 009CB5E2   # helicopter tail rotor speed: per time
+# Conveniences (src/options.cpp).
+hook 0047D255 0047D257   # the first menu: GTAIV_CONTINUE starts in the last save
+hook 004A346B 004A3475   # start screens' times: GTAIV_SKIP_INTRO skips the short ones
+replace 00A777C0 CamGame_PostProcessHeightBasedFOV   # GTAIV_FOV: wider field of view
+hook 00401854 00401859   # startup sleep 5000 ms: none with GTAIV_FAST_LOADING (default)
+hook 004F2036 004F203D   # physics pair list: main takes pairs too before waiting (GTAIV_PHYSICS_HELP)
+hook 00855D82 00855D8C   # gtaDefSched worker mask: GTAIV_JOB_WORKERS workers (game: 3)
+hook 0079BADB 0079BAE2   # audio engine buffer wait: a 250 us sleep, not Sleep(0) (GTAIV_AUDIO_SPIN)
+hook 006D4F92 006D4F97   # population removal: due-record allowance 20 (GTAIV_DESPAWN_NEED; game: 5)
+hook 00C8DB86 00C8DB8C   # melee: self ready to be stunned (GTAIV_STUN_PUNCH)
+hook 00C8DBAB 00C8DBB1   # melee: opponent ready to be stunned (GTAIV_STUN_PUNCH)
+hook 00C8DBD0 00C8DBD6   # melee: self ready to be executed (GTAIV_EXECUTIONS)
+hook 00C8DBF5 00C8DBFB   # melee: opponent ready to be executed (GTAIV_EXECUTIONS)
+replace 00922630         # physics job count: GTAIV_JOB_WORKERS (game: 3)
+
+# Native versions of hot functions (src/native.cpp, tools/x86n.py).
+replace 00567940 Native_00567940
+replace 0059ABA0 Native_0059ABA0
+replace 00AEDEE0 Native_00AEDEE0
+replace 004FFB70 Native_004FFB70
+replace 005B10C0 Native_005B10C0
+replace 0041A340 Native_0041A340
+replace 00AE3180 Native_00AE3180
+replace 00956030 Native_00956030
+replace 004135D0 Native_004135D0
+replace 00AEDFE0 Native_00AEDFE0
+replace 00A390C0 Native_00A390C0
+replace 004E19C0 Native_004E19C0
+replace 0061DBB0 Native_0061DBB0
+replace 00518A20 Native_00518A20
+replace 006240F0 Native_006240F0
+replace 00588160 Native_00588160
+replace 00907640 Native_00907640
+replace 00413680 Native_00413680
+replace 00518C80 Native_00518C80
+replace 00ADFA40 Native_00ADFA40
+replace 004E6490 Native_004E6490
+replace 00C663C0 Native_00C663C0
+replace 0061E3A0 Native_0061E3A0
+replace 005B0760 Native_005B0760
+replace 00ADE7F0 Native_00ADE7F0
+replace 00C56C60 Native_00C56C60
+replace 009552D0 Native_009552D0
+replace 008C7690 Native_008C7690
+replace 00C17480 Native_00C17480
+replace 005B0680 Native_005B0680
+replace 00413480 Native_00413480
+replace 00904B70 Native_00904B70
+replace 00923EF0 Native_00923EF0
+replace 008E4930 Native_008E4930
+replace 00597200 Native_00597200
+replace 00AE49E0 Native_00AE49E0
+replace 00A391E0 Native_00A391E0
+replace 005198E0 Native_005198E0
+replace 0044D930 Native_0044D930
+replace 00A55530 Native_00A55530
+replace 004151B0 Native_004151B0
+replace 006A0960 Native_006A0960
+replace 00413A60 Native_00413A60
+replace 00414C20 Native_00414C20
+replace 00404680 Native_00404680
+replace 00404B60 Native_00404B60
+replace 00ADF150 Native_00ADF150
+replace 00A42930 Native_00A42930
+replace 00446F70 Native_00446F70
+replace 007B9200 Native_007B9200
+replace 00860170 Native_00860170
+replace 004138B0 Native_004138B0
+replace 00403F40 Native_00403F40
+replace 007B7AE0 Native_007B7AE0
+replace 004452F0 Native_004452F0
+replace 00413770 Native_00413770
+replace 005B0510 Native_005B0510
+replace 004455D0 Native_004455D0
+replace 00415140 Native_00415140
+replace 00596F90 Native_00596F90
+replace 004B2F90 Native_004B2F90
+replace 00C59730 Native_00C59730
+replace 00A42670 Native_00A42670
+replace 00906510 Native_00906510
+replace 008600D0 Native_008600D0
+replace 009148C0 Native_009148C0
+replace 00AEC4A0 Native_00AEC4A0
+replace 00905240 Native_00905240
+replace 0061CD50 Native_0061CD50
+replace 0061CC00 Native_0061CC00
+replace 00409110 Native_00409110
+replace 00CF8AE2 Native_00CF8AE2
+replace 006F4010 Native_006F4010
+replace 00C61D10 Native_00C61D10
+replace 00A84970 Native_00A84970
+replace 006518D0 Native_006518D0
+replace 005B1730 Native_005B1730
+replace 00553420 Native_00553420
+replace 00475920 Native_00475920
+replace 00414E60 Native_00414E60
+replace 0095AA80 Native_0095AA80
+replace 009587A0 Native_009587A0
+replace 00908650 Native_00908650
+replace 005B05E0 Native_005B05E0
+replace 00543570 Native_00543570
+replace 004C85A0 Native_004C85A0
+replace 007CD9C0 Native_007CD9C0
+replace 00465BF0 Native_00465BF0
+replace 00451310 Native_00451310
+replace 00445B00 Native_00445B00
+replace 00ADF090 Native_00ADF090
+replace 0041A070 Native_0041A070
+replace 00907C50 Native_00907C50
+replace 004458C0 Native_004458C0
+replace 004152F0 Native_004152F0
+replace 004040A0 Native_004040A0
+replace 00C5F770 Native_00C5F770
+replace 0061DE40 Native_0061DE40
+replace 00A96030 Native_00A96030
+replace 00902C60 Native_00902C60
+replace 0078A930 Native_0078A930
+replace 0061C420 Native_0061C420
+replace 004E1440 Native_004E1440
+replace 0091EFB0 Native_0091EFB0
+replace 008C9040 Native_008C9040
+replace 0066C230 Native_0066C230
+replace 0058D520 Native_0058D520
+replace 00954F90 Native_00954F90
+replace 0085E390 Native_0085E390
+replace 0058E910 Native_0058E910
+replace 00902A30 Native_00902A30
+replace 008C7700 Native_008C7700
+replace 0086BB30 Native_0086BB30
+replace 004182E0 Native_004182E0
+replace 00A42710 Native_00A42710
+replace 00906410 Native_00906410
+replace 00A6EBD0 Native_00A6EBD0
+replace 009577B0 Native_009577B0
+replace 008C7610 Native_008C7610
+replace 00543520 Native_00543520
+replace 004140C0 Native_004140C0
+replace 00BAB6F0 Native_00BAB6F0
+replace 00A3C9F0 Native_00A3C9F0
+replace 007B6E70 Native_007B6E70
+replace 00504D50 Native_00504D50
+replace 004134C0 Native_004134C0
+replace 00C60420 Native_00C60420
+replace 00C5F080 Native_00C5F080
+replace 00BEE910 Native_00BEE910
+replace 00AE2FF0 Native_00AE2FF0
+replace 00905880 Native_00905880
+replace 007B3670 Native_007B3670
+replace 0066CCD0 Native_0066CCD0
+replace 00C03F70 Native_00C03F70
+replace 009074C0 Native_009074C0
+replace 008E0120 Native_008E0120
+replace 00511330 Native_00511330
+replace 0041AA40 Native_0041AA40
+replace 00C670E0 Native_00C670E0
+replace 00A2C680 Native_00A2C680
+replace 008E9C90 Native_008E9C90
+replace 008DDC40 Native_008DDC40
+replace 00505BB0 Native_00505BB0
+replace 00A1E7B0 Native_00A1E7B0
+replace 0061D630 Native_0061D630
+replace 005B18D0 Native_005B18D0
+replace 00585C60 Native_00585C60
+replace 00543BA0 Native_00543BA0
+replace 00510290 Native_00510290
+replace 004F17C0 Native_004F17C0
+replace 00C59A50 Native_00C59A50
+replace 004035E0 Native_004035E0
+replace 00404180 Native_00404180
+replace 00407BE0 Native_00407BE0
+replace 00407CD0 Native_00407CD0
+replace 00408160 Native_00408160
+replace 004084C0 Native_004084C0
+replace 00409040 Native_00409040
+replace 004090D0 Native_004090D0
+replace 0040B940 Native_0040B940
+replace 004134E0 Native_004134E0
+replace 00413530 Native_00413530
+replace 004136D0 Native_004136D0
+replace 00413730 Native_00413730
+replace 00414C90 Native_00414C90
+replace 004181F0 Native_004181F0
+replace 0041A9D0 Native_0041A9D0
+replace 00421410 Native_00421410
+replace 00421420 Native_00421420
+replace 00423620 Native_00423620
+replace 00423E70 Native_00423E70
+replace 00426A70 Native_00426A70
+replace 00426C80 Native_00426C80
+replace 004436C0 Native_004436C0
+replace 00443770 Native_00443770
+replace 004463B0 Native_004463B0
+replace 00447B00 Native_00447B00
+replace 0045CF50 Native_0045CF50
+replace 00465A60 Native_00465A60
+replace 00491740 Native_00491740
+replace 00495E30 Native_00495E30
+replace 004B8770 Native_004B8770
+replace 004B89E0 Native_004B89E0
+replace 004CE670 Native_004CE670
+replace 004E0310 Native_004E0310
+replace 004E0800 Native_004E0800
+replace 004E18A0 Native_004E18A0
+replace 004E1950 Native_004E1950
+replace 004E3C00 Native_004E3C00
+replace 004E6250 Native_004E6250
+replace 004E63D0 Native_004E63D0
+replace 004ECE30 Native_004ECE30
+replace 004ED060 Native_004ED060
+replace 004ED3A0 Native_004ED3A0
+replace 004F02D0 Native_004F02D0
+replace 004FC940 Native_004FC940
+replace 00504C30 Native_00504C30
+replace 00504C70 Native_00504C70
+replace 0050FEA0 Native_0050FEA0
+replace 00511530 Native_00511530
+replace 005115C0 Native_005115C0
+replace 00511630 Native_00511630
+replace 005116D0 Native_005116D0
+replace 0051A0A0 Native_0051A0A0
+replace 00542C10 Native_00542C10
+replace 00542F50 Native_00542F50
+replace 00542FB0 Native_00542FB0
+replace 005430E0 Native_005430E0
+replace 005434B0 Native_005434B0
+replace 005436B0 Native_005436B0
+replace 00543900 Native_00543900
+replace 0055E040 Native_0055E040
+replace 0056E9C0 Native_0056E9C0
+replace 0056F9E0 Native_0056F9E0
+replace 00586370 Native_00586370
+replace 00587870 Native_00587870
+replace 00587900 Native_00587900
+replace 005880B0 Native_005880B0
+replace 0058D280 Native_0058D280
+replace 0058D9D0 Native_0058D9D0
+replace 0058DD30 Native_0058DD30
+replace 00596A80 Native_00596A80
+replace 00598650 Native_00598650
+replace 0059A810 Native_0059A810
+replace 005AFB30 Native_005AFB30
+replace 005B1DC0 Native_005B1DC0
+replace 005B1E60 Native_005B1E60
+replace 005B8770 Native_005B8770
+replace 005BA550 Native_005BA550
+replace 0061CFA0 Native_0061CFA0
+replace 0061D760 Native_0061D760
+replace 0062E320 Native_0062E320
+replace 00657B20 Native_00657B20
+replace 00657EF0 Native_00657EF0
+replace 00658A30 Native_00658A30
+replace 0065FA70 Native_0065FA70
+replace 00661890 Native_00661890
+replace 006623B0 Native_006623B0
+replace 00663F70 Native_00663F70
+replace 00664ED0 Native_00664ED0
+replace 0066C6A0 Native_0066C6A0
+replace 0066D1E0 Native_0066D1E0
+replace 0067C380 Native_0067C380
+replace 00683730 Native_00683730
+replace 00683E70 Native_00683E70
+replace 00683F50 Native_00683F50
+replace 006845A0 Native_006845A0
+replace 00684830 Native_00684830
+replace 00684910 Native_00684910
+replace 006882A0 Native_006882A0
+replace 006883F0 Native_006883F0
+replace 0068D060 Native_0068D060
+replace 00694E90 Native_00694E90
+replace 00695000 Native_00695000
+replace 00695260 Native_00695260
+replace 00699750 Native_00699750
+replace 00699C70 Native_00699C70
+replace 0069AD10 Native_0069AD10
+replace 0069C820 Native_0069C820
+replace 0069CAD0 Native_0069CAD0
+replace 0069F330 Native_0069F330
+replace 006E4A90 Native_006E4A90
+replace 00730970 Native_00730970
+replace 007571F0 Native_007571F0
+replace 0075DD70 Native_0075DD70
+replace 00786C60 Native_00786C60
+replace 007B72A0 Native_007B72A0
+replace 007C4D50 Native_007C4D50
+replace 007CDC20 Native_007CDC20
+replace 007CDE40 Native_007CDE40
+replace 00824D20 Native_00824D20
+replace 0083EC00 Native_0083EC00
+replace 0085D030 Native_0085D030
+replace 0085D140 Native_0085D140
+replace 0085E250 Native_0085E250
+replace 0085E660 Native_0085E660
+replace 0085E6C0 Native_0085E6C0
+replace 0085E790 Native_0085E790
+replace 0085E8D0 Native_0085E8D0
+replace 0085EC20 Native_0085EC20
+replace 0085ED70 Native_0085ED70
+replace 0085F600 Native_0085F600
+replace 00860D00 Native_00860D00
+replace 0086C670 Native_0086C670
+replace 0086C740 Native_0086C740
+replace 008705B0 Native_008705B0
+replace 008B8480 Native_008B8480
+replace 008C0A70 Native_008C0A70
+replace 008C0C40 Native_008C0C40
+replace 008C1BE0 Native_008C1BE0
+replace 008C3C00 Native_008C3C00
+replace 008CAEB0 Native_008CAEB0
+replace 008DB920 Native_008DB920
+replace 008DB940 Native_008DB940
+replace 008E0490 Native_008E0490
+replace 008E09B0 Native_008E09B0
+replace 008E44E0 Native_008E44E0
+replace 008E5E00 Native_008E5E00
+replace 008F22D0 Native_008F22D0
+replace 00902310 Native_00902310
+replace 00902B60 Native_00902B60
+replace 00902BB0 Native_00902BB0
+replace 00902C00 Native_00902C00
+replace 00902C30 Native_00902C30
+replace 00903170 Native_00903170
+replace 00904510 Native_00904510
+replace 00914280 Native_00914280
+replace 009149F0 Native_009149F0
+replace 00915480 Native_00915480
+replace 00922690 Native_00922690
+replace 0092F700 Native_0092F700
+replace 0093F4F0 Native_0093F4F0
+replace 00944EA0 Native_00944EA0
+replace 00952B50 Native_00952B50
+replace 00954B30 Native_00954B30
+replace 00954B60 Native_00954B60
+replace 00954FB0 Native_00954FB0
+replace 00955970 Native_00955970
+replace 00957450 Native_00957450
+replace 00957D80 Native_00957D80
+replace 00959230 Native_00959230
+replace 0095A840 Native_0095A840
+replace 0095B000 Native_0095B000
+replace 0095FFD0 Native_0095FFD0
+replace 00960920 Native_00960920
+replace 00962E90 Native_00962E90
+replace 0096B2F0 Native_0096B2F0
+replace 00977040 Native_00977040
+replace 009775E0 Native_009775E0
+replace 0097B970 Native_0097B970
+replace 00980400 Native_00980400
+replace 009A4A70 Native_009A4A70
+replace 009ACD70 Native_009ACD70
+replace 009AD320 Native_009AD320
+replace 009C0EB0 Native_009C0EB0
+replace 00A09970 Native_00A09970
+replace 00A26F70 Native_00A26F70
+replace 00A28D60 Native_00A28D60
+replace 00A28E00 Native_00A28E00
+replace 00A28F40 Native_00A28F40
+replace 00A290A0 Native_00A290A0
+replace 00A29560 Native_00A29560
+replace 00A29830 Native_00A29830
+replace 00A29930 Native_00A29930
+replace 00A29A80 Native_00A29A80
+replace 00A2A5A0 Native_00A2A5A0
+replace 00A2A7F0 Native_00A2A7F0
+replace 00A2AB00 Native_00A2AB00
+replace 00A2C1C0 Native_00A2C1C0
+replace 00A2CE10 Native_00A2CE10
+replace 00A2DF00 Native_00A2DF00
+replace 00A2EA30 Native_00A2EA30
+replace 00A30150 Native_00A30150
+replace 00A311B0 Native_00A311B0
+replace 00A37450 Native_00A37450
+replace 00A42D20 Native_00A42D20
+replace 00A42DC0 Native_00A42DC0
+replace 00A43120 Native_00A43120
+replace 00A67820 Native_00A67820
+replace 00A6B0B0 Native_00A6B0B0
+replace 00A6EBB0 Native_00A6EBB0
+replace 00A70440 Native_00A70440
+replace 00A95310 Native_00A95310
+replace 00A954A0 Native_00A954A0
+replace 00A955D0 Native_00A955D0
+replace 00A95B00 Native_00A95B00
+replace 00A95B30 Native_00A95B30
+replace 00A96500 Native_00A96500
+replace 00AD8830 Native_00AD8830
+replace 00AD8C10 Native_00AD8C10
+replace 00ADD250 Native_00ADD250
+replace 00ADD3A0 Native_00ADD3A0
+replace 00ADDA50 Native_00ADDA50
+replace 00ADE070 Native_00ADE070
+replace 00ADE5C0 Native_00ADE5C0
+replace 00AE0650 Native_00AE0650
+replace 00AECBC0 Native_00AECBC0
+replace 00AED0A0 Native_00AED0A0
+replace 00AEEE50 Native_00AEEE50
+replace 00B6DEE0 Native_00B6DEE0
+replace 00B95030 Native_00B95030
+replace 00B970A0 Native_00B970A0
+replace 00BD10A0 Native_00BD10A0
+replace 00C02EB0 Native_00C02EB0
+replace 00C4F5E0 Native_00C4F5E0
+replace 00C50830 Native_00C50830
+replace 00C53C70 Native_00C53C70
+replace 00C54000 Native_00C54000
+replace 00C5C330 Native_00C5C330
+replace 00C60A90 Native_00C60A90
+replace 00C6B1E0 Native_00C6B1E0
+replace 00CA1C50 Native_00CA1C50
+replace 00CA22C0 Native_00CA22C0
+replace 00CA3F90 Native_00CA3F90
+replace 00CF5620 Native_00CF5620
+replace 00CF72E0 Native_00CF72E0
+replace 00CF931C Native_00CF931C
+hook 004A18E3 004A18E9   # start's loading screens: 64 fps cap, none with GTAIV_FAST_LOADING
+# The community's fixes, each an option (src/community_fixes.cpp).
+hook 00C77C7D 00C77C83   # ladders: heading within 0.1, as the slide
+hook 00493687 0049368C   # CGame::Init: draw distance settings worked out
+hook 007F1448 007F144D   # radio not retuned after a cutscene
+hook 0047C735 0047C73A   # pause menu: delay opening
+hook 0047D3F0 0047D3F5   # pause menu: delay resuming
+hook 008578A5 008578AB   # pause menu: delay at start
+hook 00A41310 00A41316   # vehicle model budget (taxis everywhere)
+hook 00A41FED 00A41FF2
+hook 007F3DBC 007F3DC1   # atPool: some pools twice the size
+hook 00B72130 00B72135   # drawable references: 20000
+hook 00B4EDC7 00B4EDCE   # ACTIVATE_SAVE_MENU in a vehicle
+hook 009D1D9E 009D1DA6   # mouse recoil: 0.65, as near the gamepad's
+hook 00C3E61D 00C3E625   # cover: no forced camera centring
+hook 00CA1B79 00CA1B7F   # distant lights: from 19:00
+hook 00CA1BDF 00CA1BE5   # distant lights: until 06:00
+hook 00CA1B4E 00CA1B55   # distant lights: in cutscenes
+hook 00C9FA5D 00C9FA65   # distant lights: from the street
+hook 00486AE8 00486AEE   # mouse cursor size: width
+hook 00486B03 00486B09   # mouse cursor size: height
+hook 004A88FB 004A8902   # reticle health with the mouse
+hook 004A8866 004A8868
+hook 004B29F2 004B29F7   # radar zoom-out: 3 s after the key
+hook 00C606F9 00C60701   # car AI: trains above or below not in the way
+hook 007D44F9 007D44FC   # date: not back a day after death/arrest/respray
+hook 0040F152 0040F159   # -nomemrestrict as if given
+hook 007CBB52 007CBB5A   # CTimer: time step floor 1 ms
+hook 008F0071 008F0078   # helicopters: 770 m ceiling (option, off)
+# The community's high frame rate fixes (src/high_fps_fixes.cpp).
+hook 009252C4 009252C9   # CPhysics::Update: pre-simulation step >= 1/150 s
+hook 009252FC 00925301   # CPhysics::Update: post-simulation step >= 1/150 s
+replace 00AD1710 Native_SLIDE_OBJECT   # speeds per time
+replace 008CEF80 HandShaker_Process    # pushes and kicks at 30 Hz; option: no shake
+hook 00C9A84B 00C9A852   # cutscene camera: PC-only checks skipped
+hook 00C9A85E 00C9A860
+hook 00C9A68A 00C9A68F   # cutscene camera: the hold-at-cut flag
+hook 00A23628 00A2362D   # cutscene camera: phase update with and without the hold
+hook 00C9AB1B 00C9AB20
+hook 00C9A591 00C9A599   # cutscene camera: the held frame not stored
+hook 00C9A5D2 00C9A5DA
+hook 009AD73B 009AD740   # water buffers: the flip held until the render wait
+hook 008A187C 008A1883   # CMainLoop::Synchronise after its wait: the held flip
+hook 00B4F179 00B4F180   # SET_MINIGAME_IN_PROGRESS: which script
+hook 00855651 00855656   # once a frame: 30 fps in those minigames
+hook 004B2C45 004B2C48   # radar: every frame, not every 30 ms
+hook 004B2CAA 004B2CB2   # radar zoom in: per time
+hook 004B2CB7 004B2CBF   # radar zoom out: per time
+# FusionFix's data from the player's update folder (src/update_folder.cpp).
+hook 00AC659A 00AC65A2   # IMG list: the update folder's archives first
+replace 008A3F70 Text_GetGxtPath        # its FF companion read along
+replace 008A3BF0 Text_GetTextByKey       # FusionFix's texts first
+replace 008A3CF0 Text_DoesTextLabelExist
+hook 004063D2 004063D6   # keep running without focus (option, off)
+hook 00865ADE 00865AE1   # menus: right click goes back
+hook 008661B9 008661BC
+hook 00866235 00866238
+hook 0086648D 00866490
+replace 00A8DCF0 IntermezzoVaultWall_DetectTrigger       # action camera (option)
+replace 00A8C920 IntermezzoPlayerJackVehicle_DetectTrigger
+hook 00CC3F3A 00CC3F45   # stunt jump camera (option)
+hook 00CC3F45 00CC3F4C   # stunt jump slow motion (option)
+hook 00AC4DE8 00AC4DEF   # shader folder: win32_30 with FusionFix's shaders
+# FusionFix's shader constants (src/ff_shaders.cpp), with its shaders only.
+hook 005B62A8 005B62AD   # grcSetup::BeginDraw: the frame's constants
+hook 004142BE 004142C3   # a viewport made current: logarithmic depth constants
+hook 00A38B65 00A38B6D   # environment reflections: 1.0, not 0.6
+hook 008FEAEC 008FEAF3   # cars spawn with dirt and reflections as on consoles
+hook 00B98343 00B98345
+hook 00901929 00901931   # mirror plane offset 0.0125
+hook 009AA8AA 009AA8B0   # water surface 256x256 (quality 1)
+hook 009ADB46 009ADB4C
+hook 009AFC40 009AFC46
+hook 00A8A6E0 00A8A6E6   # on-foot camera: no recentring 2 s after the mouse
+# The coronas' limit, 768 -> 49152 (src/coronas.cpp): new arrays, limits, index shift.
+hook 00A6F7B9 00A6F7BF
+hook 00A6EEB2 00A6EEB8
+hook 00A6EFC9 00A6EFCE
+hook 00A6EEDF 00A6EEE2
+hook 00A6F2DA 00A6F2DD
+hook 00A6F14E 00A6F151
+hook 00A6EDD4 00A6EDD9
+hook 00A6EFC0 00A6EFC6
+hook 00A6F7D8 00A6F7DF
+hook 00A6F7DF 00A6F7E5
+hook 00A6F7E9 00A6F7EF
+hook 00A6F7F3 00A6F7F9
+hook 00A6F7FD 00A6F805
+hook 00A6F80B 00A6F811
+hook 00A6F816 00A6F81E
+hook 00A6F82A 00A6F832
+hook 00A6F832 00A6F838
+hook 00A6F83E 00A6F846
+hook 00A6F84E 00A6F854
+hook 00A6F860 00A6F866
+hook 00A6F875 00A6F87D
+hook 00A6F888 00A6F890
+hook 00A6F896 00A6F89E
+hook 00A6F89E 00A6F8A4
+hook 00A6F8B2 00A6F8B8
+hook 00A6F8B8 00A6F8C0
+hook 00A6F8C0 00A6F8C8
+hook 00A6F8CB 00A6F8D1
+hook 00A6F8D1 00A6F8D8
+hook 00A6F8E9 00A6F8EF
+hook 00A6EEE7 00A6EEEF
+hook 00A6EEF5 00A6EEFD
+hook 00A6EF03 00A6EF0B
+hook 00A6EF0B 00A6EF13
+hook 00A6EF13 00A6EF19
+hook 00A6EF19 00A6EF1F
+hook 00A6EF23 00A6EF29
+hook 00A6EF33 00A6EF39
+hook 00A6EF39 00A6EF41
+hook 00A6EF41 00A6EF47
+hook 00A6F156 00A6F15D
+hook 00A6F2E2 00A6F2E9
+hook 00A6F2E9 00A6F2F0
+hook 00A6F2F0 00A6F2F7
+hook 00A6F2F7 00A6F2FE
+hook 00A6F2FE 00A6F306
+hook 00A6F306 00A6F30E
+hook 00A6F4AD 00A6F4B5
+replace 007F16B0 CutsceneManager_GetTimeStep   # cutscene time: smooth, locked to the audio
+replace 007F2630 Camera_DrawWidescreenBorders   # cutscene pillars on wide screens
+hook 009C9CD0 009C9CD6   # helicopter main rotor damage: per time
+hook 009C9E03 009C9E09   # helicopter tail damage: per time
+hook 009C9F14 009C9F1A   # helicopter tail rotor damage: per time
+hook 009B95F2 009B95F8   # cops' hats off in vehicles
+hook 009B95FA 009B9600
+hook 00C1A363 00C1A368   # no older death animation after a melee counter
+hook 008F8846 008F8849   # reversing lights at the tail lights' bone
+hook 00B67F1B 00B67F22   # bikes: foot down on the phone in IV too
+hook 00BCB925 00BCB92B   # bikes: feet for reversing in IV too
+hook 00A612D4 00A612D8   # sniper zoom: the player may move
+hook 00A81E06 00A81E0B   # sniper zoom axis from the d-pad (with movement)
+hook 004CCC57 004CCC5C   # web pages: orthographic window by the screen's aspect
+replace 0089DF30 ApplyWidescreenFormat   # web pages: stretched 2D in a 16:9 frame
+replace 00B4D880 Native_GET_MOUSE_POSITION
+replace 004BEDF0 Native_GET_WEB_PAGE_LINK_AT_POSN
+hook 00A63C90 00A63C98   # rain lighting from visualsettings.dat
+hook 00A63CAD 00A63CBB
+hook 00A63CC0 00A63CCE
+hook 00A63CCF 00A63CDD
+hook 00A63CE1 00A63CE7
+replace 009C8200 Heli_PreRender   # one searchlight at a time (option)
+replace 008C31B0 Shadows_NightShadowResolution   # by the night shadows setting (option)
+hook 00A7BF8D 00A7BF94   # car camera: no side offset (option, off)
+hook 00A89930 00A89938   # on-foot camera: no shoulder offset (option, off)
+hook 004A1450 004A1458   # loading screen pictures: 33.3 ms clock
+hook 004A14A8 004A14B0
+hook 00A3B995 00A3B99A   # timecyc.dat lines: bloom / depth of field off (options)
+hook 004869E1 004869E8   # menu cursor hidden with a gamepad
+hook 004869EA 004869F1
+hook 004869FD 004869FF
+replace 0040B280 grmShaderInfo_SetParam   # the sky shader's parameters, for FusionFix's constants
+hook 008FC1A5 008FC1AC   # brake lights while standing (option, off)
+replace 00418820 grmShaderFxTemplate_LoadIntoSlot   # shaders loaded, for FusionFix's new ones
+hook 0041E550 0041E553   # after the preload list: FusionFix's new shaders (with them)
+replace 00A7CFC0 CamFollowVehicle_SprungMounting   # fixed 1/30 s spring steps, interpolated
+hook 00A7CFC9 00A7CFD1   # its time step: 1/30 s while stepped
+hook 00A7D08A 00A7D092   # its inverse time step: 30
+hook 00A813F9 00A81403   # car camera swing back: faster with keyboard and mouse
+hook 00A81108 00A81115
+# Camera and controls (src/camera_controls.cpp).
+hook 00A8A6DA 00A8A6DE   # on-foot camera: no recentring 2 s after the right stick (option)
+hook 00A813F1 00A813F9   # car camera across: no recentring 2 s after mouse/stick (option)
+hook 00A81104 00A81108   # car camera up: the same
+hook 00A9B948 00A9B94F   # aim zoom memory: read back in IV too (option; TBoGT always)
+hook 009DD486 009DD48C   # aim zoom memory: reset to 0, not 1
+hook 00A98F9D 00A98FA3   # aim zoom memory: zoom in followed
+hook 00A99047 00A9904E   # aim zoom memory: zoom out followed
+hook 00A9906F 00A99075   # aim zoom memory: pad toggle followed
+hook 00A80538 00A8053F   # helicopter first-person reticle with a gamepad (option, on)
+hook 00A60CC6 00A60CC9   # auto ladders on foot: button not needed (option)
+hook 00A60CD3 00A60CD6
+hook 00A60D28 00A60D2D   # auto ladders on foot: short range, wait after getting off
+hook 00B686B6 00B686B8   # auto ladders in water: button not needed
+hook 00B686DF 00B686E4   # auto ladders in water: short range, wait after getting off
+hook 00C76B75 00C76B7D   # ladder scan: 1.5 m range for the automatic one
+hook 00C78091 00C78095   # ladder clean-up: when the player got off
+hook 00A8D00D 00A8D015   # stunt jumps: mouse wheel sets the slow motion (option, on)
+hook 0080EDAE 0080EDB4   # radio next station: not while the wheel steers a stunt jump
+hook 0080EDD6 0080EDDC   # radio previous station: the same
+hook 00CC3ED4 00CC3ED9   # stunt jump help text for the mouse (FusionFix's, if loaded)
+hook 00CC3F10 00CC3F15
+# Shadows and lights (src/shadows_lights.cpp).
+hook 008CB242 008CB244   # vehicle night shadows: register "wd_local" after "wd" (FF shaders only)
+hook 0095AEE9 0095AEEE   # vehicle night shadows: lists 0, 1 into local lights' shadow maps
+hook 0095A41B 0095A41E   # vehicle night shadows: peds in vehicles not left out
+hook 008F71E1 008F71E6   # vehicle night shadows: player's headlight without shadows
+hook 008F73EB 008F73F0   # vehicle night shadows: player's headlight without shadows
+hook 008F722D 008F7232   # vehicle night shadows: others' headlights without shadows
+hook 008F7421 008F7426   # vehicle night shadows: others' headlights without shadows
+hook 00959C3E 00959C40   # emissive lists: depth write off (push 1 -> 0)
+hook 00A700CA 00A700D1   # model lights: dynamic shadows for all (option, off)
+hook 008FB168 008FB170   # car bottom shadow: no 80 m fade (option, on)
+hook 008FB380 008FB387   # car bottom shadow: none / none in cutscenes (options, off)
+# Reflections, motion blur, streaming, menu info (src/render_misc.cpp).
+hook 00C5131F 00C51324   # reflection draw list: every phase's list (high detail reflections)
+hook 0096ABCF 0096ABD4   # motion blur mask not set up while the camera shakes
+replace 0040EA20 grcResourceCache_GetAvailableFreeMemory   # extra streaming memory: share by address space used
+hook 00488EE6 00488EEA   # pause menu info line: version / IMG files and streaming memory
+# Gameplay and menus (src/gameplay_misc.cpp).
+hook 00AB79A5 00AB79AA   # glass shards: tail lights' type name red
+hook 00AB79AE 00AB79B3   # glass shards: indicators' type name amber
+hook 009D22B2 009D22B6   # bullet tracers: chance compare (fcomip; fstp)
+hook 00AAAEA9 00AAAEB0   # tracer particle: TBoGT uses IV/TLAD's
+hook 00488DEA 00488DEF   # pause menu info: time / $money format spaced
+hook 00488E18 00488E1D   # pause menu info: time / money$ format spaced
+hook 00488E4C 00488E51   # pause menu info: time format spaced
+hook 00488E6E 00488E73   # pause menu info: time format spaced
+replace 00B4F390 ScriptStringsEqual   # COMPARE_STRING: bad pointers unequal
+hook 007C43B5 007C43B8   # menu lists: scroll past 32 rows
+hook 007C43C1 007C43C4   # menu lists: scroll by count - 16
+hook 007C9F63 007C9F66   # menu lists: scroll past 32 rows
+hook 007C9F6F 007C9F72   # menu lists: scroll by count - 16
+hook 00866F85 00866F88   # menu lists: highlighted row's page past 32
+hook 00866F9B 00866F9E   # menu lists: highlighted row's page by 32
+hook 0081E3B8 0081E3BD   # death music: wasted or busted (was a stub)
+hook 0081E4FC 0081E501   # death music: wasted or busted (was a stub)
+hook 0081E53A 0081E53F   # death music: wasted or busted (was a stub)
+hook 0081E46D 0081E46F   # death music: one of the six tunes at random
+hook 00A164F7 00A164FA   # video editor free camera: no RE_MARKER check
+hook 00A1BD13 00A1BD16   # video editor free camera: not pulled back
+hook 00A1C081 00A1C084   # video editor free camera: not out of range
+hook 00A1C2FE 00A1C303   # video editor free camera: move not refused
+hook 00A1C305 00A1C308   # video editor free camera: move not refused
+hook 00A1C320 00A1C323   # video editor free camera: move not refused
+hook 00A1C3EE 00A1C3F5   # video editor free camera: no reset past 900
+# Errors and physics sleep (src/stability.cpp).
+replace 00456680 Game_FatalError   # GTAIV_ERRORS_TO_LOG (off): logged, no box, back to the caller
+hook 004F0D5E 004F0D66   # phSleep defaults (pool set-up): GTAIV_NO_PHYSICS_SLEEP (off)
+hook 004F10E6 004F10EE   # phSleep defaults (constructor)
+hook 0050B2EF 0050B2F7   # phSleep defaults (constructor with a collider)
+hook 0050B35E 0050B363   # phSleep defaults (reset, the store)
+hook 00BA84A2 00BA84AA   # phSleep defaults (CBoat, back to the defaults)
+# Turn indicators and parked wheels (src/vehicles_misc.cpp).
+hook 008FC09A 008FC0A0   # light pass: the player's vehicle's turn indicators
+hook 00AA0F75 00AA0F7B   # thrown through the windscreen: hazard lights on
+hook 00A55361 00A55369   # car without a driver: wheels kept turned
+hook 00C65BDB 00C65BE3   # autopilot stop: wheels kept turned
+hook 00B9BDC4 00B9BDCC   # bike without a driver: handlebars kept turned
+hook 00B9BE6F 00B9BE77   # bike on its stand: handlebars kept turned
+# FusionFix shader settings: cascaded shadows (src/ff_shaders.cpp).
+hook 00AC4C33 00AC4C3D   # shadow atlas R32F, not R16F (FusionFix's shaders, src/ff_shaders.cpp)
+hook 00A95D21 00A95D29   # deferred G-buffers A8R8G8B8, not A2R10G10B10 (FusionFix's shaders)
+# Camera and controls, round 2 (src/camera_controls2.cpp).
+hook 00A777CC 00A777CE   # height-based FOV: no widening during a player's drive-by, as with an idle camera (GTAIV_DRIVEBY_FOV_FIX)
+hook 009989A7 009989A9   # sprint taps: each held frame adds energy, holding sprints (GTAIV_ALWAYS_RUN)
+hook 00998BB5 00998BBC   # sprint threshold: a short tap does not sprint, its release switches run/jog (GTAIV_ALWAYS_RUN)
+hook 00998C73 00998C76   # sprint key up: result 1, run (GTAIV_ALWAYS_RUN, sprint setting on hold)
+hook 00998938 0099893F   # no sprinting in interiors flag read as 0 (GTAIV_ALWAYS_RUN)
+hook 00A5C14B 00A5C152   # the same, network path of the player's move task
+hook 00C0E758 00C0E75F   # the same, another network path
+hook 009DF78E 009DF792   # camera factory: the type of the last camera made noted (scope = 27)
+hook 00A77180 00A77183   # aiming camera: weapon's FIRST_PERSON flag dropped unless the scope was asked for (GTAIV_EXTENDED_SNIPER)
+hook 00A77286 00A77289   # aiming camera: the same, second read
+hook 004A8DCA 004A8DCD   # reticle: the same
+hook 00A60463 00A60468   # player wants to aim: Jump toggles the scope; no aiming while a dropped scope is still up
+hook 00A607AC 00A607B1   # the same, second call
+# Tree shadows (src/tree_shadows.cpp).
+hook 00AC68D2 00AC68D7   # tree shadows: IDE instance models (trees, bushes) made base models
+# Impostors and cascaded shadows (src/render_misc2.cpp).
+hook 00CA057A 00CA0582   # vehicle impostors by day: no 75 m height cutoff for the second road list (GTAIV_NO_IMPOSTOR_HEIGHT_CUTOFF)
+hook 00CA117B 00CA1183   # vehicle impostors by night: no 75 m height cutoff for the second road list (GTAIV_NO_IMPOSTOR_HEIGHT_CUTOFF)
+hook 008C896D 008C896F   # cascade targets: no add esi, esi with FusionFix's cascade fixes unless high resolution shadows (src/ff_shaders.cpp)
+hook 008C89FB 008C8A09   # shadow atlas creation: twice the size with GTAIV_FF_HIGH_RES_SHADOWS (src/ff_shaders.cpp)
+# FusionFix's timecycext and volumetric fog (src/ff_timecycext.cpp).
+replace 007F8AA0 CClock_Update   # FusionFix's timecycext values blended by hour, weather, modifiers
+replace 00A36790 CTimeCycle_ApplyModifier   # a timecycle modifier's strength noted for timecyclemodifiersext.dat
+hook 00A39DE6 00A39DEB   # interior modifier blend: the room's modifier noted
+hook 00A39DFD 00A39E02   # interior modifier blend: the room's share noted
+hook 00A39EF6 00A39EFE   # interior modifiers' fade: a full room takes it
+hook 00A3BB7B 00A3BB84   # timecyc.dat far clip 4500 m with volumetric fog
+hook 00A3A3FB 00A3A403   # far clip multiplier by camera height kept at 1 with volumetric fog
+hook 00A3A417 00A3A41F   # near fog multiplier by camera height kept at 1 with volumetric fog
+hook 00A356AC 00A356B5   # timecycle modifier min far clip none with volumetric fog
+hook 00A356BD 00A356C6   # timecycle modifier max far clip none with volumetric fog
+hook 007F5F02 007F5F08   # cutscene far clip keyframes none with volumetric fog
+# Gameplay, round 2 (src/gameplay_misc2.cpp).
+replace 00B51C70 GetFrameTimeNative   # GET_FRAME_TIME: finale2's climb decay check gets >= 0.06 s
+replace 0084D2B0 StopPhoneRingingNative   # STOP_MOBILE_PHONE_RINGING: phone cheats at the cheat check
+replace 008B3A30 ScriptLauncher   # the launcher behind [0108E7B8] after game init: alternative banter counters
+# Stability, round 2 (src/stability2.cpp).
+hook 00AAE16E 00AAE178   # CTaskSimplePlayerAimProjectile process: no-pad ped's pad flag read unchecked: GTAIV_AIM_PROJECTILE_FIX

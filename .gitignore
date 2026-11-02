@@ -1,0 +1,17 @@
+# Derived from the player's game files: never committed. (symbols/ is: the
+# functions' addresses and names, which the lifter needs.)
+generated/
+ghidra/
+*.gpr
+*.rep/
+out/
+run/
+# x86recomp (vendor/x86recomp, its `liberty` branch; see X86RECOMP).
+vendor/
+# Local machine settings.
+tools/local.env
+config.local.json
+CMakeUserPresets.json
+__pycache__/
+.DS_Store
+*.log

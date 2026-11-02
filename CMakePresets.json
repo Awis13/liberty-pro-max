@@ -48,6 +48,31 @@
         "RECOMP_SSE_HOST": "ON",
         "RECOMP_HOST_CPU": "apple-m1"
       }
+    },
+    {
+      "name": "appletvos",
+      "displayName": "Apple TV (PLATFORMS=tvos tools/apple_deps.sh first)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/out/apple/build-tvos",
+      "environment": {
+        "PKG_CONFIG_LIBDIR": "${sourceDir}/out/apple/prefix-tvos/lib/pkgconfig",
+        "PKG_CONFIG_SYSROOT_DIR": ""
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "CMAKE_SYSTEM_NAME": "tvOS",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_OSX_DEPLOYMENT_TARGET": "17.0",
+        "CMAKE_FIND_ROOT_PATH": "${sourceDir}/out/apple/prefix-tvos",
+        "CMAKE_PREFIX_PATH": "${sourceDir}/out/apple/prefix-tvos",
+        "RECOMP_LLVM_DEMANGLE_SRC": "${sourceDir}/out/apple/src/llvm-demangle",
+        "RECOMP_LLVM_ROOT": "/opt/homebrew/opt/llvm@22",
+        "RECOMP_LTO": "ON",
+        "RECOMP_SSE_HOST": "ON",
+        "RECOMP_HOST_CPU": "apple-m1"
+      }
     }
   ],
   "buildPresets": [
@@ -62,6 +87,10 @@
     {
       "name": "iphoneos",
       "configurePreset": "iphoneos"
+    },
+    {
+      "name": "appletvos",
+      "configurePreset": "appletvos"
     }
   ]
 }

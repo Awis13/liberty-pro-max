@@ -1,7 +1,8 @@
 #!/bin/zsh
 # apple_deps.sh
 # Builds what the iPad build links against into $GTAIV_APPLE_BUILD/prefix-ios
-# (default out/apple):
+# (default out/apple); PLATFORMS=tvos (or "ios tvos") the Apple TV's into
+# prefix-tvos:
 #   SDL3 3.4.18           as a dylib (it goes into the app's Frameworks)
 #   FFmpeg 9.0.2          static, only what the game uses: the Bink and MP3
 #                         decoders and demuxers, swscale
@@ -10,14 +11,14 @@
 # and fetches LLVM's Demangle sources (llvmorg-22.1.8) into
 # $GTAIV_APPLE_BUILD/src/llvm-demangle, which the build compiles itself.
 # Needs Xcode (DEVELOPER_DIR, or the selected one), CMake, Ninja, git, curl.
-# The preset `iphoneos` (CMakePresets.json) then builds the game against
-# them; it expects the default GTAIV_APPLE_BUILD, out/apple.
+# The presets `iphoneos` and `appletvos` (CMakePresets.json) then build the
+# game against them; they expect the default GTAIV_APPLE_BUILD, out/apple.
 set -euo pipefail
 here=${0:A:h:h}
 [[ -f $here/tools/local.env ]] && . $here/tools/local.env
 w=${GTAIV_APPLE_BUILD:-$here/out/apple}
 src=$w/src
-platforms=(ios)
+platforms=(${=PLATFORMS:-ios})
 mkdir -p $src
 cd $src
 
@@ -37,6 +38,7 @@ fi
 for p in $platforms; do
   case $p in
     ios)  system=iOS  sdk=iphoneos  minflag=-miphoneos-version-min=17.0 ;;
+    tvos) system=tvOS sdk=appletvos minflag=-mappletvos-version-min=17.0 ;;
     *) echo "unknown platform $p" >&2; exit 2 ;;
   esac
   prefix=$w/prefix-$p

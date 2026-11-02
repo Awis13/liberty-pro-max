@@ -6,6 +6,8 @@
 
 #import <UIKit/UIKit.h>
 
+#include <TargetConditionals.h>
+
 #include <algorithm>
 #include <string>
 
@@ -32,6 +34,7 @@ bool g_play = false;
 
 }  // namespace
 
+#if !TARGET_OS_TV
 @interface LpmLauncher : UIViewController <UITableViewDataSource, UITableViewDelegate>
 @property(strong) UITableView* table;
 @end
@@ -237,12 +240,26 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
 
 @end
 
+#endif  // !TARGET_OS_TV
+
 // main.cpp (iPad): the launcher until Play, then the options into the
 // environment; the game's resolution goes on its command line (game_args).
 void RunIosLauncher(std::string* game_args) {
   @autoreleasepool {
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
     RegisterDefaults(d);
+#if TARGET_OS_TV
+    // Apple TV: no settings screen yet; the defaults at 1920x1080, SMAA,
+    // the graphics menu's settings applied from the start.
+    [d registerDefaults:@{kAntiAliasingKey : @1, kHudKey : @NO, @"FixDrawDistance" : @YES}];
+    ApplyOptions(d);
+    setenv("GTAIV_VSYNC", "1", 1);
+    // GTAIV_VIDMEM: the video memory the game is told it has (MB).
+    const char* vm = std::getenv("GTAIV_VIDMEM");
+    std::string res = std::string("-norestrictions -availablevidmem ") + (vm ? vm : "2047") +
+                      " -width 1920 -height 1080";
+    *game_args = game_args->empty() ? res : *game_args + " " + res;
+#else
     // The iPad's own defaults: 1792x1344 at 60, SMAA (TAA costs the GPU
     // time a 60 fps frame lacks here), the rest as on the Mac.
     [d registerDefaults:@{kIosResolutionKey : @1, kIosFrameLimitKey : @0}];
@@ -298,5 +315,6 @@ void RunIosLauncher(std::string* game_args) {
     std::string res = "-norestrictions -availablevidmem 2047 -width " + std::to_string(r.w) +
                       " -height " + std::to_string(r.h);
     *game_args = game_args->empty() ? res : *game_args + " " + res;
+#endif
   }
 }

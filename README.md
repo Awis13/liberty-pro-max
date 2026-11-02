@@ -1,8 +1,8 @@
 # Liberty Pro Max
 
-**Grand Theft Auto IV (PC 1.0.8.0) running natively on Apple silicon Macs and iPads.**
+**Grand Theft Auto IV (PC 1.0.8.0) running natively on Apple silicon Macs and iPads, and on Apple TV.**
 
-Liberty Pro Max is a native port of the PC version of GTA IV to Mac and iPad,
+Liberty Pro Max is a native port of the PC version of GTA IV to Mac and iPad (and, experimentally, Apple TV),
 made by statically recompiling the game's own x86 code with
 [x86recomp](https://github.com/JTM-rootstorm/x86recomp). The executable is
 translated to C++ and compiled for Apple silicon, so the game runs as it does
@@ -61,6 +61,10 @@ Measured on an M3 Pro at 3440×1440, maximum settings, on the same street:
     Addressing* and *Increased Memory Limit* capabilities, which free
     accounts do not have;
   - a controller or a keyboard.
+- **For the Apple TV** (experimental): an Apple TV 4K (3rd generation,
+  A15) with tvOS 17 or newer, paired with Xcode (Window › Devices and
+  Simulators) and in Developer Mode, on Ethernet (the game's 15 GB go over
+  the network), about 16 GB free; the same paid account; a controller.
 
 ## Install
 
@@ -102,6 +106,21 @@ Then open **Liberty Pro Max** on the iPad, check the settings, press
 graphics menu decides the rest: lower its view and detail distance if busy
 streets drop below 60. The game's log is `log.txt` in the app's Documents
 (Files › On My iPad, or `devicectl`).
+
+### Apple TV (experimental)
+
+After the Mac install, with the Apple TV paired:
+
+```bash
+./install-ios.sh --tv YOUR_TEAM_ID
+```
+
+The same steps as for the iPad, built for tvOS. The app has no settings
+screen: it starts the game at 1920×1080 with SMAA at 60 fps. The A15 cannot
+sample the game's DXT textures, so they are decoded on upload and take
+several times their size: keep the game's texture quality at its default,
+or the Apple TV's 2.1 GB per app runs out. The log is `log.txt` in the
+app's Library/Caches (`devicectl`).
 
 ### Recommended (Mac)
 
@@ -146,6 +165,10 @@ cmake --build --preset iphoneos`, then `tools/ios_profile.sh`,
 `tools/ios_push_game.py` (each script says what it takes; `install-ios.sh`
 runs them in order).
 
+For the Apple TV, the same with `PLATFORMS=tvos tools/apple_deps.sh`, the
+preset `appletvos` and `PLATFORM=tvos` for `tools/ios_profile.sh` and
+`tools/ios_bundle.sh`.
+
 ## How it works
 
 - `symbols/` holds the addresses and names of the game's functions (exported
@@ -166,7 +189,9 @@ runs them in order).
 
 ## Known limits
 
-- Mac and iPad for now. Linux (and the Steam Deck) and Apple TV are planned.
+- Mac, iPad and (experimental) Apple TV for now. Linux and the Steam Deck are planned.
+- Apple TV: no settings screen and no icon yet; high texture quality does
+  not fit its memory (DXT decoded on upload).
 - iPad: no touch controls; busy streets need the game's distances lowered
   for a steady 60 fps.
 - Multiplayer is not available.

@@ -61,6 +61,8 @@ const Fix kFixes[] = {
     {@"CursorSize", "GTAIV_CURSOR_SIZE", @"Mouse cursor scaled to the screen"},
     {@"HideCursorOnPad", "GTAIV_HIDE_CURSOR_ON_PAD", @"Menu cursor hidden while playing with a gamepad"},
     {@"ReticleHealth", "GTAIV_RETICLE_HEALTH", @"Target health on the reticle with the mouse"},
+    {@"PlayerFullDamage", "GTAIV_PLAYER_FULL_DAMAGE", @"Niko takes full damage (the game gives him a third of it)"},
+    {@"SaveHealthCap", "GTAIV_SAVE_HEALTH_CAP", @"Health from a save at most a full bar (trainer saves)"},
     {@"RadarZoomDelay", "GTAIV_RADAR_ZOOM_DELAY", @"Radar stays zoomed out for 3 seconds"},
     {@"TrainLanes", "GTAIV_TRAIN_LANES", @"Cars do not swerve under trains"},
     {@"DateFix", "GTAIV_DATE_FIX", @"Date does not go back after dying or arrest"},

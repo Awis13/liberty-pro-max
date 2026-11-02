@@ -22,11 +22,13 @@
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
 #endif
-#if TARGET_OS_IOS
-// iPad: SDL owns UIKit's startup and calls main (SDL_main) on the main
-// thread. The game's files are in Documents/game (copied there over the
-// cable: too big for the bundle), what the game writes (the C: drive, the
-// saves, the settings) below Documents/gtaiv, the log to Documents/log.txt.
+#if TARGET_OS_IOS || TARGET_OS_TV
+// iPad and Apple TV: SDL owns UIKit's startup and calls main (SDL_main) on
+// the main thread. The game's files are in <data>/game (copied there with
+// devicectl: too big for the bundle), what the game writes (the C: drive,
+// the saves, the settings) below <data>/gtaiv, the log to <data>/log.txt.
+// <data> is Documents on the iPad; Library/Caches on Apple TV, which has no
+// Documents (the system empties Caches only when its storage runs out).
 #include <unistd.h>
 
 #include <SDL3/SDL.h>
@@ -85,7 +87,14 @@ int main(int argc, char** argv) {
   std::string game_dir, game_args;
 #if GTAIV_IOS
   if (const char* home = std::getenv("HOME")) {
+#if TARGET_OS_TV
+    const std::string docs = std::string(home) + "/Library/Caches";
+    // The Siri Remote is not a controller for this game (it would take the
+    // first pad's slot); a real gamepad plays it.
+    SDL_SetHint(SDL_HINT_TV_REMOTE_AS_JOYSTICK, "0");
+#else
     const std::string docs = std::string(home) + "/Documents";
+#endif
     // (GTAIV_LOG_CONSOLE=1: stderr stays the console, for devicectl --console.)
     const char* console = std::getenv("GTAIV_LOG_CONSOLE");
     if (!(console && *console == '1')) {
@@ -103,6 +112,12 @@ int main(int argc, char** argv) {
   setenv("GTAIV_VSYNC", "1", 0);
   setenv("GTAIV_SKIP_INTRO", "1", 0);
   setenv("GTAIV_FPS_REPORT", "10", 0);
+#if TARGET_OS_TV
+  // The shared vertex and index buffer heap is resident whole (the GPU maps
+  // it): 192 MB was never full in play, 512 would take 320 MB more of the
+  // Apple TV's 2.1 GB.
+  setenv("GTAIV_GPU_HEAP_MB", "192", 0);
+#endif
   // The launcher (the radio payload, when imported, is in
   // Documents/gtaiv/drive_c/radio-restored).
   RunIosLauncher(&game_args);

@@ -9,7 +9,11 @@
 //   GTAIV_PHONE_CHEATS: two phone cheats for Niko: 458-555-0100 the
 //     beta's gloves, 288-555-0100 the beta's hair (dialled again: back);
 //   GTAIV_ALT_DIALOGUE (off by default): missions play the other variant
-//     of their car banter, the one a retry plays.
+//     of their car banter, the one a retry plays;
+//   GTAIV_PLAYER_FULL_DAMAGE: Niko takes weapons' whole damage, not a
+//     third of it (two thirds from melee and explosions);
+//   GTAIV_SAVE_HEALTH_CAP: a save's health over 200 (a trainer's) loads
+//     as 200.
 
 #include <algorithm>
 #include <cctype>
@@ -294,6 +298,27 @@ void f_008B3A30(Ctx& c) {
       if (k.global < count && SameName(script, k.script)) Wr32(globals + 4 * k.global, 1);
   }
   f_008B3A30_lifted(c);
+}
+
+// --- Damage to the player. CPedDamageCalculator (00BA0000) scales a
+// weapon's damage for the player as victim: mulss xmm0, [00DCDF14] (0.33)
+// for guns, mulss xmm0, [00DCDF1C] (0.66) for melee and explosive
+// groups 3-5; other peds take their ped type's multiplier.
+namespace {
+bool PlayerFullDamage() {
+  static const bool on = OptionOn("GTAIV_PLAYER_FULL_DAMAGE", true);
+  return on;
+}
+}  // namespace
+void hook_00BA006A(Ctx& c) { SetLane0(c.xmm[0], Lane0(c.xmm[0]) * (PlayerFullDamage() ? 1.0f : RdF32(0x00DCDF14))); }
+void hook_00BA0079(Ctx& c) { SetLane0(c.xmm[0], Lane0(c.xmm[0]) * (PlayerFullDamage() ? 1.0f : RdF32(0x00DCDF1C))); }
+
+// The player's state from a save (00946555: fld [esi+50], the health
+// SetHealth gets): no more than the 200 a full bar is.
+void hook_00946555(Ctx& c) {
+  static const bool on = OptionOn("GTAIV_SAVE_HEALTH_CAP", true);
+  const float h = RdF32(c.esi + 0x50);
+  x87::LoadF32(c.fpu, Bits(on ? std::min(h, 200.0f) : h));
 }
 
 }  // namespace recomp::gen

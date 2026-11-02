@@ -1,6 +1,7 @@
 #!/bin/zsh
 # ios_bundle.sh [device id]
-# Turns the iPad build (cmake --preset ios) into a signed Liberty Pro Max.app
+# Turns the iPad build (cmake --preset iphoneos), or with PLATFORM=tvos the
+# Apple TV one (cmake --preset appletvos), into a signed Liberty Pro Max.app
 # and, given a device id, installs it:
 #   - the runtime's dylibs and SDL3 into Frameworks/;
 #   - the icon through an asset catalog (ICONS/icon1024.png, if present);
@@ -20,9 +21,15 @@ here=${0:A:h:h}
 device=$1
 [[ -f $here/tools/local.env ]] && . $here/tools/local.env
 w=${GTAIV_APPLE_BUILD:-$here/out/apple}
-: ${BUILD:=$w/build-ios} ${PREFIX:=$w/prefix-ios} ${OUT:=$w/out}
-: ${PROFILE:=$w/profiles/libertypromax.mobileprovision}
-entitlements=$here/port/ios/LibertyProMax.entitlements
+if [[ ${PLATFORM:-ios} == tvos ]]; then
+  : ${BUILD:=$w/build-tvos} ${PREFIX:=$w/prefix-tvos} ${OUT:=$w/out-tvos}
+  : ${PROFILE:=$w/profiles/libertypromax-tvos.mobileprovision}
+  entitlements=$here/port/ios/LibertyProMax-tvOS.entitlements
+else
+  : ${BUILD:=$w/build-ios} ${PREFIX:=$w/prefix-ios} ${OUT:=$w/out}
+  : ${PROFILE:=$w/profiles/libertypromax.mobileprovision}
+  entitlements=$here/port/ios/LibertyProMax.entitlements
+fi
 : ${ICONS:=$here/out/icons}
 # Default identity: a valid one whose certificate is in the profile.
 if [[ -z $SIGN_ID ]]; then
@@ -51,7 +58,9 @@ rsync -a --delete $BUILD/x86recomp/librecomp_*.dylib $PREFIX/lib/libSDL3.0.dylib
 icons=$OUT/icon
 mkdir -p $icons
 rm -f $icons/partial.plist
-if [[ ! -f $ICONS/icon1024.png ]]; then
+if [[ ${PLATFORM:-ios} == tvos ]]; then
+  echo "Apple TV: no icon yet (it needs a layered one)"
+elif [[ ! -f $ICONS/icon1024.png ]]; then
   echo "no icons in $ICONS (tools/icon/make_icons.py): the app has none"
 else
 mkdir -p $icons/Assets.xcassets/AppIcon.appiconset
@@ -84,6 +93,13 @@ for k in application-identifier com.apple.developer.team-identifier; do
   v=$(/usr/libexec/PlistBuddy -c "Print :$k" $prof_ent)
   /usr/libexec/PlistBuddy -c "Delete :$k" $ent 2>/dev/null || true
   /usr/libexec/PlistBuddy -c "Add :$k string $v" $ent
+done
+# Every library must be built for this platform: dyld refuses an iOS one
+# on tvOS only at launch, with the app already installed.
+want=${${PLATFORM:-ios}:u}
+for d in $app/Frameworks/*.dylib; do
+  have=$(vtool -show-build $d | awk '/platform/ {print $2; exit}')
+  [[ $have == $want ]] || { echo "$d: built for $have, not $want" >&2; exit 1; }
 done
 for d in $app/Frameworks/*.dylib; do
   codesign --force --sign $SIGN_ID --timestamp=none $d

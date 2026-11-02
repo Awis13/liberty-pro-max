@@ -125,6 +125,9 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 
 @implementation GtaivLauncher
 
+// The window's width; notes wrap within the grid's second column.
+constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
+
 - (NSTextField*)label:(NSString*)text {
   NSTextField* t = [NSTextField labelWithString:text];
   t.alignment = NSTextAlignmentRight;
@@ -170,7 +173,7 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
   self.taaSharpening = [self popup:@[ @"Off", @"Low", @"Medium", @"High" ]
                           selected:std::clamp<NSInteger>([d integerForKey:kTaaSharpeningKey], 0, 3)];
   NSTextField* aaNote = [NSTextField
-      labelWithString:@"SMAA smooths edges cheaply. TAA also steadies wires, fences and leaves at little cost; "
+      wrappingLabelWithString:@"SMAA smooths edges cheaply. TAA also steadies wires, fences and leaves at little cost; "
                       @"MetalFX does it best and, below native resolution, also raises the frame rate. "
                       @"SMAA + MetalFX spatial upscales without history: the fastest below native resolution."];
   aaNote.textColor = NSColor.secondaryLabelColor;
@@ -194,7 +197,7 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
                                            action:nil];
   self.originalRadio.state = [d boolForKey:kRadioKey] ? NSControlStateValueOn : NSControlStateValueOff;
   self.radioNote = [NSTextField
-      labelWithString:HasRadioPayload()
+      wrappingLabelWithString:HasRadioPayload()
           ? @"The songs the 2018 update cut, played from files outside your install."
           : @"Not ready yet: import the payload with tools/radio_import.sh first."];
   self.radioNote.textColor = HasRadioPayload() ? NSColor.secondaryLabelColor : NSColor.systemRedColor;
@@ -237,7 +240,8 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
   self.executions = [NSButton checkboxWithTitle:@"Executions on anyone" target:nil action:nil];
   self.executions.state = [d boolForKey:kExecutionsKey] ? NSControlStateValueOn : NSControlStateValueOff;
   NSTextField* meleeNote = [NSTextField
-      labelWithString:@"Moves the game keeps for a few missions: sneak up unarmed (or with a pistol), lock on, attack."];
+      wrappingLabelWithString:@"Moves the game keeps for a few missions: sneak up unarmed (or with a pistol), lock on, attack."];
+  for (NSTextField* n : @[ aaNote, self.radioNote, meleeNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
   for (NSTextField* n : @[ shadowNote, reflNote, fovNote, loadNote, meleeNote ]) {
     n.textColor = NSColor.secondaryLabelColor;
     n.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
@@ -313,8 +317,11 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
         [g.trailingAnchor constraintEqualToAnchor:page.trailingAnchor constant:-4],
         [g.bottomAnchor constraintEqualToAnchor:page.bottomAnchor constant:-4],
       ]];
-    else
-      [g.trailingAnchor constraintLessThanOrEqualToAnchor:page.trailingAnchor constant:-14].active = YES;
+    else  // the page grows to the whole grid
+      [NSLayoutConstraint activateConstraints:@[
+        [g.trailingAnchor constraintLessThanOrEqualToAnchor:page.trailingAnchor constant:-14],
+        [g.bottomAnchor constraintLessThanOrEqualToAnchor:page.bottomAnchor constant:-14],
+      ]];
     item.view = page;
     [self.tabs addTabViewItem:item];
   }
@@ -352,10 +359,14 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
     [all.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
     [buttons.widthAnchor constraintEqualToAnchor:all.widthAnchor constant:-56],
     [self.tabs.widthAnchor constraintEqualToAnchor:all.widthAnchor constant:-56],
-    [self.tabs.heightAnchor constraintEqualToConstant:360],
+    [self.tabs.heightAnchor constraintGreaterThanOrEqualToConstant:360],
+    [all.widthAnchor constraintEqualToConstant:kWindowWidth],
     [self.folderField.widthAnchor constraintGreaterThanOrEqualToConstant:300],
   ]];
   [self showFolder];
+  // As tall as its content (the General tab's grid sets the minimum).
+  [self.window layoutIfNeeded];
+  [self.window setContentSize:all.fittingSize];
   [self.window center];
 }
 

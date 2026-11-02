@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Copy the game's files into the iPad app's Documents/game with devicectl.
+"""Copy the game's files into the iPad app's Documents/game (DEST: on Apple
+TV, Library/Caches/game) with devicectl.
 
   ios_push_game.py GAME_DIR DEVICE BUNDLE_ID
 
@@ -16,6 +17,8 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 ENTRIES = [".rpf_key", "commandline.txt", "GTAIV.exe", "GTAIV.exe.cfg", "index.bin",
            "lang.ini", "metadata.dat", "common", "movies", "pc"]
@@ -51,32 +54,48 @@ def main():
     src, device = os.path.realpath(sys.argv[1]), sys.argv[2]
     app = sys.argv[3]
     state = os.environ.get("STATE", os.path.join(os.getcwd(), "ios_push_game.state"))
+    dest = os.environ.get("DEST", "Documents/game")
+    # PARALLEL=n copies at once: devicectl sends one file at a time through
+    # its tunnel (about 5 MB/s to an Apple TV on Ethernet), not the link's.
+    parallel = int(os.environ.get("PARALLEL", "1"))
     done = set()
     if os.path.exists(state):
         with open(state) as f:
             done = set(line.rstrip("\n") for line in f)
     items = [it for e in ENTRIES if os.path.exists(os.path.join(src, e)) for it in plan(src, e)]
     total = sum(size for _, size in items)
-    sent = sum(size for item, size in items if item in done)
-    for item, size in items:
-        if item in done:
-            continue
-        free = shutil.disk_usage("/").free
-        if free < MIN_FREE + size:
-            print(f"STOP: Mac free {free >> 30} GB, next item {size >> 20} MB: {item}", flush=True)
-            sys.exit(2)
+    sent = [sum(size for item, size in items if item in done)]
+    lock = threading.Lock()
+    failed = []
+
+    def send(job):
+        item, size = job
+        if failed:
+            return
+        with lock:
+            free = shutil.disk_usage("/").free
+            if free < MIN_FREE + size * parallel:
+                failed.append(f"STOP: Mac free {free >> 30} GB, next item {size >> 20} MB: {item}")
+                return
         cmd = ["xcrun", "devicectl", "device", "copy", "to", "--device", device,
                "--domain-type", "appDataContainer", "--domain-identifier", app,
                "--source", os.path.realpath(os.path.join(src, item)),
-               "--destination", f"Documents/game/{item}", "--timeout", "3600"]
+               "--destination", f"{dest}/{item}", "--timeout", "3600"]
         result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            print(f"FAIL {item}: {(result.stderr or result.stdout).strip()[-400:]}", flush=True)
-            sys.exit(1)
-        with open(state, "a") as f:
-            f.write(item + "\n")
-        sent += size
-        print(f"ok {sent * 100 // total}% {sent >> 20}/{total >> 20} MB  {item}", flush=True)
+        with lock:
+            if result.returncode != 0:
+                failed.append(f"FAIL {item}: {(result.stderr or result.stdout).strip()[-400:]}")
+                return
+            with open(state, "a") as f:
+                f.write(item + "\n")
+            sent[0] += size
+            print(f"ok {sent[0] * 100 // total}% {sent[0] >> 20}/{total >> 20} MB  {item}", flush=True)
+
+    with ThreadPoolExecutor(max_workers=parallel) as pool:
+        list(pool.map(send, [it for it in items if it[0] not in done]))
+    if failed:
+        print(failed[0], flush=True)
+        sys.exit(1)
     print("DONE", flush=True)
 
 

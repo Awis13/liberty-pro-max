@@ -6,7 +6,7 @@ endif()
 
 set(CMAKE_CXX_STANDARD 20)
 # iPad: the runtime's dylibs go into the app's Frameworks.
-if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
+if(CMAKE_SYSTEM_NAME MATCHES "^(iOS|tvOS)$")
   set(CMAKE_BUILD_WITH_INSTALL_RPATH ON)
   set(CMAKE_INSTALL_RPATH "@executable_path/Frameworks")
   set(CMAKE_INSTALL_NAME_DIR "@rpath")
@@ -64,9 +64,14 @@ if(TARGET gtaiv_lifted)
     # The .app with its Info.plist; tools/ios_bundle.sh adds the runtime
     # dylibs (Frameworks/), the icon, and signs it. The game's files go into
     # its Documents over the cable (tools/ios_push_game.py).
+    if(CMAKE_SYSTEM_NAME STREQUAL "tvOS")
+      set(GTAIV_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/port/ios/Info-tvOS.plist")
+    else()
+      set(GTAIV_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/port/ios/Info.plist")
+    endif()
     set_target_properties(gtaiv PROPERTIES
       MACOSX_BUNDLE ON
-      MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/port/ios/Info.plist"
+      MACOSX_BUNDLE_INFO_PLIST "${GTAIV_INFO_PLIST}"
       INSTALL_RPATH "@executable_path/Frameworks"
       BUILD_WITH_INSTALL_RPATH ON)
     # The settings screen before the game (Objective-C++, ARC).

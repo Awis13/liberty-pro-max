@@ -58,13 +58,13 @@ PLATFORM=$p BUILD=out/apple/build-$p PREFIX=out/apple/prefix-$p ICONS=out/icons 
 say "The game's files (15 GB; on the Apple TV over the network, use Ethernet)"
 DEST=$data/game STATE=out/apple/push-$p.state python3 tools/ios_push_game.py "$GTAIV_GAME_DIR" $device $bundle
 
-radio="$HOME/Library/Application Support/gtaiv/drive_c/radio-restored"
-if [[ -d $radio ]]; then
-  say "The restored radio songs"
-  (cd $radio && find . -type f) | while read -r f; do
+mods="$HOME/Library/Application Support/gtaiv/drive_c/mods"
+if [[ -d $mods ]]; then
+  say "Your mods"
+  (cd $mods && find . -type f) | while read -r f; do
     xcrun devicectl device copy to --device $device --domain-type appDataContainer \
-      --domain-identifier $bundle --source "$radio/${f#./}" \
-      --destination "$data/gtaiv/drive_c/radio-restored/${f#./}" --timeout 600 > /dev/null
+      --domain-identifier $bundle --source "$mods/${f#./}" \
+      --destination "$data/gtaiv/drive_c/mods/${f#./}" --timeout 600 > /dev/null
   done
 fi
 

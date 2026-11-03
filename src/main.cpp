@@ -43,10 +43,9 @@ bool GtaivSendMessage(uint32_t hwnd, uint32_t msg, uint32_t wparam, uint32_t lpa
 // threads.cpp: the host scheduling class of each thread the game starts.
 bool GtaivThreadQos(recomp::gaddr entry, uint64_t param, recomp::platform::ThreadQos* out);
 
-// radio.cpp: the 2018-cut radio songs, restored from an imported payload;
-// reads are pointed at it while GTAIV_RADIO is set.
-void GtaivRadioInit();
-std::string GtaivRadioRedirect(const std::string& guest_path);
+// mods.cpp: the player's mods; the game's reads are pointed at their files.
+void GtaivModsInit();
+std::string GtaivModsRedirect(const std::string& guest_path);
 
 #if defined(__APPLE__) && !defined(GTAIV_IOS)
 // launcher_mac.mm: the app's launcher window, when run from the bundle.
@@ -63,10 +62,9 @@ std::string UpdateFolderRedirect(const std::string& guest_path);
 }  // namespace recomp::gen
 
 namespace {
-bool g_radio;
 std::string ReadRedirect(const std::string& guest_path) {
-  std::string r = recomp::gen::UpdateFolderRedirect(guest_path);
-  if (r.empty() && g_radio) r = GtaivRadioRedirect(guest_path);
+  std::string r = GtaivModsRedirect(guest_path);
+  if (r.empty()) r = recomp::gen::UpdateFolderRedirect(guest_path);
   return r;
 }
 }  // namespace
@@ -126,8 +124,8 @@ int main(int argc, char** argv) {
   // Apple TV's 2.1 GB.
   setenv("GTAIV_GPU_HEAP_MB", "192", 0);
 #endif
-  // The launcher (the radio payload, when imported, is in
-  // Documents/gtaiv/drive_c/radio-restored).
+  // The launcher (the player's mods, if any, are in
+  // Documents/gtaiv/drive_c/mods).
   RunIosLauncher(&game_args);
 #endif
   if (const char* e = std::getenv("GTAIV_GAME_DIR")) game_dir = e;
@@ -184,14 +182,10 @@ int main(int argc, char** argv) {
   game.send_message = GtaivSendMessage;
   // Threads by what they do, not by the game's priorities (threads.cpp).
   game.thread_qos = GtaivThreadQos;
-  // The game's reads of its install files: the player's update folder
-  // first (update_folder.cpp: FusionFix's data and mods), then, with the
-  // launcher's "original radio songs" option, the imported radio payload
-  // (radio.cpp), then the install itself.
-  if (const char* r = std::getenv("GTAIV_RADIO"); r && *r && *r != '0') {
-    GtaivRadioInit();
-    g_radio = true;
-  }
+  // The game's reads of its install files: the player's mods first
+  // (mods.cpp), then the update folder (update_folder.cpp: FusionFix's data),
+  // then the install itself.
+  if (const char* m = std::getenv("GTAIV_MODS"); !m || *m != '0') GtaivModsInit();
   game.read_redirect = ReadRedirect;
 #if !GTAIV_IOS
   // Saves to the player's iPad and Apple TV (save_sync_mac.mm).

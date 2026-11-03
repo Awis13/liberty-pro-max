@@ -1,6 +1,6 @@
 // The kit inside the Builder (Contents/Resources/kit), made by
 // builder/make_builder.sh:
-//   bin/recomp_lift, bin/7zz          the lifter and 7-Zip
+//   bin/recomp_lift                   the lifter
 //   tools/x86n.py                     the hot-function translator
 //   symbols/, manifest/               what the lifter reads
 //   src/, include/                    the port's and the runtime's sources

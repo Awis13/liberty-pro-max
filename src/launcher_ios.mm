@@ -137,7 +137,7 @@ typedef NS_ENUM(NSInteger, LpmSection) { kGame, kGraphics, kFixesSection, kSecti
 static NSArray* GameRows() {
   return @[
     @[ @"Continue from the last save", kContinueKey ], @[ @"Skip the start screens", kSkipIntroKey ],
-    @[ @"Original 2008 radio songs", kRadioKey ], @[ @"Fast loading", kFastLoadingKey ],
+    @[ @"Mods", kModsKey ], @[ @"Fast loading", kFastLoadingKey ],
     @[ @"Stun punch on anyone", kStunPunchKey ], @[ @"Executions on anyone", kExecutionsKey ]
   ];
 }
@@ -178,12 +178,10 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
   cell.textLabel.numberOfLines = 0;
   NSString* key;
   if (ip.section == kGame || ip.section == kFixesSection) {
-    BOOL radio = NO;
     if (ip.section == kGame) {
       NSArray* row = GameRows()[ip.row];
       cell.textLabel.text = row[0];
       key = row[1];
-      radio = [key isEqualToString:kRadioKey];
     } else {
       cell.textLabel.text = ShownFix(ip.row).title;
       key = ShownFix(ip.row).key;
@@ -192,10 +190,6 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
     sw.on = [_d boolForKey:key];
     sw.accessibilityIdentifier = key;
     [sw addTarget:self action:@selector(switched:) forControlEvents:UIControlEventValueChanged];
-    if (radio && !HasRadioPayload()) {
-      sw.enabled = NO;
-      cell.textLabel.text = @"Original 2008 radio songs (not imported)";
-    }
     cell.accessoryView = sw;
     return cell;
   }

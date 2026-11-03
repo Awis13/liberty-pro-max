@@ -27,7 +27,7 @@ Expect rough edges, and please report what you find.
 | **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048, field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play**; the icon is the game's own IV |
 | **Fixes built in** | about 100 fixes from FusionFix and ZolikaPatch (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
-| **Extras** | the original 2008 radio songs (with the Radio Restoration mod), stun punch and executions on anyone, fast loading | the same |
+| **Extras** | stun punch and executions on anyone, fast loading, a mods folder | the same |
 | **Controls** | keyboard and mouse, controllers | controllers, keyboard (no touch controls) |
 
 ### Speed
@@ -45,8 +45,8 @@ Measured on an M3 Pro at 3440×1440, maximum settings, on the same street:
 
 On the launcher's **General** tab: resolution and display, anti-aliasing
 (TAA, SMAA, MetalFX), shadow and reflection resolution, field of view, fast
-loading, skipping the logo screens, continuing the last save, the original
-radio songs, the performance overlay. On the **Advanced** tab, every fix
+loading, skipping the logo screens, continuing the last save, mods, the
+performance overlay. On the **Advanced** tab, every fix
 below, each a switch. Most follow FusionFix's and ZolikaPatch's (by what
 they do; their code is not used), some are this port's own.
 
@@ -54,7 +54,7 @@ they do; their code is not used), some are this port's own.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-99 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
+100 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
 
 #### High frame rates
 
@@ -127,6 +127,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 
 | Option | Default |
 |---|---|
+| Neon signs glow from every angle (the game's depth shift corrected) | on |
 | Distant city lights as on consoles (from 7 pm, street level) | on |
 | Reflections and car dirt as on consoles | on |
 | Mirrors show decals near them | on |
@@ -212,12 +213,11 @@ lighting, graphics API choice and plugin loaders have nothing to do.
 
 ## What you need
 
-- **GTA IV for PC, version 1.0.8.0**: the folder with `GTAIV.exe`
+- **Your own GTA IV for PC, version 1.0.8.0**: the folder with `GTAIV.exe`
   (SHA-256 `3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f`)
-  and the game's data next to it (`pc/`, `common/`, …). The Steam Complete
-  Edition (1.2.0.x) is not supported as it is; the community
-  [GTA Downgraders](https://github.com/Tomasak/GTA-Downgraders) turn it into
-  1.0.8.0.
+  and the game's data next to it (`pc/`, `common/`, …). Only this file, as
+  Rockstar signed it, works: a changed or cracked exe does not. The Complete
+  Edition (1.2.0.x) is not supported.
 - **A Mac with Apple silicon** (M1 or newer), macOS 15 or newer, with the
   **Xcode Command Line Tools** (`xcode-select --install`) and
   [Homebrew](https://brew.sh); about 6 GB free for the build. The Mac builds
@@ -246,9 +246,7 @@ Privacy & Security, and press **Open Anyway**. Then:
 
 1. drop your Grand Theft Auto IV folder (or `GTAIV.exe`) on it;
 2. if asked, install Apple's Command Line Tools with its button (free);
-3. optionally drop the [Radio Restoration mod](https://github.com/Tomasak/GTA-Downgraders)
-   as downloaded, for the original 2008 radio songs;
-4. press **Build Liberty Pro Max**.
+3. press **Build Liberty Pro Max**.
 
 About 5 to 20 minutes later **Liberty Pro Max** is in Applications. No
 Homebrew and nothing else to install: the Builder carries everything that
@@ -286,7 +284,7 @@ with the iPad connected:
 `install-ios.sh` builds the iPad's libraries (SDL3, FFmpeg, glslang,
 SPIRV-Cross), makes a signing profile with those capabilities, builds the app
 with its icon and installs it, then copies the game's files (15 GB) into it
-over the cable, and the restored radio songs if you imported them on the Mac.
+over the cable, and your mods if you have any on the Mac.
 The first run takes about 40 minutes.
 
 Then open **Liberty Pro Max** on the iPad, check the settings, press
@@ -329,19 +327,17 @@ Put a `commandline.txt` with `-norestrictions -availablevidmem 2047` in the
 game folder to unlock the highest graphics settings. (The iPad's launcher
 passes both itself.)
 
-### Original radio songs
+### Mods
 
-The 2018 update removed many songs from the radio. Download the
-[Radio Restoration mod](https://github.com/Tomasak/GTA-Downgraders) by
-Tomasak / Fusion Team, unpack it, then:
+Each folder in `~/Library/Application Support/gtaiv/drive_c/mods` is a mod (the
+launcher's **Open Mods Folder** opens it). Its files replace the game's at the
+same path, such as `pc/...` or `common/...`; a leading `update/` is ignored. If
+two mods have the same file, the later name wins. Your game folder is not
+changed, and **Load mods** turns them off.
 
-```bash
-GTAIV_RADIO_SRC=/path/to/unpacked/mod tools/radio_import.sh
-```
-
-and turn on **Original 2008 radio songs** in the launcher. Your game folder is
-not changed. Import it before `install-ios.sh` to have the songs on the iPad
-too.
+Only files are loaded: mods with Windows code (`.asi`, `.dll`) do not run. Mods
+are not part of this project, and it does not supply or support any. Add them
+before `install-ios.sh` to have them on the iPad too.
 
 ## Build by hand
 
@@ -395,7 +391,7 @@ preset `appletvos` and `PLATFORM=tvos` for `tools/ios_profile.sh` and
   not fit its memory (DXT decoded on upload).
 - iPad: no touch controls; busy streets need the game's distances lowered
   for a steady 60 fps.
-- Multiplayer is not available.
+- Multiplayer and paid features are not available and not planned.
 - MetalFX temporal upscaling costs about 5 ms a frame at 3440×1440 output,
   more than it saves in this game; TAA at native resolution is the default.
 - A few seconds of stutter right after loading, while the city streams in.
@@ -411,10 +407,13 @@ preset `appletvos` and `PLATFORM=tvos` for `tools/ios_profile.sh` and
   ThirteenAG (the ultrawide fix).
 - XLivelessAddon and the GTA modding community, for how the PC version's
   launcher checks work.
-- The Radio Restoration mod and GTA Downgraders by Tomasak / Fusion Team.
 
 Grand Theft Auto IV is a trademark of Take-Two Interactive Software. This
 project is not affiliated with or endorsed by Rockstar Games or Take-Two.
+
+**Rights holders:** to have anything here taken down, open an
+[issue](https://github.com/Awis13/liberty-pro-max/issues) in this repository.
+It will be taken down on request, without dispute.
 
 ## License
 

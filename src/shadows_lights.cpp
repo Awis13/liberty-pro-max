@@ -23,6 +23,7 @@
 #include <cctype>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 #include "hook_util.h"
 #include "option.h"
@@ -213,3 +214,19 @@ void hook_008FB380(Ctx& c) {
 }
 
 }  // namespace recomp::gen
+
+// The glowing signs of gta_emissivestrong.fxc (JIMS, Comrades Bar...) sit on
+// or just behind what they light, and the shader moves them towards the camera
+// by its zShift (c210.x), as every other emissive shader does: z - zShift. In
+// this one the sign is wrong (add oPos.z, r0.z, c210.x, in all six of the
+// game's shader folders and in no other shader), so they go behind the wall and
+// show only at some angles. As FusionFix's shaders have it.
+// GTAIV_SIGN_GLOW_FIX=0 leaves it.
+void GtaivShaderTokens(std::vector<uint32_t>& tokens) {
+  static const bool on = OptionOn("GTAIV_SIGN_GLOW_FIX", true);
+  if (!on) return;
+  for (size_t i = 0; i + 3 < tokens.size(); i++)
+    if (tokens[i] == 0x03000002 && tokens[i + 1] == 0xE0040000 && tokens[i + 2] == 0x80AA0000 &&
+        tokens[i + 3] == 0xA00000D2)
+      tokens[i + 3] = 0xA10000D2;
+}

@@ -113,8 +113,6 @@ bool LeftOut(const std::string& lower_rel) {
   // (named entries after the header; the game then hands Direct3D no
   // shader): the game's own stays.
   if (lower_rel == "common\\shaders\\win32_30\\rage_postfx.fxc") return true;
-  for (const char* p : {"tlad\\", "tbogt\\"})
-    if (lower_rel.rfind(p, 0) == 0) return true;
   return lower_rel == "common\\data\\frontend_menus.xml" || lower_rel == "update.txt" ||
          lower_rel == "update.img";
 }
@@ -141,6 +139,10 @@ const UpdateFolder& Folder() {
         if (!episode && lower != "update.img") f.imgs.push_back(rel);
         continue;
       }
+      // The episodes' folders, wherever they are: not IV's files.
+      if (lower.find("\\tlad\\") != std::string::npos || lower.find("\\tbogt\\") != std::string::npos ||
+          lower.rfind("tlad\\", 0) == 0 || lower.rfind("tbogt\\", 0) == 0)
+        continue;
       // A mod's own folder inside update (update\<mod>\pc\...): its files
       // count from the first of the game's top folders in their path.
       std::string key = lower;

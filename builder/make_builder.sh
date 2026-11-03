@@ -26,7 +26,6 @@ w=${GTAIV_APPLE_BUILD:-$here/out/apple}
 deps=$w/prefix-macos
 kitbuild=$here/out/kit
 outdir=$here/out/builder
-sevenzip=26.05
 
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 
@@ -54,8 +53,6 @@ say "Kit"
 kit=$outdir/kit
 rm -rf $outdir && mkdir -p $kit/bin $kit/tools $kit/manifest $kit/include $kit/lib $kit/app
 cp $kitbuild/x86recomp/tools/lifter/recomp_lift $kit/bin/
-curl -fsSL https://github.com/ip7z/7zip/releases/download/$sevenzip/7z${sevenzip//./}-mac.tar.xz | tar xJ -C $kit/bin 7zz License.txt
-mv $kit/bin/License.txt $kit/bin/7zz-License.txt
 cp tools/x86n.py $kit/tools/
 cp manifest/gtaiv.manifest manifest/native.list $kit/manifest/
 cp -R symbols $kit/symbols

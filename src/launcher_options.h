@@ -25,8 +25,8 @@ NSString* const kHudKey = @"PerformanceOverlay";
 NSString* const kSkipKey = @"SkipLauncher";
 NSString* const kSkipIntroKey = @"SkipIntro";
 NSString* const kContinueKey = @"ContinueLastSave";
-// The 2018-cut radio songs, from the payload tools/radio_import.sh imports.
-NSString* const kRadioKey = @"OriginalRadio";
+// The player's mods (mods.cpp).
+NSString* const kModsKey = @"Mods";
 // Advanced: 0 the game's own, 1 high.
 NSString* const kShadowsKey = @"ShadowResolution";
 NSString* const kReflectionsKey = @"ReflectionResolution";
@@ -114,6 +114,7 @@ const Fix kFixes[] = {
     {@"WheelStuntCamera", "GTAIV_WHEEL_STUNT_CAMERA", @"Stunt jumps: mouse wheel sets the slow motion", true},
     {@"VehicleNightShadows", "GTAIV_VEHICLE_NIGHT_SHADOWS", @"Vehicles cast shadows from street lights (needs FusionFix shaders)"},
     {@"EmissiveNoDepthWrite", "GTAIV_EMISSIVE_NO_DEPTH_WRITE", @"Glowing lights and signs without depth artifacts"},
+    {@"SignGlowFix", "GTAIV_SIGN_GLOW_FIX", @"Neon signs glow from every angle (the game's depth shift corrected)"},
     {@"DynamicShadowsEverywhere", "GTAIV_DYNAMIC_SHADOWS_EVERYWHERE", @"Every light casts moving shadows (very slow)", false},
     {@"CarShadowAnyDistance", "GTAIV_CAR_SHADOW_ANY_DISTANCE", @"Shadow under cars at any distance"},
     {@"NoStaticCarShadows", "GTAIV_NO_STATIC_CAR_SHADOWS", @"No shadow patch under cars", false},
@@ -190,29 +191,22 @@ const ShaderChoice kShaderChoices[] = {
     {@"FFMotionBlur", "GTAIV_MOTION_BLUR", @"Motion blur:", @[ @"Off", @"1/8", @"1/4", @"1/2", @"Full" ], 2},
 };
 
-// Whether the restored radio payload has been imported (radio.cpp reads it
-// from the port's data directory: $XDG_DATA_HOME/gtaiv, else
-// ~/Library/Application Support/gtaiv - the runtime's DataDir).
-bool HasRadioPayload() {
+// The mods' folder (mods.cpp reads it from the port's data directory:
+// $XDG_DATA_HOME/gtaiv, else ~/Library/Application Support/gtaiv - the
+// runtime's DataDir).
+NSString* ModsFolder() {
   NSString* root;
   if (const char* x = std::getenv("XDG_DATA_HOME"); x && *x)
     root = @(x);
   else
-    root = [NSHomeDirectory()
-                stringByAppendingPathComponent:@"Library/Application Support"];
-  // (Its folder: the file names' case differs between the mod's releases,
-  // and the iPad's file system tells them apart.)
-  BOOL dir = NO;
-  return [NSFileManager.defaultManager
-             fileExistsAtPath:[root stringByAppendingPathComponent:@"gtaiv/drive_c/radio-restored/pc/audio/config"]
-                  isDirectory:&dir] &&
-         dir;
+    root = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support"];
+  return [root stringByAppendingPathComponent:@"gtaiv/drive_c/mods"];
 }
 
 // The defaults of every option (the player's choices override them).
 void RegisterDefaults(NSUserDefaults* d) {
   NSMutableDictionary* defaults =
-      [NSMutableDictionary dictionaryWithDictionary:@{kHudKey : @YES, kSkipIntroKey : @YES, kFastLoadingKey : @YES, kRadioKey : @YES, kStunPunchKey : @YES, kExecutionsKey : @YES, kContinueKey : @YES, kMetalFXScaleKey : @1, kTaaSharpeningKey : @2, kAntiAliasingKey : @3}];
+      [NSMutableDictionary dictionaryWithDictionary:@{kHudKey : @YES, kSkipIntroKey : @YES, kFastLoadingKey : @YES, kModsKey : @YES, kStunPunchKey : @YES, kExecutionsKey : @YES, kContinueKey : @YES, kMetalFXScaleKey : @1, kTaaSharpeningKey : @2, kAntiAliasingKey : @3}];
   for (const Fix& f : kFixes) defaults[f.key] = @(f.on);
   for (const ShaderChoice& sc : kShaderChoices) defaults[sc.key] = @(sc.def);
   [d registerDefaults:defaults];
@@ -259,7 +253,7 @@ void ApplyOptions(NSUserDefaults* d) {
   if (boost.empty()) unsetenv("RECOMP_RT_BOOST");
   else setenv("RECOMP_RT_BOOST", boost.substr(0, boost.size() - 1).c_str(), 1);
   setenv("GTAIV_CONTINUE", [d boolForKey:kContinueKey] ? "1" : "0", 1);
-  setenv("GTAIV_RADIO", [d boolForKey:kRadioKey] ? "1" : "0", 1);
+  setenv("GTAIV_MODS", [d boolForKey:kModsKey] ? "1" : "0", 1);
   setenv("GTAIV_STUN_PUNCH", [d boolForKey:kStunPunchKey] ? "1" : "0", 1);
   setenv("GTAIV_EXECUTIONS", [d boolForKey:kExecutionsKey] ? "1" : "0", 1);
   for (const Fix& f : kFixes) setenv(f.env, [d boolForKey:f.key] ? "1" : "0", 1);

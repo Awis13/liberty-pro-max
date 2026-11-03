@@ -24,10 +24,6 @@ enum Main {
       }
       dispatchMain()
     }
-    if let i = args.firstIndex(of: "--radio"), i + 1 < args.count {
-      Task { @MainActor in exit(await Engine.headlessRadio(URL(fileURLWithPath: args[i + 1]))) }
-      dispatchMain()
-    }
     if let i = args.firstIndex(of: "--build"), i + 1 < args.count {
       Task { @MainActor in exit(await Engine.headless(game: URL(fileURLWithPath: args[i + 1]))) }
       dispatchMain()
@@ -74,17 +70,6 @@ struct ContentView: View {
         case .bad where !engine.toolsOutdated: Button("Install the Command Line Tools") { engine.installTools() }
         case .busy: Button("Open the installer again") { engine.installTools() }.controlSize(.small)
         default: EmptyView()
-        }
-      }
-
-      Card(number: 3, title: "Original 2008 radio songs (optional)", state: engine.radio) {
-        VStack(alignment: .leading, spacing: 6) {
-          DropZone(text: "Drop the Radio Restoration mod here (the .rar as downloaded, or its folder)",
-                   symbol: "radio") { url in engine.importRadio(url) }
-            .disabled(engine.radio.isBusy)
-          Link("Get the mod: GTA Downgraders by Tomasak / Fusion Team",
-               destination: URL(string: "https://github.com/Tomasak/GTA-Downgraders/releases")!)
-            .font(.caption)
         }
       }
 

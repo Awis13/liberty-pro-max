@@ -102,8 +102,8 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 @property(strong) NSButton* hud;
 @property(strong) NSButton* skipIntro;
 @property(strong) NSButton* continueSave;
-@property(strong) NSButton* originalRadio;
-@property(strong) NSTextField* radioNote;
+@property(strong) NSButton* mods;
+@property(strong) NSTextField* modsNote;
 @property(strong) NSTabView* tabs;
 @property(strong) NSPopUpButton* shadows;
 @property(strong) NSPopUpButton* reflections;
@@ -194,18 +194,15 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
                                           action:nil];
   self.continueSave.state = [d boolForKey:kContinueKey] ? NSControlStateValueOn : NSControlStateValueOff;
 
-  // The 2008 radio the 2018 update cut: served from the imported payload
-  // while the game runs (radio.cpp); a no-op until it is imported.
-  self.originalRadio = [NSButton checkboxWithTitle:@"Original 2008 radio songs (Vladivostok FM and the rest)"
-                                           target:nil
-                                           action:nil];
-  self.originalRadio.state = [d boolForKey:kRadioKey] ? NSControlStateValueOn : NSControlStateValueOff;
-  self.radioNote = [NSTextField
-      wrappingLabelWithString:HasRadioPayload()
-          ? @"The songs the 2018 update cut, played from files outside your install."
-          : @"Not ready yet: import the payload with tools/radio_import.sh first."];
-  self.radioNote.textColor = HasRadioPayload() ? NSColor.secondaryLabelColor : NSColor.systemRedColor;
-  self.radioNote.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+  // The player's mods (mods.cpp).
+  self.mods = [NSButton checkboxWithTitle:@"Load mods" target:nil action:nil];
+  self.mods.state = [d boolForKey:kModsKey] ? NSControlStateValueOn : NSControlStateValueOff;
+  NSButton* modsFolder = [NSButton buttonWithTitle:@"Open Mods Folder" target:self action:@selector(openMods:)];
+  self.modsNote = [NSTextField
+      wrappingLabelWithString:@"Each folder there is a mod: its files replace the game's at the same path. "
+                               "Your game folder is not changed."];
+  self.modsNote.textColor = NSColor.secondaryLabelColor;
+  self.modsNote.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
 
   NSGridView* grid = [NSGridView gridViewWithViews:@[
     @[ [self label:@"Game folder:"], folderRow ],
@@ -218,8 +215,9 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ NSGridCell.emptyContentView, self.hud ],
     @[ [self label:@"Start:"], self.skipIntro ],
     @[ NSGridCell.emptyContentView, self.continueSave ],
-    @[ [self label:@"Radio:"], self.originalRadio ],
-    @[ NSGridCell.emptyContentView, self.radioNote ],
+    @[ [self label:@"Mods:"], self.mods ],
+    @[ NSGridCell.emptyContentView, modsFolder ],
+    @[ NSGridCell.emptyContentView, self.modsNote ],
   ]];
   grid.rowSpacing = 10;
   grid.columnSpacing = 10;
@@ -245,7 +243,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.executions.state = [d boolForKey:kExecutionsKey] ? NSControlStateValueOn : NSControlStateValueOff;
   NSTextField* meleeNote = [NSTextField
       wrappingLabelWithString:@"Moves the game keeps for a few missions: sneak up unarmed (or with a pistol), lock on, attack."];
-  for (NSTextField* n : @[ aaNote, self.radioNote, meleeNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
+  for (NSTextField* n : @[ aaNote, self.modsNote, meleeNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
   for (NSTextField* n : @[ shadowNote, reflNote, fovNote, loadNote, meleeNote ]) {
     n.textColor = NSColor.secondaryLabelColor;
     n.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
@@ -401,7 +399,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [d setBool:self.hud.state == NSControlStateValueOn forKey:kHudKey];
   [d setBool:self.skipIntro.state == NSControlStateValueOn forKey:kSkipIntroKey];
   [d setBool:self.continueSave.state == NSControlStateValueOn forKey:kContinueKey];
-  [d setBool:self.originalRadio.state == NSControlStateValueOn forKey:kRadioKey];
+  [d setBool:self.mods.state == NSControlStateValueOn forKey:kModsKey];
   [d setInteger:self.shadows.indexOfSelectedItem forKey:kShadowsKey];
   [d setInteger:self.reflections.indexOfSelectedItem forKey:kReflectionsKey];
   [d setInteger:self.fov.indexOfSelectedItem forKey:kFovKey];
@@ -415,6 +413,12 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [d setBool:self.skip.state == NSControlStateValueOn forKey:kSkipKey];
   [d synchronize];
   [NSApp stopModalWithCode:NSModalResponseOK];
+}
+
+- (void)openMods:(id)sender {
+  [NSFileManager.defaultManager createDirectoryAtPath:ModsFolder() withIntermediateDirectories:YES
+                                           attributes:nil error:nil];
+  [NSWorkspace.sharedWorkspace openURL:[NSURL fileURLWithPath:ModsFolder()]];
 }
 
 - (void)quit:(id)sender {

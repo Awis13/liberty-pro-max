@@ -1,6 +1,6 @@
 // What the Builder does: checks the game and the developer tools, then
 // translates the player's GTAIV.exe, compiles and links it with the kit and
-// puts Liberty Pro Max.app in Applications. The radio import is apart.
+// puts Liberty Pro Max.app in Applications.
 
 import AppKit
 import CryptoKit
@@ -31,8 +31,6 @@ final class Engine: ObservableObject {
   @Published var built: URL?
   @Published var failure: String?
   @Published var log: [String] = []
-  // The radio.
-  @Published var radio: Check = .none
 
   // BUILDER_WORK, BUILDER_DEST: another work folder and destination (tests).
   nonisolated static let work: URL = ProcessInfo.processInfo.environment["BUILDER_WORK"].map { URL(fileURLWithPath: $0) }
@@ -84,26 +82,6 @@ final class Engine: ObservableObject {
     return 0
   }
 
-  /// The radio import without the window.
-  static func headlessRadio(_ src: URL) async -> Int32 {
-    do {
-      try await runRadioImport(src)
-      print("radio imported into \(radioDestination.path)")
-      return 0
-    } catch {
-      print("FAILED: \(error.localizedDescription)")
-      return 1
-    }
-  }
-
-  /// Where the game reads the restored radio (BUILDER_DATA: another data
-  /// folder, for tests).
-  nonisolated static var radioDestination: URL {
-    (ProcessInfo.processInfo.environment["BUILDER_DATA"].map { URL(fileURLWithPath: $0) }
-      ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("gtaiv"))
-      .appendingPathComponent("drive_c/radio-restored")
-  }
-
   func say(_ line: String) {
     if echo { print(line) }
     log.append(line)
@@ -136,8 +114,8 @@ final class Engine: ObservableObject {
       game = .ok("GTAIV.exe 1.0.8.0: \(folder.path)")
       UserDefaults.standard.set(folder.path, forKey: "GameFolder")
     } else {
-      game = .bad("This GTAIV.exe is not version 1.0.8.0, the one Liberty Pro Max supports. "
-                  + "The Steam Complete Edition becomes 1.0.8.0 with the community's GTA Downgraders.")
+      game = .bad("This GTAIV.exe is not the one Liberty Pro Max supports: version 1.0.8.0 as Rockstar "
+                  + "signed it. A changed exe or the Complete Edition (1.2.0.x) is not accepted.")
     }
   }
 
@@ -355,69 +333,5 @@ final class Engine: ObservableObject {
     }
     try Task.checkCancellation()
     if let failed { throw Failure("\(label) failed:\n\(failed)") }
-  }
-
-  // MARK: The radio
-
-  /// The Radio Restoration mod, as downloaded (.rar or .7z) or unpacked:
-  /// its 2008 songs into the port's data, where the game reads them with
-  /// the launcher's "Original 2008 radio songs" on.
-  func importRadio(_ url: URL) {
-    guard !radio.isBusy else { return }
-    radio = .busy("Unpacking the radio songs (about 1 GB, a few minutes)…")
-    Task {
-      do {
-        try await Engine.runRadioImport(url)
-        CFPreferencesSetAppValue("OriginalRadio" as CFString, kCFBooleanTrue, Kit.gameDomain)
-        CFPreferencesAppSynchronize(Kit.gameDomain)
-        radio = .ok("The original 2008 radio songs are in. The launcher's option is on.")
-      } catch {
-        radio = .bad(error.localizedDescription)
-      }
-    }
-  }
-
-  nonisolated private static func runRadioImport(_ src: URL) async throws {
-    let fm = FileManager.default
-    let sevenZ = Kit.path("bin/7zz")
-    let tmp = work.appendingPathComponent("radio")
-    try? fm.removeItem(at: tmp)
-    try fm.createDirectory(at: tmp, withIntermediateDirectories: true)
-    defer { try? fm.removeItem(at: tmp) }
-
-    // The mod's two archives: data1.dat (the songs) and opVANILLA.dat (the
-    // 2008 playlist), from the download or from its unpacked folder.
-    var data1: URL?, playlist: URL?
-    var isDir: ObjCBool = false
-    _ = fm.fileExists(atPath: src.path, isDirectory: &isDir)
-    if isDir.boolValue {
-      let e = fm.enumerator(at: src, includingPropertiesForKeys: nil)
-      while let f = e?.nextObject() as? URL {
-        if f.lastPathComponent == "data1.dat" { data1 = f }
-        if f.lastPathComponent == "opVANILLA.dat" { playlist = f }
-      }
-    } else {
-      let r = await Run.run(sevenZ, ["e", "-y", "-o" + tmp.path, src.path, "data1.dat", "opVANILLA.dat", "-r"])
-      guard r.ok else { throw Failure("This file could not be opened as the Radio Restoration mod:\n" + r.output.suffix(600)) }
-      data1 = tmp.appendingPathComponent("data1.dat")
-      playlist = tmp.appendingPathComponent("opVANILLA.dat")
-    }
-    guard let data1, let playlist, fm.fileExists(atPath: data1.path), fm.fileExists(atPath: playlist.path) else {
-      throw Failure("This is not the Radio Restoration mod: its \"Radio Restorer\" files (data1.dat, opVANILLA.dat) are missing.")
-    }
-
-    // Both unpacked; their update/ folders, base first, into the data.
-    let base = tmp.appendingPathComponent("base"), vanilla = tmp.appendingPathComponent("vanilla")
-    for (archive, out) in [(data1, base), (playlist, vanilla)] {
-      let r = await Run.run(sevenZ, ["x", "-y", "-o" + out.path, archive.path])
-      guard r.ok else { throw Failure("Unpacking \(archive.lastPathComponent) failed:\n" + r.output.suffix(600)) }
-    }
-    let dest = radioDestination
-    try? fm.removeItem(at: dest)
-    try fm.createDirectory(at: dest, withIntermediateDirectories: true)
-    for layer in [base, vanilla] {
-      let r = await Run.run("/usr/bin/rsync", ["-a", layer.appendingPathComponent("update").path + "/", dest.path + "/"])
-      guard r.ok else { throw Failure("Copying the radio songs failed:\n" + r.output.suffix(600)) }
-    }
   }
 }

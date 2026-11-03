@@ -20,6 +20,8 @@ major=$(sw_vers -productVersion | cut -d. -f1)
 if [ $# -ge 1 ]; then GTAIV_GAME_DIR=$(cd "$1" && pwd); fi
 [ -n "${GTAIV_GAME_DIR:-}" ] || die "give the game folder (the one with GTAIV.exe): ./install.sh \"/path/to/Grand Theft Auto IV\""
 [ -f "$GTAIV_GAME_DIR/GTAIV.exe" ] || die "no GTAIV.exe in $GTAIV_GAME_DIR"
+[ "$(shasum -a 256 "$GTAIV_GAME_DIR/GTAIV.exe" | cut -d' ' -f1)" = 3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f ] ||
+  die "this GTAIV.exe is not the one supported: version 1.0.8.0 as Rockstar signed it"
 printf 'GTAIV_GAME_DIR=%q\n' "$GTAIV_GAME_DIR" > tools/local.env
 export GTAIV_GAME_DIR
 

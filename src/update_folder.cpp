@@ -109,6 +109,9 @@ bool Excluded(const std::string& lower_rel) {
 bool LeftOut(const std::string& lower_rel) {
   if (Excluded(lower_rel)) return true;
   if (lower_rel.rfind("common\\shaders\\", 0) == 0 && !FfShaders()) return true;
+  // Its stipple texture goes with its shaders: with the game's own, trees are
+  // flat rectangles with lines across them.
+  if (lower_rel == "pc\\textures\\stipple.wtd" && !FfShaders()) return true;
   // Its post-processing effect has a layout the game's loader misreads
   // (named entries after the header; the game then hands Direct3D no
   // shader): the game's own stays.

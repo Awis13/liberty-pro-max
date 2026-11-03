@@ -54,7 +54,7 @@ they do; their code is not used), some are this port's own.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-114 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
+99 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
 
 #### High frame rates
 
@@ -115,26 +115,13 @@ The game was made for 30 fps; these keep it right at any frame rate.
 | Pause menu time and money spaced as on consoles | on |
 | Menu lists show 32 rows before scrolling | on |
 
-#### FusionFix's shaders
+#### FusionFix
 
-Need FusionFix's update folder in the game folder.
+Its mission and model fixes need its update folder in the game folder. Its shaders do not work in the port yet, so their options are not listed.
 
 | Option | Default |
 |---|---|
 | Use FusionFix's mission and model fixes if installed (update folder) | on |
-| FusionFix shaders: tone mapping (highlights not clipped) | off |
-| FusionFix shaders: bloom keeps its colour with tone mapping | on |
-| FusionFix shaders: exposure adapts as on consoles | on |
-| FusionFix shaders: definition (sharper image) | on |
-| FusionFix shaders: unclamped sunlight | off |
-| FusionFix shaders: smooth shorelines | on |
-| FusionFix shaders: smooth light volumes | on |
-| FusionFix shaders: cascaded shadow fixes (atlas, ranges) | on |
-| FusionFix shaders: high resolution cascaded shadows (heavy) | off |
-| FusionFix shaders: volumetric fog | off |
-| Shadow filter: Sharp, Soft, Contact hardening | Sharp |
-| Tree lighting: PC, PC+, Console | PC+ |
-| Tree leaves: PC, PC+, Console | PC |
 
 #### Lights, shadows and effects
 
@@ -153,7 +140,6 @@ Need FusionFix's update folder in the game folder.
 | Bloom (glow around bright lights) | on |
 | Depth of field blur | on |
 | Motion blur: Off, 1/8, 1/4, 1/2, Full | 1/4 |
-| Vehicles cast shadows from street lights (needs FusionFix shaders) | on |
 | Glowing lights and signs without depth artifacts | on |
 | Every light casts moving shadows (very slow) | off |
 | Shadow under cars at any distance | on |
@@ -163,7 +149,6 @@ Need FusionFix's update folder in the game folder.
 | Red and amber glass from broken tail lights and indicators | on |
 | Tracer on every shot | off |
 | TBoGT: tracers drawn in the right place | on |
-| Trees and bushes cast real shadows (needs FusionFix shaders) | on |
 | Turn indicators when steering, hazard lights after a crash | off |
 | Turn indicators by hand: [ and ] or bumpers, both for hazards | off |
 

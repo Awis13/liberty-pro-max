@@ -163,7 +163,7 @@ final class Engine: ObservableObject {
       return
     }
     stopWaitingForTools()
-    // The recipe's sources need at least the compiler they were made with.
+    // The recipe's sources need at least this compiler.
     let want = (try? Recipe.load().clang) ?? 0
     let version = await Run.line("/usr/bin/xcrun", ["clang++", "--version"]) ?? ""
     let have = Int(version.range(of: #"clang version (\d+)"#, options: .regularExpression)

@@ -267,19 +267,15 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   for (const ShaderChoice& sc : kShaderChoices) {
     NSPopUpButton* p = [self popup:sc.items
                           selected:std::clamp<NSInteger>([d integerForKey:sc.key], 0, NSInteger(sc.items.count) - 1)];
-    [self.shaderChoices addObject:p];
-    [rows addObject:@[ [self label:sc.title], p ]];
+    [self.shaderChoices addObject:p];  // (not shown: FixShown)
   }
-  NSTextField* shaderNote = [NSTextField labelWithString:@"With FusionFix's shaders (in the update folder)."];
-  shaderNote.textColor = NSColor.secondaryLabelColor;
-  shaderNote.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
-  [rows addObject:@[ NSGridCell.emptyContentView, shaderNote ]];
   self.fixes = [NSMutableArray new];
   for (const Fix& f : kFixes) {
     NSButton* b = [NSButton checkboxWithTitle:f.title target:nil action:nil];
     b.state = [d boolForKey:f.key] ? NSControlStateValueOn : NSControlStateValueOff;
     [self.fixes addObject:b];
-    [rows addObject:@[ self.fixes.count == 1 ? [self label:@"Fixes:"] : NSGridCell.emptyContentView, b ]];
+    if (FixShown(f))
+      [rows addObject:@[ self.fixes.count == 1 ? [self label:@"Fixes:"] : NSGridCell.emptyContentView, b ]];
   }
   NSGridView* adv = [NSGridView gridViewWithViews:rows];
   adv.rowSpacing = 10;

@@ -255,8 +255,7 @@ lighting, graphics API choice and plugin loaders have nothing to do.
 ### Mac, without the Terminal: Liberty Pro Max Builder
 
 Download **Liberty Pro Max Builder** from the
-[releases](https://github.com/Awis13/liberty-pro-max/releases), open it
-(the first time: right-click it, **Open**), and:
+[releases](https://github.com/Awis13/liberty-pro-max/releases), open it, and:
 
 1. drop your Grand Theft Auto IV folder (or `GTAIV.exe`) on it;
 2. if asked, install Apple's Command Line Tools with its button (free);

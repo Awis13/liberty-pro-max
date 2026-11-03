@@ -145,8 +145,9 @@ if missing:
     sys.exit('make_recipe: not in the kit:\n  ' + '\n  '.join(sorted(missing)))
 
 # The compiler the reference build used: the Builder asks for at least it.
-version = subprocess.run(['xcrun', 'clang++', '--version'], capture_output=True, text=True).stdout
-m = re.search(r'clang version (\d+)', version)
-recipe = {'clang': int(m.group(1)) if m else 0, 'compile': units, 'link': link}
+# The oldest Apple clang these sources were built and played with (macOS 15's
+# tools), not the one making this kit: the Builder refuses anything older.
+MIN_CLANG = 17
+recipe = {'clang': MIN_CLANG, 'compile': units, 'link': link}
 json.dump(recipe, open(os.path.join(kit, 'recipe.json'), 'w'), indent=1)
-print(f'make_recipe: {len(units)} files, link with {len(link)} arguments, clang {recipe["clang"]}')
+print(f'make_recipe: {len(units)} files, link with {len(link)} arguments, clang {MIN_CLANG} or newer')

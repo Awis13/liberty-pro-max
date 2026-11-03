@@ -3,11 +3,17 @@
 // one is an option (the launcher's Advanced tab sets them), off unless
 // said otherwise:
 //   GTAIV_TURN_INDICATORS (off by default): the player's vehicle shows its
-//     indicators while it turns (the wheel held well over for a moment),
-//     blinking as the game's own hazard lights do; a crash hard enough to
-//     throw someone through the windscreen puts the hazard lights on until
-//     the player next gets into that vehicle (after leaving it, if he was
-//     the one in it);
+//     indicators through a real turn: on once the wheel is over and the
+//     vehicle has turned that way, or the wheel at full lock for a moment;
+//     off as a car's stalk cancels, when the wheel has come back. Both only
+//     near a junction, by the game's road nodes. A quick
+//     flick of the pad's stick all the way over sets it before the turn, as
+//     a stalk does: on through the turn, or for 12 s without one, or until
+//     a flick the same way; blinking
+//     as the game's own hazard lights do; a crash hard enough to throw
+//     someone through the windscreen puts the hazard lights on until the
+//     player next gets into that vehicle (after leaving it, if he was the
+//     one in it);
 //   GTAIV_TURN_INDICATORS_MANUAL (off by default, with the above): the
 //     indicators by hand instead: a tap of [ or ] (or of the pad's left or
 //     right bumper) switches the left or right one on or off, a tap of
@@ -16,7 +22,12 @@
 //     keeps its front wheels (or handlebars) turned as he left them, not
 //     straightened.
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <mutex>
 #include <vector>
 
@@ -45,6 +56,7 @@ constexpr uint32_t kSteerAngle = 0x10D8; // the front wheels' angle: steer * loc
 constexpr uint32_t kBlinkOffset = 0x2C;  // word added to the clock for the blink phase
 
 constexpr uint32_t kNone = ~0u;
+constexpr float kPi = 3.14159265f;
 
 // The player's CPed: the reads FindPlayerPed (007CD230) makes.
 uint32_t PlayerPed() {
@@ -102,10 +114,50 @@ bool ManualIndicators() {
   return on;
 }
 
-// How far over the wheel must be (a share of the full lock) and for how
-// long before the indicator comes on; a tap is a press this short.
-constexpr float kTurnShare = 0.6f;
-constexpr float kTurnHoldMs = 400.0f;
+// How far over the wheel must be (a share of the full lock) for a turn,
+// and how nearly straight it must be again for that turn to be over. The
+// vehicle must then have turned that far (degrees, going forwards, faster
+// than this in m/s), so that a correction shows nothing, and quickly enough
+// (degrees a second, averaged over a moment), so that a curving street
+// shows nothing; further the other way soon after an indicator, which is
+// mostly the wheel being straightened.
+// Or the wheel nearly at full lock for a moment, standing or not, but not
+// in reverse: longer the other way, for the same reason.
+// Once on, at least three blinks, and off when the wheel has been back for
+// a moment, as a stalk cancels. A tap is a press this short.
+constexpr float kTurnOnShare = 0.18f;
+constexpr float kTurnOffShare = 0.08f;
+constexpr float kTurnStartDeg = 12.0f;
+constexpr float kTurnBackDeg = 35.0f;
+constexpr float kTurnBackWindowMs = 3000.0f;
+constexpr float kTurnMinSpeed = 1.0f;
+constexpr float kTurnMinRate = 10.0f;
+constexpr float kTurnRateMs = 200.0f;
+constexpr float kTurnFadeRate = 10.0f;
+constexpr float kTurnFullShare = 0.85f;
+constexpr float kTurnFullMs = 500.0f;
+constexpr float kTurnFullBackMs = 1000.0f;
+constexpr float kTurnMinOnMs = 3072.0f;
+constexpr float kTurnBackMs = 400.0f;
+// A flick: from rest (past kFlickRest, after this long there: a correction
+// comes among others) all the way over (past kFlickFull) and back, this
+// quickly, standing or not. The stick's -127 to 127.
+constexpr int kFlickRest = 40;
+constexpr int kFlickFull = 110;
+constexpr float kFlickMs = 300.0f;
+constexpr float kFlickRestMs = 800.0f;
+constexpr float kTurnLatchMs = 12000.0f;
+// A turn counts near a junction only: among the closest road nodes, one not
+// far behind and within this distance (m) whose road crosses the vehicle's
+// way by at least this much (degrees; a curving street's nodes stay nearer).
+// Asked only when a turn would start, and not more often than this.
+constexpr uint32_t kFindNative = 0x00626AF0;  // esi: the hash; returns the handler
+constexpr uint32_t kNthClosestCarNodeWithHeading = 0x1F6B3FF0;
+constexpr int kJunctionNodes = 8;
+constexpr float kJunctionRange = 30.0f;
+constexpr float kJunctionBehind = 10.0f;
+constexpr float kJunctionCross = 50.0f;
+constexpr float kJunctionAskMs = 400.0f;
 constexpr float kTapMs = 300.0f;
 
 // The player's vehicle's indicator (0 none, 1 left, 2 right) and what
@@ -116,7 +168,24 @@ struct Indicators {
   int side = 0;
   bool stopping = false;  // off once this blink is over
   int turn = 0;           // automatic: the way the wheel is over
-  float held = 0;         //   for this long (ms)
+  float turned = 0;       //   how far the vehicle has turned that way (degrees)
+  float rate = 0;         //   and how quickly (degrees a second)
+  bool seen = false;      //   its place and heading last frame:
+  float x = 0, y = 0, heading = 0;
+  float full_ms = 0;      //   the wheel nearly at full lock this long
+  bool junction = false;  //   near a junction, as last asked
+  float asked_ms = 1e9f;  //     this long ago
+  float on_ms = 0;        //   the indicator's been on this long
+  float back_ms = 0;      //   with the wheel back this long
+  int last_side = 0;      //   the last indicator
+  float last_ms = 0;      //   off this long
+  bool real_turn = false; //   the last one was a turn, not a flick
+  bool latched = false;   //   set by a flick: on until the turn is made
+  float latch_ms = 0;     //     for this long
+  int flick_dir = 0;      //   the stick is off its rest this way (3 not a flick)
+  float flick_ms = 0;     //     for this long
+  bool flick_full = false;  //   and went all the way
+  float rest_ms = 0;      //   at rest this long
   bool left = false, right = false;  // manual: what is down
   float left_ms = 0, right_ms = 0;   //   since when
   bool both = false;                 //   both were down together
@@ -159,27 +228,192 @@ bool ButtonDown(Ctx& c, uint32_t button, uint32_t key) {
   return down;
 }
 
-void Automatic(uint32_t veh, float dt) {
+bool TurnLog() {
+  static const bool on = OptionOn("GTAIV_TURN_LOG", false);
+  return on;
+}
+
+// The side (1 left, 2 right) the pad's left stick has just been flicked,
+// or 0. IS_USING_CONTROLLER's test and GET_PAD_STATE's lookup (control 0,
+// the left stick's x; see camera_controls.cpp). A keyboard's tap is a
+// correction, and a flick is the pad's.
+int Flick(Ctx& c, float dt) {
   Indicators& s = g_ind;
+  int raw = 0;
+  {
+    KeepRegs keep(c);
+    if (uint8_t(CallGuest(c, 0x00B4D3D0, {}))) raw = int32_t(CallGuest(c, 0x00B4CD40, {0, 0}));
+  }
+  int out = 0;
+  if (std::abs(raw) < kFlickRest) {
+    if (s.flick_dir) {
+      if (s.flick_dir != 3 && s.flick_full && s.flick_ms <= kFlickMs) out = s.flick_dir;
+      if (TurnLog()) std::fprintf(stderr, "turn: stick back, dir %d full %d %.0f ms -> %d\n", s.flick_dir, s.flick_full, s.flick_ms, out);
+      s.flick_dir = 0;
+      s.flick_full = false;
+      s.rest_ms = 0;
+    }
+    s.rest_ms += dt;
+    return out;
+  }
+  const int dir = raw < 0 ? 1 : 2;
+  if (!s.flick_dir) {
+    s.flick_dir = s.rest_ms >= kFlickRestMs ? dir : 3;
+    s.flick_ms = 0;
+  } else if (s.flick_dir != dir) {
+    s.flick_dir = 3;
+  }
+  s.flick_ms += dt;
+  if (std::abs(raw) >= kFlickFull) s.flick_full = true;
+  return 0;
+}
+
+// Whether a road crosses near the vehicle (at x, y, z, forward fx, fy): the
+// scripts' GET_NTH_CLOSEST_CAR_NODE_WITH_HEADING (x, y, z, n, out x, y, z,
+// heading), called as a script calls it. No nodes at all (none loaded) counts
+// as yes, so as not to lose the indicator.
+bool JunctionNear(Ctx& c, float x, float y, float z, float fx, float fy) {
+  KeepRegs keep(c);
+  const auto bits = [](float f) {
+    uint32_t u;
+    std::memcpy(&u, &f, 4);
+    return u;
+  };
+  c.esi = kNthClosestCarNodeWithHeading;
+  const gaddr fn = gaddr(CallGuest(c, kFindNative, {}));
+  if (!fn) return true;
+  const uint32_t stack = uint32_t(c.esp);
+  const uint32_t base = (stack - 0x100) & ~0xFu;  // below the caller's; calls go below it
+  c.esp = base;
+  const uint32_t ctx = base, args = base + 0x60, out = base + 0xA0;
+  const float way = std::atan2(-fx, fy) * 180 / kPi;  // as the game's headings
+  bool any = false, found = false;
+  char line[256];
+  int used = std::snprintf(line, sizeof line, "turn: nodes");
+  for (int n = 1; n <= kJunctionNodes; n++) {
+    std::memset(GPtr(base), 0, 0xC0);
+    Wr32(ctx + 0x00, args);
+    Wr32(ctx + 0x04, 8);
+    Wr32(ctx + 0x08, args);
+    const uint32_t a[8] = {bits(x), bits(y), bits(z), uint32_t(n), out, out + 4, out + 8, out + 12};
+    for (int i = 0; i < 8; i++) Wr32(args + 4 * i, a[i]);
+    CallGuest(c, fn, {ctx});
+    const float dx = RdF32(out) - x, dy = RdF32(out + 4) - y, heading = RdF32(out + 12);
+    if (dx == -x && dy == -y) continue;  // no such node
+    any = true;
+    const float dist = std::hypot(dx, dy), along = dx * fx + dy * fy;
+    float cross = std::fmod(std::fabs(heading - way), 180.0f);
+    if (cross > 90) cross = 180 - cross;
+    if (dist <= kJunctionRange && along >= -kJunctionBehind && cross >= kJunctionCross) found = true;
+    if (TurnLog() && used < 220) used += std::snprintf(line + used, sizeof line - used, " %.0fm/%.0f", dist, cross);
+  }
+  c.esp = stack;
+  if (TurnLog()) std::fprintf(stderr, "%s -> %d%s\n", line, found, any ? "" : " (none)");
+  return found || !any;
+}
+
+void Automatic(Ctx& c, uint32_t veh, float dt) {
+  Indicators& s = g_ind;
+  const int flick = Flick(c, dt);
   const float lock = RdF32(Rd32(veh + kHandling) + 0x84);
   const float angle = RdF32(veh + kSteerAngle);
+  const float share = lock > 0 ? angle / lock : 0.0f;
   int turn = 0;  // the angle is positive to the left
-  if (lock > 0) {
-    if (angle > kTurnShare * lock) turn = 1;
-    else if (angle < -kTurnShare * lock) turn = 2;
-  }
+  if (share > (s.turn == 1 ? kTurnOffShare : kTurnOnShare)) turn = 1;
+  else if (share < -(s.turn == 2 ? kTurnOffShare : kTurnOnShare)) turn = 2;
   if (turn != s.turn) {
     s.turn = turn;
-    s.held = 0;
-  } else if (turn) {
-    s.held += dt;
+    s.turned = 0;
+    s.rate = 0;
+    s.full_ms = 0;
+    s.asked_ms = 1e9f;
   }
-  if (s.side && s.side == turn) s.stopping = false;
-  if (turn && s.side != turn && s.held >= kTurnHoldMs) {
+  s.asked_ms += dt;
+  bool reversing = false;
+  float forward = 0, fx = 0, fy = 1, px = 0, py = 0, pz = 0;
+  const uint32_t mat = Rd32(veh + 0x20);
+  if (mat && dt > 0) {
+    fx = RdF32(mat + 0x10);
+    fy = RdF32(mat + 0x14);
+    px = RdF32(mat + 0x30);
+    py = RdF32(mat + 0x34);
+    pz = RdF32(mat + 0x38);
+    const float heading = std::atan2(fy, fx);  // grows to the left
+    if (s.seen) forward = ((px - s.x) * fx + (py - s.y) * fy) / dt * 1000;
+    if (s.seen && turn) {
+      float d = heading - s.heading;
+      if (d > kPi) d -= 2 * kPi;
+      if (d < -kPi) d += 2 * kPi;
+      reversing = forward < -kTurnMinSpeed;
+      if (forward > kTurnMinSpeed && std::fabs(d) < 0.5f) {  // not a teleport
+        const float deg = (turn == 1 ? d : -d) * 180 / kPi;
+        s.rate += (deg / dt * 1000 - s.rate) * std::min(dt / kTurnRateMs, 1.0f);
+        if (s.rate >= kTurnMinRate) s.turned += deg;
+        else s.turned = std::max(s.turned - kTurnFadeRate * dt / 1000, 0.0f);
+      } else {
+        s.rate = 0;
+      }
+    }
+    s.seen = true;
+    s.x = px;
+    s.y = py;
+    s.heading = heading;
+  }
+  if (s.side) {
+    s.on_ms += dt;
+    s.back_ms = turn == s.side ? 0 : s.back_ms + dt;
+    s.last_side = s.side;
+    s.last_ms = 0;
+  } else {
+    s.last_ms += dt;
+  }
+  s.full_ms = turn && std::fabs(share) >= kTurnFullShare && !reversing ? s.full_ms + dt : 0;
+  if (flick && s.side == flick) {  // the same way again: off
+    s.latched = s.real_turn = false;
+    s.on_ms = kTurnMinOnMs;
+    s.back_ms = kTurnBackMs;
+  } else if (flick && (s.latched || (!s.side && !(s.real_turn && s.last_ms < kTurnBackWindowMs)))) {
+    // (Not while a turn's indicator is on or just over: the wheel being
+    // straightened can look like a flick.)
+    s.side = flick;
+    s.latched = true;
+    s.latch_ms = s.on_ms = s.back_ms = 0;
+    s.real_turn = false;
+  }
+  const bool back = s.last_side && turn != s.last_side && s.last_ms < kTurnBackWindowMs;
+  bool turning = turn && (s.turned >= (back ? kTurnBackDeg : kTurnStartDeg) ||
+                          s.full_ms >= (back ? kTurnFullBackMs : kTurnFullMs));
+  if (turning && turn != s.side && mat) {
+    if (s.asked_ms >= kJunctionAskMs) {
+      s.junction = JunctionNear(c, px, py, pz, fx, fy);
+      s.asked_ms = 0;
+    }
+    turning = s.junction;
+  }
+  if (turning) {
+    if (turn != s.side) s.on_ms = s.back_ms = 0;
     s.side = turn;
-    s.stopping = false;
+    s.latched = false;
+    s.real_turn = true;
+  } else if (s.latched && (s.latch_ms += dt) >= kTurnLatchMs) {
+    s.latched = false;
   }
-  if (s.side && s.side != turn) s.stopping = true;  // straightened or the other way
+  s.stopping = s.side && !s.latched && s.on_ms >= kTurnMinOnMs && s.back_ms >= kTurnBackMs;
+
+  // GTAIV_TURN_LOG=1: the wheel and the speed, four times a second.
+  if (TurnLog()) {
+    static float since = 0, px = 0, py = 0;
+    since += dt;
+    if (since >= 250) {
+      const uint32_t m = Rd32(veh + 0x20);
+      const float x = m ? RdF32(m + 0x30) : 0, y = m ? RdF32(m + 0x34) : 0;
+      const float kmh = std::hypot(x - px, y - py) / (since / 1000) * 3.6f;
+      std::fprintf(stderr, "turn: share %+.2f lock %.2f speed %.0f km/h side %d turned %.0f rate %.0f\n", share, lock, kmh, s.side, s.turned, s.rate);
+      px = x;
+      py = y;
+      since = 0;
+    }
+  }
 }
 
 void Manual(Ctx& c, uint32_t veh, float dt) {
@@ -258,7 +492,7 @@ void Update(Ctx& c) {
   if (ManualIndicators())
     Manual(c, veh, dt);
   else
-    Automatic(veh, dt);
+    Automatic(c, veh, dt);
   if (s.side && s.stopping && !BlinkOn(veh, clock)) {
     s.side = 0;
     s.stopping = false;

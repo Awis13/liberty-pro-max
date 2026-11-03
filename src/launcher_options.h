@@ -15,6 +15,7 @@ namespace {
 
 NSString* const kFolderKey = @"GameFolder";
 NSString* const kWindowKey = @"Windowed";
+NSString* const kOverNotchKey = @"FullScreenOverNotch";
 NSString* const kVsyncKey = @"VerticalSync";  // 0 the game's setting, 1 on, 2 off
 NSString* const kMetalFXKey = @"MetalFX";      // earlier versions: on/off
 NSString* const kAntiAliasingKey = @"AntiAliasing";  // 0 off, 1 SMAA, 2 MetalFX, 3 TAA, 4 SMAA + MetalFX spatial
@@ -215,6 +216,7 @@ void RegisterDefaults(NSUserDefaults* d) {
 // The options as the game reads them: environment variables of this process.
 void ApplyOptions(NSUserDefaults* d) {
   setenv("GTAIV_FULLSCREEN", [d boolForKey:kWindowKey] ? "window" : "desktop", 1);
+  setenv("GTAIV_OVER_NOTCH", [d boolForKey:kOverNotchKey] ? "1" : "0", 1);
   switch ([d integerForKey:kVsyncKey]) {
     case 1: setenv("GTAIV_VSYNC", "1", 1); break;
     case 2: setenv("GTAIV_VSYNC", "0", 1); break;

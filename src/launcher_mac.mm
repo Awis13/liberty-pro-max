@@ -102,6 +102,7 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 @property(strong) NSButton* hud;
 @property(strong) NSButton* skipIntro;
 @property(strong) NSButton* continueSave;
+@property(strong) NSButton* overNotch;
 @property(strong) NSButton* mods;
 @property(strong) NSTextField* modsNote;
 @property(strong) NSTabView* tabs;
@@ -189,6 +190,10 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
 
   self.skipIntro = [NSButton checkboxWithTitle:@"Skip the logo and legal screens" target:nil action:nil];
   self.skipIntro.state = [d boolForKey:kSkipIntroKey] ? NSControlStateValueOn : NSControlStateValueOff;
+  // macOS keeps a full screen Space below a display's notch; a borderless
+  // window covers it all. (Shown only with a notch, below.)
+  self.overNotch = [NSButton checkboxWithTitle:@"Use the whole screen, behind the notch" target:nil action:nil];
+  self.overNotch.state = [d boolForKey:kOverNotchKey] ? NSControlStateValueOn : NSControlStateValueOff;
   self.continueSave = [NSButton checkboxWithTitle:@"Continue from the last save (no main menu)"
                                           target:nil
                                           action:nil];
@@ -207,6 +212,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   NSGridView* grid = [NSGridView gridViewWithViews:@[
     @[ [self label:@"Game folder:"], folderRow ],
     @[ [self label:@"Display:"], self.display ],
+    @[ NSGridCell.emptyContentView, self.overNotch ],
     @[ [self label:@"Vertical sync:"], self.vsync ],
     @[ [self label:@"Anti-aliasing:"], self.antialiasing ],
     @[ [self label:@"MetalFX resolution:"], self.metalfxScale ],
@@ -220,6 +226,9 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ NSGridCell.emptyContentView, self.modsNote ],
   ]];
   grid.rowSpacing = 10;
+  BOOL notch = NO;
+  for (NSScreen* s in NSScreen.screens) notch = notch || s.safeAreaInsets.top > 0;
+  [grid cellForView:self.overNotch].row.hidden = !notch;
   grid.columnSpacing = 10;
   [grid columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
   grid.rowAlignment = NSGridRowAlignmentFirstBaseline;
@@ -392,6 +401,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
   [d setObject:self.folder forKey:kFolderKey];
   [d setBool:self.display.indexOfSelectedItem == 1 forKey:kWindowKey];
+  [d setBool:self.overNotch.state == NSControlStateValueOn forKey:kOverNotchKey];
   [d setInteger:self.vsync.indexOfSelectedItem forKey:kVsyncKey];
   [d setInteger:self.antialiasing.indexOfSelectedItem forKey:kAntiAliasingKey];
   [d setInteger:self.metalfxScale.indexOfSelectedItem forKey:kMetalFXScaleKey];

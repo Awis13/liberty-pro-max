@@ -331,9 +331,14 @@ passes both itself.)
 
 Each folder in `~/Library/Application Support/gtaiv/drive_c/mods` is a mod (the
 launcher's **Open Mods Folder** opens it). Its files replace the game's at the
-same path, such as `pc/...` or `common/...`; a leading `update/` is ignored. If
-two mods have the same file, the later name wins. Your game folder is not
-changed, and **Load mods** turns them off.
+same path, such as `pc/...` or `common/...`, wherever they are inside it, so a
+mod pack's `update` folder can go there whole. Its `.img` archives are added to
+the game's, and files for the episodes (`TLAD`, `TBoGT`) are left out. If two
+mods have the same file, the later name wins. Your game folder is not changed,
+and **Load mods** turns them off.
+
+The game's own `update` folder is read the same way, so mods already there keep
+working.
 
 Only files are loaded: mods with Windows code (`.asi`, `.dll`) do not run. Mods
 are not part of this project, and it does not supply or support any. Add them

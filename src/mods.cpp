@@ -1,8 +1,10 @@
 // mods.cpp: the player's mods, from DataDir()/drive_c/mods. Each folder there
-// is a mod, its files laid out as in the game's folder (pc/..., common/...; a
-// leading update/, as many mods carry for FusionFix's loader, is dropped). The
-// game's reads of its install are pointed at them, case-insensitively like
-// NTFS; of two mods with the same file the later name wins. The install is
+// is a mod, its files laid out as in the game's folder (pc/..., common/...),
+// anywhere inside it (a leading update/, as many mods carry for FusionFix's
+// loader, a mod pack's folders); its .img archives are added to the game's, and
+// the episodes' folders left out. The game's reads of its install are pointed
+// at the files, case-insensitively like NTFS; of two mods with the same file the
+// later name wins, and a mod's files win over the update folder's. The install is
 // never touched. GTAIV_MODS=0 turns it off; GTAIV_MODS_LOG=1 logs one line per
 // file served this way.
 
@@ -20,6 +22,11 @@
 
 #include "runtime/platform.h"
 #include "runtime/runtime.h"
+
+namespace recomp::gen {
+std::string UpdateFolderAddModFile(const std::string& rel, const std::string& guest);  // update_folder.cpp
+void UpdateFolderEndMod();
+}  // namespace recomp::gen
 
 namespace {
 
@@ -59,9 +66,10 @@ void Scan(const std::string& dir, const std::string& rel, const std::string& gue
     if (S_ISDIR(st.st_mode)) {
       Scan(path, r, guest);
     } else if (S_ISREG(st.st_mode)) {
-      std::string key = Lower(r);
-      if (key.rfind("update/", 0) == 0) key.erase(0, 7);
-      g_files[key] = guest + r;
+      std::string in_mod = r;
+      if (Lower(r).rfind("update/", 0) == 0) in_mod.erase(0, 7);
+      const std::string key = recomp::gen::UpdateFolderAddModFile(in_mod, guest + r);
+      if (!key.empty()) g_files[key] = guest + r;
     }
   }
   closedir(d);
@@ -83,7 +91,10 @@ void GtaivModsInit() {
     closedir(d);
   }
   std::sort(mods.begin(), mods.end());
-  for (const std::string& m : mods) Scan(root + "/" + m, "", "C:/mods/" + m + "/");
+  for (const std::string& m : mods) {
+    Scan(root + "/" + m, "", "C:/mods/" + m + "/");
+    recomp::gen::UpdateFolderEndMod();
+  }
   if (!g_files.empty())
     std::fprintf(stderr, "mods: %zu files from %zu folders in %s\n", g_files.size(), mods.size(), root.c_str());
 }

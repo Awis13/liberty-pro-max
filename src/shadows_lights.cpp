@@ -222,7 +222,41 @@ void hook_008FB380(Ctx& c) {
 // game's shader folders and in no other shader), so they go behind the wall and
 // show only at some angles. As FusionFix's shaders have it.
 // GTAIV_SIGN_GLOW_FIX=0 leaves it.
+// A shader of FusionFix's that a mod's model needs while the rest of them
+// are off (update_folder.cpp): its logarithmic depth (from PS c209, not set
+// without them) does not belong with the game's own depth. The write to oDepth
+// goes; nothing else in it reads what is computed for it.
+namespace {
+void DropLogDepth(std::vector<uint32_t>& tokens) {
+  if (tokens.empty() || (tokens[0] & 0xFFFF0000) != 0xFFFF0000) return;  // a pixel shader's
+  constexpr uint32_t kComment = 0xFFFE, kEnd = 0xFFFF, kDef = 0x51, kDcl = 0x1F;
+  const auto type = [](uint32_t t) { return ((t >> 28) & 7) | ((t >> 8) & 0x18); };
+  bool reads_c209 = false;
+  size_t write = 0, write_tokens = 0;
+  for (size_t i = 1; i < tokens.size();) {
+    const uint32_t op = tokens[i] & 0xFFFF;
+    if (op == kEnd) break;
+    if (op == kComment) {
+      i += 1 + ((tokens[i] >> 16) & 0x7FFF);
+      continue;
+    }
+    const size_t n = (tokens[i] >> 24) & 0xF;
+    if (op != kDef && op != kDcl && n && i + n < tokens.size()) {
+      if (type(tokens[i + 1]) == 9) {  // D3DSPR_DEPTHOUT
+        write = i;
+        write_tokens = 1 + n;
+      }
+      for (size_t k = 2; k <= n; k++)
+        if (type(tokens[i + k]) == 2 && (tokens[i + k] & 0x7FF) == 209) reads_c209 = true;  // D3DSPR_CONST
+    }
+    i += 1 + n;
+  }
+  if (write && reads_c209) tokens.erase(tokens.begin() + write, tokens.begin() + write + write_tokens);
+}
+}  // namespace
+
 void GtaivShaderTokens(std::vector<uint32_t>& tokens) {
+  if (!recomp::gen::FfShadersOn()) DropLogDepth(tokens);
   static const bool on = OptionOn("GTAIV_SIGN_GLOW_FIX", true);
   if (!on) return;
   for (size_t i = 0; i + 3 < tokens.size(); i++)

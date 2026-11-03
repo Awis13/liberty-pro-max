@@ -43,7 +43,8 @@ bool g_play = false;
   NSUserDefaults* _d;
 }
 
-typedef NS_ENUM(NSInteger, LpmSection) { kGame, kGraphics, kFixesSection, kShaders, kSectionCount };
+// (kShaders is not shown: FixShown.)
+typedef NS_ENUM(NSInteger, LpmSection) { kGame, kGraphics, kFixesSection, kSectionCount, kShaders };
 
 - (instancetype)init {
   if ((self = [super init])) _d = NSUserDefaults.standardUserDefaults;
@@ -160,7 +161,7 @@ static NSArray* GraphicsRows() {
   switch (s) {
     case kGame: return GameRows().count;
     case kGraphics: return GraphicsRows().count;
-    case kFixesSection: return std::size(kFixes);
+    case kFixesSection: return ShownFixCount();
     default: return std::size(kShaderChoices);
   }
 }
@@ -184,8 +185,8 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
       key = row[1];
       radio = [key isEqualToString:kRadioKey];
     } else {
-      cell.textLabel.text = kFixes[ip.row].title;
-      key = kFixes[ip.row].key;
+      cell.textLabel.text = ShownFix(ip.row).title;
+      key = ShownFix(ip.row).key;
     }
     UISwitch* sw = [UISwitch new];
     sw.on = [_d boolForKey:key];

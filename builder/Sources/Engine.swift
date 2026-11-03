@@ -23,6 +23,7 @@ final class Engine: ObservableObject {
   @Published var game: Check = .none
   // The Command Line Tools (clang, the macOS SDK, objdump, python3).
   @Published var tools: Check = .none
+  @Published var toolsOutdated = false  // installed but too old: the installer cannot help
   // The build.
   @Published var building = false
   @Published var step = ""
@@ -162,14 +163,15 @@ final class Engine: ObservableObject {
       return
     }
     stopWaitingForTools()
-    // The recipe's sources need at least the compiler they were made with.
+    // The recipe's sources need at least this compiler.
     let want = (try? Recipe.load().clang) ?? 0
     let version = await Run.line("/usr/bin/xcrun", ["clang++", "--version"]) ?? ""
     let have = Int(version.range(of: #"clang version (\d+)"#, options: .regularExpression)
       .map { version[$0].split(separator: " ").last.map(String.init) ?? "" } ?? "") ?? 0
-    if want > 0, have > 0, have < want {
-      tools = .bad("These Command Line Tools are too old (clang \(have); \(want) or newer is needed): "
-                   + "update them in System Settings › General › Software Update.")
+    toolsOutdated = want > 0 && have > 0 && have < want
+    if toolsOutdated {
+      tools = .bad("These Command Line Tools are too old (clang \(have); \(want) or newer is needed). "
+                   + "Update them in System Settings › General › Software Update (macOS 15 or newer has them).")
       return
     }
     tools = .ok("Command Line Tools ready (\(URL(fileURLWithPath: sdk).lastPathComponent))")

@@ -71,7 +71,7 @@ struct ContentView: View {
 
       Card(number: 2, title: "Apple's developer tools", state: engine.tools) {
         switch engine.tools {
-        case .bad: Button("Install the Command Line Tools") { engine.installTools() }
+        case .bad where !engine.toolsOutdated: Button("Install the Command Line Tools") { engine.installTools() }
         case .busy: Button("Open the installer again") { engine.installTools() }.controlSize(.small)
         default: EmptyView()
         }

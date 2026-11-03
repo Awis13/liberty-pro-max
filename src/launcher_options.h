@@ -156,6 +156,23 @@ const Fix kFixes[] = {
     {@"AimProjectileFix", "GTAIV_AIM_PROJECTILE_FIX", @"No crash aiming thrown weapons with a ped that has no pad"},
 };
 
+// FusionFix's shader options (keys "FF...", or naming them in the title):
+// hidden, as those shaders are off (GTAIV_FF_SHADERS, work in progress) and
+// the options would do nothing.
+inline bool FixShown(const Fix& f) {
+  return ![f.key hasPrefix:@"FF"] && ![f.title containsString:@"needs FusionFix shaders"];
+}
+inline NSInteger ShownFixCount() {
+  NSInteger n = 0;
+  for (const Fix& f : kFixes) n += FixShown(f);
+  return n;
+}
+inline const Fix& ShownFix(NSInteger row) {
+  for (const Fix& f : kFixes)
+    if (FixShown(f) && row-- == 0) return f;
+  return kFixes[0];
+}
+
 // Advanced, FusionFix's shader settings: a popup each, the item's index
 // as the variable's value (ff_shaders.cpp reads 0-n). They take effect
 // with FusionFix's shaders (GTAIV_FF_SHADERS).

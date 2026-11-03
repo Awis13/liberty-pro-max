@@ -61,6 +61,9 @@ namespace recomp::gen {
 std::string UpdateFolderRedirect(const std::string& guest_path);
 }  // namespace recomp::gen
 
+// shadows_lights.cpp: the game's own wrong shader bytecode corrected.
+void GtaivShaderTokens(std::vector<uint32_t>& tokens);
+
 namespace {
 std::string ReadRedirect(const std::string& guest_path) {
   std::string r = GtaivModsRedirect(guest_path);
@@ -187,6 +190,7 @@ int main(int argc, char** argv) {
   // then the install itself.
   if (const char* m = std::getenv("GTAIV_MODS"); !m || *m != '0') GtaivModsInit();
   game.read_redirect = ReadRedirect;
+  game.shader_tokens = GtaivShaderTokens;
 #if !GTAIV_IOS
   // Saves to the player's iPad and Apple TV (save_sync_mac.mm).
   game.before_exit = [] {

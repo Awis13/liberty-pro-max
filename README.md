@@ -54,7 +54,7 @@ they do; their code is not used), some are this port's own.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-99 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
+100 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
 
 #### High frame rates
 
@@ -127,6 +127,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 
 | Option | Default |
 |---|---|
+| Neon signs glow from every angle (the game's depth shift corrected) | on |
 | Distant city lights as on consoles (from 7 pm, street level) | on |
 | Reflections and car dirt as on consoles | on |
 | Mirrors show decals near them | on |

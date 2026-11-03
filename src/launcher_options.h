@@ -114,6 +114,7 @@ const Fix kFixes[] = {
     {@"WheelStuntCamera", "GTAIV_WHEEL_STUNT_CAMERA", @"Stunt jumps: mouse wheel sets the slow motion", true},
     {@"VehicleNightShadows", "GTAIV_VEHICLE_NIGHT_SHADOWS", @"Vehicles cast shadows from street lights (needs FusionFix shaders)"},
     {@"EmissiveNoDepthWrite", "GTAIV_EMISSIVE_NO_DEPTH_WRITE", @"Glowing lights and signs without depth artifacts"},
+    {@"SignGlowFix", "GTAIV_SIGN_GLOW_FIX", @"Neon signs glow from every angle (the game's depth shift corrected)"},
     {@"DynamicShadowsEverywhere", "GTAIV_DYNAMIC_SHADOWS_EVERYWHERE", @"Every light casts moving shadows (very slow)", false},
     {@"CarShadowAnyDistance", "GTAIV_CAR_SHADOW_ANY_DISTANCE", @"Shadow under cars at any distance"},
     {@"NoStaticCarShadows", "GTAIV_NO_STATIC_CAR_SHADOWS", @"No shadow patch under cars", false},

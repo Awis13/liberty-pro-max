@@ -15,6 +15,7 @@ namespace {
 
 NSString* const kFolderKey = @"GameFolder";
 NSString* const kWindowKey = @"Windowed";
+NSString* const kTouchKey = @"TouchControls";
 NSString* const kOverNotchKey = @"FullScreenOverNotch";
 NSString* const kVsyncKey = @"VerticalSync";  // 0 the game's setting, 1 on, 2 off
 NSString* const kMetalFXKey = @"MetalFX";      // earlier versions: on/off
@@ -207,7 +208,7 @@ NSString* ModsFolder() {
 // The defaults of every option (the player's choices override them).
 void RegisterDefaults(NSUserDefaults* d) {
   NSMutableDictionary* defaults =
-      [NSMutableDictionary dictionaryWithDictionary:@{kHudKey : @YES, kSkipIntroKey : @YES, kFastLoadingKey : @YES, kModsKey : @YES, kStunPunchKey : @YES, kExecutionsKey : @YES, kContinueKey : @YES, kMetalFXScaleKey : @1, kTaaSharpeningKey : @2, kAntiAliasingKey : @3}];
+      [NSMutableDictionary dictionaryWithDictionary:@{kHudKey : @YES, kTouchKey : @YES, kSkipIntroKey : @YES, kFastLoadingKey : @YES, kModsKey : @YES, kStunPunchKey : @YES, kExecutionsKey : @YES, kContinueKey : @YES, kMetalFXScaleKey : @1, kTaaSharpeningKey : @2, kAntiAliasingKey : @3}];
   for (const Fix& f : kFixes) defaults[f.key] = @(f.on);
   for (const ShaderChoice& sc : kShaderChoices) defaults[sc.key] = @(sc.def);
   [d registerDefaults:defaults];
@@ -216,6 +217,7 @@ void RegisterDefaults(NSUserDefaults* d) {
 // The options as the game reads them: environment variables of this process.
 void ApplyOptions(NSUserDefaults* d) {
   setenv("GTAIV_FULLSCREEN", [d boolForKey:kWindowKey] ? "window" : "desktop", 1);
+  setenv("GTAIV_TOUCH", [d boolForKey:kTouchKey] ? "1" : "0", 1);
   setenv("GTAIV_OVER_NOTCH", [d boolForKey:kOverNotchKey] ? "1" : "0", 1);
   switch ([d integerForKey:kVsyncKey]) {
     case 1: setenv("GTAIV_VSYNC", "1", 1); break;

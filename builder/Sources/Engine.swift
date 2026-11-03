@@ -170,8 +170,8 @@ final class Engine: ObservableObject {
       .map { version[$0].split(separator: " ").last.map(String.init) ?? "" } ?? "") ?? 0
     toolsOutdated = want > 0 && have > 0 && have < want
     if toolsOutdated {
-      tools = .bad("These Command Line Tools are too old (clang \(have); \(want) or newer is needed): "
-                   + "update them in System Settings › General › Software Update.")
+      tools = .bad("These Command Line Tools are too old (clang \(have); \(want) or newer is needed). "
+                   + "Update them in System Settings › General › Software Update (macOS 15 or newer has them).")
       return
     }
     tools = .ok("Command Line Tools ready (\(URL(fileURLWithPath: sdk).lastPathComponent))")

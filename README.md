@@ -218,7 +218,7 @@ lighting, graphics API choice and plugin loaders have nothing to do.
   Edition (1.2.0.x) is not supported as it is; the community
   [GTA Downgraders](https://github.com/Tomasak/GTA-Downgraders) turn it into
   1.0.8.0.
-- **A Mac with Apple silicon** (M1 or newer), macOS 14 or newer, with the
+- **A Mac with Apple silicon** (M1 or newer), macOS 15 or newer, with the
   **Xcode Command Line Tools** (`xcode-select --install`) and
   [Homebrew](https://brew.sh); about 6 GB free for the build. The Mac builds
   both versions.

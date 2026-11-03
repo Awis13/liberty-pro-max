@@ -46,7 +46,7 @@ Measured on an M3 Pro at 3440×1440, maximum settings, on the same street:
 On the launcher's **General** tab: resolution and display, anti-aliasing
 (TAA, SMAA, MetalFX), shadow and reflection resolution, field of view, fast
 loading, skipping the logo screens, continuing the last save, mods, the
-performance overlay. On the **Advanced** tab, every fix
+performance overlay, on a display with a notch the whole screen. On the **Advanced** tab, every fix
 below, each a switch. Most follow FusionFix's and ZolikaPatch's (by what
 they do; their code is not used), some are this port's own.
 

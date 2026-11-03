@@ -179,7 +179,12 @@ int main(int argc, char** argv) {
   game.video_memory_mb = 2047;
   // Full screen as macOS does it: Game Mode turns on (Liberty Pro Max.app).
 #if !GTAIV_IOS
-  game.mac_fullscreen_space = true;
+  // (A Space stays below a display's notch: the launcher's choice of a
+  // borderless window over all of it.)
+  {
+    const char* n = std::getenv("GTAIV_OVER_NOTCH");
+    game.mac_fullscreen_space = !(n && *n == '1');
+  }
 #endif
   // The launcher's window (integrity.cpp).
   game.send_message = GtaivSendMessage;

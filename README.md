@@ -28,7 +28,7 @@ Expect rough edges, and please report what you find.
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play**; the icon is the game's own IV |
 | **Fixes built in** | about 100 fixes from FusionFix and ZolikaPatch (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
 | **Extras** | stun punch and executions on anyone, fast loading, a mods folder | the same |
-| **Controls** | keyboard and mouse, controllers | controllers, keyboard (no touch controls) |
+| **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
 
 ### Speed
 
@@ -389,7 +389,7 @@ preset `appletvos` and `PLATFORM=tvos` for `tools/ios_profile.sh` and
 - Mac, iPad and (experimental) Apple TV for now. Linux and the Steam Deck are planned.
 - Apple TV: no settings screen and no icon yet; high texture quality does
   not fit its memory (DXT decoded on upload).
-- iPad: no touch controls; busy streets need the game's distances lowered
+- iPad: busy streets need the game's distances lowered
   for a steady 60 fps.
 - Multiplayer and paid features are not available and not planned.
 - MetalFX temporal upscaling costs about 5 ms a frame at 3440×1440 output,

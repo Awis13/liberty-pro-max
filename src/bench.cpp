@@ -21,6 +21,13 @@
 #include "runtime/log.h"
 #include "runtime/runtime.h"
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS && !TARGET_OS_TV
+void GtaivTouchContext(bool in_game, bool in_vehicle, bool menu);  // touch_ios.mm
+#endif
+
 namespace recomp::gen {
 
 void MainLoopWaitRender(Ctx& c);  // perf.cpp: 008A1860's lifted body, timed
@@ -42,6 +49,8 @@ enum : uint32_t {
   LOAD_SCENE = 0x39F62BFB,
   FORCE_TIME_OF_DAY = 0x0B9B5070,
   FORCE_WEATHER_NOW = 0x63737D31,
+  IS_CHAR_IN_ANY_CAR = 0x71184DA3,
+  IS_PAUSE_MENU_ACTIVE = 0x6C4568A7,
 };
 
 // The scripts' call context (iv-sdk IVNativeCallContext) and what follows
@@ -105,6 +114,33 @@ const Scene& Config() {
 // The main loop's wait for the render thread (thiscall, no arguments).
 void f_008A1860(Ctx& c) {
   MainLoopWaitRender(c);
+#if defined(TARGET_OS_IOS) && TARGET_OS_IOS && !TARGET_OS_TV
+  // The touch controls' layout, a few times a second.
+  static uint32_t touch_frames = 0;
+  if (++touch_frames % 10 == 0) {
+    const uint32_t eax = c.eax, ebx = c.ebx, esi = c.esi, edi = c.edi, ebp = c.ebp;
+    const uint32_t esp = c.esp;
+    const bool in_game = CallGuest(c, kFindPlayerPed, {}) != 0;
+    bool in_vehicle = false, menu = false;
+    if (in_game) {
+      c.esp -= kSize;
+      const uint32_t base = uint32_t(c.esp) & ~0xFu;
+      c.esp = base;
+      const uint32_t player =
+          Native(c, base, CONVERT_INT_TO_PLAYERINDEX, {Native(c, base, GET_PLAYER_ID, {})});
+      Native(c, base, GET_PLAYER_CHAR, {player, base + kOut});
+      in_vehicle = (Native(c, base, IS_CHAR_IN_ANY_CAR, {Rd32(base + kOut)}) & 0xFF) != 0;
+      menu = (Native(c, base, IS_PAUSE_MENU_ACTIVE, {}) & 0xFF) != 0;
+    }
+    c.eax = eax;
+    c.ebx = ebx;
+    c.esi = esi;
+    c.edi = edi;
+    c.ebp = ebp;
+    c.esp = esp;
+    ::GtaivTouchContext(in_game, in_vehicle, menu);
+  }
+#endif
   const Scene& s = Config();
   if (!s.log && s.x == 0 && s.y == 0) return;
 

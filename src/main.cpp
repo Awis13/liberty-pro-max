@@ -54,6 +54,9 @@ void RunLauncherIfWanted(int argc, char** argv);
 #if GTAIV_IOS
 // launcher_ios.mm: the iPad's settings screen, until Play.
 void RunIosLauncher(std::string* game_args);
+#if !TARGET_OS_TV
+void GtaivTouchStart();  // touch_ios.mm
+#endif
 #endif
 
 namespace recomp::gen {
@@ -130,6 +133,9 @@ int main(int argc, char** argv) {
   // The launcher (the player's mods, if any, are in
   // Documents/gtaiv/drive_c/mods).
   RunIosLauncher(&game_args);
+#if !TARGET_OS_TV
+  GtaivTouchStart();
+#endif
 #endif
   if (const char* e = std::getenv("GTAIV_GAME_DIR")) game_dir = e;
   for (int i = 1; i < argc; i++) {

@@ -204,6 +204,8 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 
 </details>
 
+Flick the left stick to set an indicator before a turn; flick the same way to turn it off.
+
 Not yet here from FusionFix: its ambient occlusion (SAO), console gamma,
 HDR output, depth effects through transparent surfaces (pre-alpha depth),
 MSAA in reflections, gamepad button icons, camera sensitivity ranges and

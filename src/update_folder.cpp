@@ -23,9 +23,12 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <map>
 #include <mutex>
+#include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "hook_util.h"
@@ -77,6 +80,101 @@ bool NaturalLess(const std::string& a, const std::string& b) {
   }
   return a.size() - i < b.size() - j;
 }
+
+// Below an episode's folder, wherever it is: not IV's files.
+bool EpisodePath(const std::string& lower) {
+  return lower.find("\\tlad\\") != std::string::npos || lower.find("\\tbogt\\") != std::string::npos ||
+         lower.rfind("tlad\\", 0) == 0 || lower.rfind("tbogt\\", 0) == 0;
+}
+
+// A mod's own folder (<mod>\pc\...): its files count from the first of the
+// game's top folders in their path.
+std::string GameKey(std::string key) {
+  for (size_t at = 0; at != std::string::npos;) {
+    const std::string comp = key.substr(at, key.find('\\', at) - at);
+    if (comp == "common" || comp == "pc" || comp == "audio" || comp == "movies") return key.substr(at);
+    at = key.find('\\', at);
+    if (at != std::string::npos) at++;
+  }
+  return key;
+}
+
+// Archives come in the order FusionFix loads them (a later archive's files
+// win): by the folder they are in at the top (a mod's own: "0 Minor Mods",
+// "1 Potential Grim"...), within it shallower first (the shared archives
+// before IV's own), then by name.
+bool ArchiveLess(const std::string& a, const std::string& b) {
+  const std::string ta = Lower(a.substr(0, a.find('\\'))), tb = Lower(b.substr(0, b.find('\\')));
+  if (ta != tb) return NaturalLess(ta, tb);
+  const auto da = std::count(a.begin(), a.end(), '\\'), db = std::count(b.begin(), b.end(), '\\');
+  return da != db ? da < db : NaturalLess(a, b);
+}
+
+// What mods bring beyond the game's shaders, for models that use them even
+// without FusionFix's shaders (the game ends with EFC20 when a model's
+// shader was never loaded): lower-case name without extension (win32_30's
+// .fxc), or path (db's and dcl's files), to where it is: a guest path, or
+// a path below the install. Set before the game's threads run.
+std::map<std::string, std::string> g_mod_fxc, g_mod_shader_files;
+
+void NoteShaderFile(const std::string& key, const std::string& source, bool replace) {
+  const std::string dir = "common\\shaders\\";
+  if (key.rfind(dir, 0) != 0) return;
+  const size_t slash = key.find('\\', dir.size());
+  if (slash == std::string::npos || key.find('\\', slash + 1) != std::string::npos) return;
+  const std::string folder = key.substr(dir.size(), slash - dir.size());
+  const std::string name = key.substr(slash + 1);
+  std::map<std::string, std::string>* into = nullptr;
+  std::string id;
+  if (folder == "win32_30" && name.size() > 4 && name.compare(name.size() - 4, 4, ".fxc") == 0) {
+    into = &g_mod_fxc;
+    id = name.substr(0, name.size() - 4);
+  } else if (folder == "db" || folder == "dcl") {
+    into = &g_mod_shader_files;
+    id = key;
+  }
+  if (!into) return;
+  if (replace) (*into)[id] = source;
+  else into->emplace(id, source);
+}
+
+// Whether the game's own folder of common\shaders has this file.
+bool GameHasShaderFile(const std::string& folder, const std::string& name) {
+  static std::mutex mu;
+  static std::map<std::string, std::set<std::string>> listed;
+  std::lock_guard<std::mutex> l(mu);
+  auto it = listed.find(folder);
+  if (it == listed.end()) {
+    it = listed.emplace(folder, std::set<std::string>{}).first;
+    std::error_code ec;
+    const auto dir = std::filesystem::path(g_proc->game_dir) / "common" / "shaders" / folder;
+    for (std::filesystem::directory_iterator d(dir, ec), end; !ec && d != end; d.increment(ec))
+      it->second.insert(Lower(d->path().filename().string()));
+  }
+  return it->second.count(name) != 0;
+}
+
+// The file a mod brings for this read of the game's shader folders, without
+// FusionFix's shaders: only what the game does not have itself.
+std::string ModShaderFile(const std::string& rel) {
+  const std::string dir = "common\\shaders\\";
+  if (rel.rfind(dir, 0) != 0) return {};
+  const size_t slash = rel.find('\\', dir.size());
+  if (slash == std::string::npos) return {};
+  const std::string folder = rel.substr(dir.size(), slash - dir.size());
+  const std::string name = rel.substr(slash + 1);
+  if (GameHasShaderFile(folder, name)) return {};
+  if (folder.rfind("win32_30", 0) == 0 && name.size() > 4) {
+    auto it = g_mod_fxc.find(name.substr(0, name.size() - 4));
+    return it == g_mod_fxc.end() ? std::string{} : it->second;
+  }
+  auto it = g_mod_shader_files.find(rel);
+  return it == g_mod_shader_files.end() ? std::string{} : it->second;
+}
+
+// The mods folder's archives (guest paths), each mod's in the order above.
+std::vector<std::string> g_mod_imgs;
+std::vector<std::pair<std::string, std::string>> g_this_mod_imgs;
 
 // The update folder's files: lower-case path below it (backslashes) to
 // the path as it is on disk; and its IMG archives for IV, in load order.
@@ -136,40 +234,15 @@ const UpdateFolder& Folder() {
       const std::string lower = Lower(rel);
       if (lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".img") == 0) {
         // IV's: at the top or in an "IV" folder, not the episodes'.
-        const bool episode = lower.find("\\tlad\\") != std::string::npos ||
-                             lower.find("\\tbogt\\") != std::string::npos || lower.rfind("tlad\\", 0) == 0 ||
-                             lower.rfind("tbogt\\", 0) == 0;
-        if (!episode && lower != "update.img") f.imgs.push_back(rel);
+        if (!EpisodePath(lower) && lower != "update.img") f.imgs.push_back(rel);
         continue;
       }
-      // The episodes' folders, wherever they are: not IV's files.
-      if (lower.find("\\tlad\\") != std::string::npos || lower.find("\\tbogt\\") != std::string::npos ||
-          lower.rfind("tlad\\", 0) == 0 || lower.rfind("tbogt\\", 0) == 0)
-        continue;
-      // A mod's own folder inside update (update\<mod>\pc\...): its files
-      // count from the first of the game's top folders in their path.
-      std::string key = lower;
-      for (size_t at = 0; at != std::string::npos;) {
-        const std::string comp = key.substr(at, key.find('\\', at) - at);
-        if (comp == "common" || comp == "pc" || comp == "audio" || comp == "movies") {
-          key = key.substr(at);
-          break;
-        }
-        at = key.find('\\', at);
-        if (at != std::string::npos) at++;
-      }
+      if (EpisodePath(lower)) continue;
+      const std::string key = GameKey(lower);
+      if (!Excluded(key)) NoteShaderFile(key, "update\\" + rel, false);
       if (!LeftOut(key) && !f.files.count(key)) f.files[key] = rel;
     }
-    // In the order FusionFix loads them (a later archive's files win): by
-    // the folder they are in at the top (a mod's own: "0 Minor Mods",
-    // "1 Potential Grim"...), within it shallower first (the shared
-    // archives before IV's own), then by name.
-    std::sort(f.imgs.begin(), f.imgs.end(), [](const std::string& a, const std::string& b) {
-      const std::string ta = Lower(a.substr(0, a.find('\\'))), tb = Lower(b.substr(0, b.find('\\')));
-      if (ta != tb) return NaturalLess(ta, tb);
-      const auto da = std::count(a.begin(), a.end(), '\\'), db = std::count(b.begin(), b.end(), '\\');
-      return da != db ? da < db : NaturalLess(a, b);
-    });
+    std::sort(f.imgs.begin(), f.imgs.end(), ArchiveLess);
     WarnF("gtaiv: update folder: %zu files read over the game's, %zu archives\n", f.files.size(), f.imgs.size());
   });
   return f;
@@ -178,6 +251,33 @@ const UpdateFolder& Folder() {
 }  // namespace
 
 bool FfShadersOn() { return FfShaders(); }
+
+// One file of the mods folder (rel: its path in the mod, guest: where it is).
+// Its archive is kept for the game's IMG list, and the rest is given back as
+// the path it stands for in the game's folder (lower case, '/'), or "" when
+// it is not for IV or not used.
+std::string UpdateFolderAddModFile(const std::string& rel, const std::string& guest) {
+  std::string lower = Lower(rel);
+  std::replace(lower.begin(), lower.end(), '/', '\\');
+  if (EpisodePath(lower)) return {};
+  if (lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".img") == 0) {
+    if (lower != "update.img") g_this_mod_imgs.emplace_back(lower, guest);
+    return {};
+  }
+  std::string key = GameKey(lower);
+  if (!Excluded(key)) NoteShaderFile(key, guest, true);
+  if (LeftOut(key)) return {};
+  std::replace(key.begin(), key.end(), '\\', '/');
+  return key;
+}
+
+// The end of one mod's files.
+void UpdateFolderEndMod() {
+  std::sort(g_this_mod_imgs.begin(), g_this_mod_imgs.end(),
+            [](const auto& a, const auto& b) { return ArchiveLess(a.first, b.first); });
+  for (const auto& [rel, guest] : g_this_mod_imgs) g_mod_imgs.push_back(guest);
+  g_this_mod_imgs.clear();
+}
 
 // GameConfig::read_redirect: a file below the install read from the update
 // folder when it has one.
@@ -191,6 +291,13 @@ std::string UpdateFolderRedirect(const std::string& guest_path) {
   std::replace(rel.begin(), rel.end(), '/', '\\');
   if (rel.rfind("update\\", 0) == 0) return {};
   const UpdateFolder& f = Folder();
+  if (!FfShaders()) {
+    const std::string own = ModShaderFile(rel);
+    if (!own.empty()) {
+      WarnF("gtaiv: mods: %s read from %s\n", rel.c_str(), own.c_str());
+      return own.rfind("update\\", 0) == 0 ? dir + "\\" + own : own;
+    }
+  }
   auto it = f.files.find(rel);
   if (it == f.files.end()) return {};
   static std::mutex mu;
@@ -215,16 +322,19 @@ void hook_00AC659A(Ctx& c) {
   static bool added = false;
   if (FfData() && !added) {
     added = true;
-    for (std::string rel : Folder().imgs) {
-      std::replace(rel.begin(), rel.end(), '\\', '/');
-      const std::string path = "update:/" + rel;
+    const auto add = [&c](const std::string& path) {
       const uint32_t room = (uint32_t(path.size()) + 1 + 15) & ~15u;
       c.esp -= room;  // the path, below the frame
       std::memcpy(GPtr(c.esp), path.c_str(), path.size() + 1);
       CallGuest(c, 0x00A22BE0, {c.esp, 1, 0xFFFFFFFFu});
       c.esp += room;
       WarnF("gtaiv: update folder: archive %s added\n", path.c_str());
+    };
+    for (std::string rel : Folder().imgs) {
+      std::replace(rel.begin(), rel.end(), '\\', '/');
+      add("update:/" + rel);
     }
+    for (const std::string& path : g_mod_imgs) add(path);  // after: a mod's files win
   }
   c.eax = list;
 }
@@ -339,7 +449,10 @@ void hook_00AC4DE8(Ctx& c) {
 // extension, slot). After the list (at 0041E550, the slot in ebp), the
 // update folder's .fxc the list did not name are loaded the same way
 // (FusionFix's preload list, by its idea). The shaders the game sets up
-// on its own (rage_postfx, water...) are not.
+// on its own (rage_postfx, water...) are not. Without FusionFix's shaders
+// the same for what the mods have of the models' (gta_...), from the game's
+// folder when it has them and otherwise the mod's: a model needs its shader
+// even when the rest of FusionFix's are off.
 namespace {
 std::mutex g_preload_mu;
 std::vector<std::string> g_preloaded;  // lower case, as loaded
@@ -347,30 +460,25 @@ std::vector<std::string> g_preloaded;  // lower case, as loaded
 
 void f_00418820_lifted(Ctx& c);
 void f_00418820(Ctx& c) {
-  if (FfShaders()) {
-    const uint32_t name = Rd32(c.esp + 4);
-    if (name) {
-      std::lock_guard<std::mutex> l(g_preload_mu);
-      g_preloaded.push_back(Lower(reinterpret_cast<const char*>(GPtr(name))));
-    }
+  if (const uint32_t name = Rd32(c.esp + 4)) {
+    std::lock_guard<std::mutex> l(g_preload_mu);
+    g_preloaded.push_back(Lower(reinterpret_cast<const char*>(GPtr(name))));
   }
   f_00418820_lifted(c);
 }
 
 void hook_0041E550(Ctx& c) {  // cmp [edi+14], ebx
   static bool done = false;
-  if (FfShaders() && !done) {
+  if (FfData() && !done) {
     done = true;
     static const char* const kOwn[] = {"rage_im",        "rage_bink",       "shadowsmartblit", "shadowz",
                                        "mirror",         "water",           "rmptfx_default",  "rmptfx_litsprite",
                                        "rage_postfx",    "cascadeconvert",  "cascadegen",      "deferred_lighting",
                                        "gpuptfx_update", "gpuptfx_simplerender", "rage_perlinnoise"};
     std::vector<std::string> names;
-    const std::string dir = "common\\shaders\\win32_30\\";
-    for (const auto& [key, rel] : Folder().files) {
-      if (key.rfind(dir, 0) != 0 || key.size() < dir.size() + 5 || key.compare(key.size() - 4, 4, ".fxc") != 0) continue;
-      std::string stem = key.substr(dir.size(), key.size() - dir.size() - 4);
-      if (stem.find('\\') != std::string::npos) continue;
+    Folder();  // (its shaders noted)
+    for (const auto& [stem, source] : g_mod_fxc) {
+      if (!FfShaders() && stem.rfind("gta_", 0) != 0) continue;
       bool skip = false;
       for (const char* own : kOwn) skip = skip || stem == own;
       {

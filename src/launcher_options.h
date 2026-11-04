@@ -127,6 +127,7 @@ const Fix kFixes[] = {
     {@"MenuExtraInfo", "GTAIV_MENU_EXTRA_INFO", @"Pause menu: version, IMG files and streaming memory", false},
     {@"GlassShardColours", "GTAIV_GLASS_SHARD_COLOURS", @"Red and amber glass from broken tail lights and indicators"},
     {@"BulletTracers", "GTAIV_BULLET_TRACERS", @"Tracer on every shot", false},
+    {@"Episodes", "GTAIV_EPISODES", @"The episodes, when their folders are in the game's"},
     {@"TBoGTTracerFx", "GTAIV_TBOGT_TRACER_FX", @"TBoGT: tracers drawn in the right place"},
     {@"PauseInfoSpacing", "GTAIV_PAUSE_INFO_SPACING", @"Pause menu time and money spaced as on consoles"},
     {@"CompareStringFix", "GTAIV_COMPARE_STRING_FIX", @"No script crash comparing missing strings (TLAD calls)"},

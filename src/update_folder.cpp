@@ -233,8 +233,7 @@ const UpdateFolder& Folder() {
       std::replace(rel.begin(), rel.end(), '/', '\\');
       const std::string lower = Lower(rel);
       if (lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".img") == 0) {
-        // IV's: at the top or in an "IV" folder, not the episodes'.
-        if (!EpisodePath(lower) && lower != "update.img") f.imgs.push_back(rel);
+        if (lower != "update.img") f.imgs.push_back(rel);
         continue;
       }
       if (EpisodePath(lower)) continue;
@@ -302,6 +301,8 @@ std::string UpdateFolderRedirect(const std::string& guest_path) {
   if (it == f.files.end()) return {};
   static std::mutex mu;
   static std::unordered_map<std::string, bool> told;
+  // IV's map and game data would stop an episode, which has its own.
+  if (Rd32(0x0112D788) != 0 && (rel.rfind("common\\data\\", 0) == 0 || rel.rfind("pc\\data\\maps\\", 0) == 0)) return {};
   {
     std::lock_guard<std::mutex> l(mu);
     if (!told[rel]) {
@@ -312,6 +313,16 @@ std::string UpdateFolderRedirect(const std::string& guest_path) {
   return dir + "\\update\\" + it->second;
 }
 
+// Whether an archive (lower case) is for the episode being started (0: IV).
+// An episode's own are in its folder; the rest are IV's, with its mission
+// scripts (SRCP10 in an episode), unless the file is named for the episodes
+// too (EFLC).
+static bool ArchiveForEpisode(const std::string& lower, uint32_t episode) {
+  if (lower.find("tlad\\") != std::string::npos) return episode == 1;
+  if (lower.find("tbogt\\") != std::string::npos) return episode == 2;
+  return episode == 0 || lower.find("eflc", lower.rfind('\\') + 1) != std::string::npos;
+}
+
 // The start of the IMG list's reading (the function at 00AC6590, after
 // its stack cookie): mov [esp+44], eax; mov eax, [esp+4C]. The update
 // folder's archives go in first, each through CImgManager::addImgFile
@@ -319,9 +330,11 @@ std::string UpdateFolderRedirect(const std::string& guest_path) {
 void hook_00AC659A(Ctx& c) {
   Wr32(c.esp + 0x44, c.eax);
   const uint32_t list = Rd32(c.esp + 0x4C);
-  static bool added = false;
-  if (FfData() && !added) {
-    added = true;
+  // The episode being started; the game reads the list again for another.
+  const uint32_t episode = Rd32(0x0112D788);
+  static uint32_t added_for = 0xFFFFFFFFu;
+  if (FfData() && added_for != episode) {
+    added_for = episode;
     const auto add = [&c](const std::string& path) {
       const uint32_t room = (uint32_t(path.size()) + 1 + 15) & ~15u;
       c.esp -= room;  // the path, below the frame
@@ -331,10 +344,13 @@ void hook_00AC659A(Ctx& c) {
       WarnF("gtaiv: update folder: archive %s added\n", path.c_str());
     };
     for (std::string rel : Folder().imgs) {
+      if (!ArchiveForEpisode(Lower(rel), episode)) continue;
       std::replace(rel.begin(), rel.end(), '\\', '/');
       add("update:/" + rel);
     }
-    for (const std::string& path : g_mod_imgs) add(path);  // after: a mod's files win
+    if (episode == 0) {
+      for (const std::string& path : g_mod_imgs) add(path);  // after: a mod's files win
+    }
   }
   c.eax = list;
 }

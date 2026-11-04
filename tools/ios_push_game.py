@@ -5,7 +5,7 @@ TV, Library/Caches/game) with devicectl.
   ios_push_game.py GAME_DIR DEVICE BUNDLE_ID
 
 Only what the port reads goes over (GTAIV.exe, its .cfg, common/, pc/,
-movies/, update/, index.bin, lang.ini, metadata.dat, commandline.txt, .rpf_key);
+movies/, update/, TLAD/, TBoGT/, index.bin, lang.ini, metadata.dat, commandline.txt, .rpf_key);
 symbolic links are followed. devicectl stages a folder on the Mac's system
 disk before sending it, so a folder is sent in one call only when it is under
 CHUNK bytes; bigger folders are split and their loose files go one by one.
@@ -21,7 +21,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 
 ENTRIES = [".rpf_key", "commandline.txt", "GTAIV.exe", "GTAIV.exe.cfg", "index.bin",
-           "lang.ini", "metadata.dat", "common", "movies", "pc", "update"]
+           "lang.ini", "metadata.dat", "common", "movies", "pc", "update", "TLAD", "TBoGT"]
 CHUNK = 1 << 30          # send a folder whole below 1 GB
 MIN_FREE = 15 << 30      # stop when the Mac has less than 15 GB free
 

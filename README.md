@@ -54,7 +54,7 @@ they do; their code is not used), some are this port's own.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-100 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
+101 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
 
 #### High frame rates
 
@@ -200,6 +200,12 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 | Saves synced with your iPad and Apple TV at start and quit (needs Xcode) | on |
 | Keep running when the window is not in front | off |
 
+#### Other
+
+| Option | Default |
+|---|---|
+| The episodes, when their folders are in the game's | on |
+
 <!-- fixes:end -->
 
 </details>
@@ -209,8 +215,8 @@ Flick the left stick to set an indicator before a turn; flick the same way to tu
 Not yet here from FusionFix: its ambient occlusion (SAO), console gamma,
 HDR output, depth effects through transparent surfaces (pre-alpha depth),
 MSAA in reflections, gamepad button icons, camera sensitivity ranges and
-ragdoll on demand. The episodes' content in IV (episodic vehicles and
-weapons) waits for the episodes. On a Mac FusionFix's raw input, keyboard
+ragdoll on demand. The episodes' vehicles and weapons in IV are not
+here yet. On a Mac FusionFix's raw input, keyboard
 lighting, graphics API choice and plugin loaders have nothing to do.
 
 ## What you need
@@ -328,6 +334,18 @@ option turns both off.
 Put a `commandline.txt` with `-norestrictions -availablevidmem 2047` in the
 game folder to unlock the highest graphics settings. (The iPad's launcher
 passes both itself.)
+
+### The episodes
+
+If your game folder has the `TLAD` and `TBoGT` folders, The Lost and Damned and
+The Ballad of Gay Tony work: the game opens with its own screen to choose what
+to play. Their saves sit with IV's, in the same slots. A launcher checkbox turns
+them off.
+
+In an episode, the `update` folder gives its archives for that episode, such as
+`TLAD/...img`, and those named for all of them (`EFLC`). IV's archives and data
+files, and the mods folder's archives, stay out of the episodes, as they stop
+them from loading.
 
 ### Mods
 

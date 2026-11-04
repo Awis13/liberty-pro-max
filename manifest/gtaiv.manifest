@@ -815,3 +815,5 @@ replace 0084D2B0 StopPhoneRingingNative   # STOP_MOBILE_PHONE_RINGING: phone che
 replace 008B3A30 ScriptLauncher   # the launcher behind [0108E7B8] after game init: alternative banter counters
 # Stability, round 2 (src/stability2.cpp).
 hook 00AAE16E 00AAE178   # CTaskSimplePlayerAimProjectile process: no-pad ped's pad flag read unchecked: GTAIV_AIM_PROJECTILE_FIX
+replace 0088F080 Episodes_InstallDir   # the episodes' folders, from next to the game's
+replace 0085A5F0 Episodes_NewEpisode   # no question about a downloaded episode

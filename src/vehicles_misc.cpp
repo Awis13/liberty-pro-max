@@ -9,7 +9,9 @@
 //     near a junction, by the game's road nodes. A quick
 //     flick of the pad's stick all the way over sets it before the turn, as
 //     a stalk does: on through the turn, or for 12 s without one, or until
-//     a flick the same way; blinking
+//     a flick the same way (on the move, with the stick at rest for a while
+//     before it, longer without a junction ahead, as steering corrections
+//     look the same); blinking
 //     as the game's own hazard lights do; a crash hard enough to throw
 //     someone through the windscreen puts the hazard lights on until the
 //     player next gets into that vehicle (after leaving it, if he was the
@@ -146,6 +148,18 @@ constexpr int kFlickRest = 40;
 constexpr int kFlickFull = 110;
 constexpr float kFlickMs = 300.0f;
 constexpr float kFlickRestMs = 800.0f;
+// On the move a quick correction looks just like a flick, and the stick is
+// rarely still for long. So how long at rest it takes goes by the speed:
+// nothing when stopped; the usual below kFlickSlow or with a junction ahead;
+// longer without one (not to change or cancel one set). And a correction's
+// other half, full over the other way this soon after, takes it back.
+constexpr float kFlickStopped = 5.0f / 3.6f;  // m/s
+constexpr float kFlickSlow = 20.0f / 3.6f;
+constexpr float kFlickFast = 60.0f / 3.6f;
+constexpr float kFlickMidRestMs = 1700.0f;
+constexpr float kFlickFastRestMs = 3000.0f;
+constexpr float kFlickAheadSeconds = 5.0f, kFlickAheadMin = 30.0f, kFlickAheadMax = 120.0f;
+constexpr float kFlickCancelMs = 700.0f;
 constexpr float kTurnLatchMs = 12000.0f;
 // A turn counts near a junction only: among the closest road nodes, one not
 // far behind and within this distance (m) whose road crosses the vehicle's
@@ -186,6 +200,10 @@ struct Indicators {
   float flick_ms = 0;     //     for this long
   bool flick_full = false;  //   and went all the way
   float rest_ms = 0;      //   at rest this long
+  float flick_rest_ms = 0;  //   at rest this long before it left
+  bool flick_cancel = false;  //   the one just set was a correction
+  float forward = 0;      //   m/s, last frame
+  float z = 0;            //   and its height
   bool left = false, right = false;  // manual: what is down
   float left_ms = 0, right_ms = 0;   //   since when
   bool both = false;                 //   both were down together
@@ -237,6 +255,20 @@ bool TurnLog() {
 // or 0. IS_USING_CONTROLLER's test and GET_PAD_STATE's lookup (control 0,
 // the left stick's x; see camera_controls.cpp). A keyboard's tap is a
 // correction, and a flick is the pad's.
+bool JunctionNear(Ctx& c, float x, float y, float z, float fx, float fy);
+
+// How long at rest a flick needs to have been, as the vehicle is now.
+float FlickRestNeeded(Ctx& c) {
+  Indicators& s = g_ind;
+  if (s.latched || s.forward <= kFlickStopped) return s.latched ? kFlickRestMs : 0.0f;
+  if (s.forward <= kFlickSlow || s.rest_ms < kFlickRestMs) return kFlickRestMs;
+  const float fx = std::cos(s.heading), fy = std::sin(s.heading);
+  const float far = std::clamp(s.forward * kFlickAheadSeconds, kFlickAheadMin, kFlickAheadMax);
+  for (float d = kFlickAheadMin; d <= far; d += kFlickAheadMin)
+    if (JunctionNear(c, s.x + fx * d, s.y + fy * d, s.z, fx, fy)) return kFlickRestMs;
+  return s.forward <= kFlickFast ? kFlickMidRestMs : kFlickFastRestMs;
+}
+
 int Flick(Ctx& c, float dt) {
   Indicators& s = g_ind;
   int raw = 0;
@@ -248,7 +280,8 @@ int Flick(Ctx& c, float dt) {
   if (std::abs(raw) < kFlickRest) {
     if (s.flick_dir) {
       if (s.flick_dir != 3 && s.flick_full && s.flick_ms <= kFlickMs) out = s.flick_dir;
-      if (TurnLog()) std::fprintf(stderr, "turn: stick back, dir %d full %d %.0f ms -> %d\n", s.flick_dir, s.flick_full, s.flick_ms, out);
+      if (TurnLog()) std::fprintf(stderr, "turn: stick back, dir %d full %d %.0f ms rest %.0f ms %.0f km/h -> %d\n", s.flick_dir,
+                                  s.flick_full, s.flick_ms, s.flick_rest_ms, s.forward * 3.6f, out);
       s.flick_dir = 0;
       s.flick_full = false;
       s.rest_ms = 0;
@@ -258,13 +291,17 @@ int Flick(Ctx& c, float dt) {
   }
   const int dir = raw < 0 ? 1 : 2;
   if (!s.flick_dir) {
-    s.flick_dir = s.rest_ms >= kFlickRestMs ? dir : 3;
+    s.flick_dir = s.rest_ms >= FlickRestNeeded(c) ? dir : 3;
+    s.flick_rest_ms = s.rest_ms;
     s.flick_ms = 0;
   } else if (s.flick_dir != dir) {
     s.flick_dir = 3;
   }
   s.flick_ms += dt;
-  if (std::abs(raw) >= kFlickFull) s.flick_full = true;
+  if (std::abs(raw) >= kFlickFull) {
+    s.flick_full = true;
+    if (s.latched && s.side && dir != s.side && s.latch_ms < kFlickCancelMs) s.flick_cancel = true;
+  }
   return 0;
 }
 
@@ -338,6 +375,7 @@ void Automatic(Ctx& c, uint32_t veh, float dt) {
     px = RdF32(mat + 0x30);
     py = RdF32(mat + 0x34);
     pz = RdF32(mat + 0x38);
+    s.z = pz;
     const float heading = std::atan2(fy, fx);  // grows to the left
     if (s.seen) forward = ((px - s.x) * fx + (py - s.y) * fy) / dt * 1000;
     if (s.seen && turn) {
@@ -367,7 +405,17 @@ void Automatic(Ctx& c, uint32_t veh, float dt) {
   } else {
     s.last_ms += dt;
   }
+  s.forward = forward;
   s.full_ms = turn && std::fabs(share) >= kTurnFullShare && !reversing ? s.full_ms + dt : 0;
+  if (s.flick_cancel) {
+    s.flick_cancel = false;
+    if (s.latched) {
+      if (TurnLog()) std::fprintf(stderr, "turn: flick taken back\n");
+      s.latched = s.real_turn = false;
+      s.on_ms = kTurnMinOnMs;
+      s.back_ms = kTurnBackMs;
+    }
+  }
   if (flick && s.side == flick) {  // the same way again: off
     s.latched = s.real_turn = false;
     s.on_ms = kTurnMinOnMs;

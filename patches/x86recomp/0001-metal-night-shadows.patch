@@ -1,0 +1,60 @@
+diff --git a/src/runtime/gfx/metal_device.mm b/src/runtime/gfx/metal_device.mm
+index e1a11a4..940018a 100644
+--- a/src/runtime/gfx/metal_device.mm
++++ b/src/runtime/gfx/metal_device.mm
+@@ -1388,7 +1388,7 @@ void RecordDraw(const ShaderDraw& d) {
+     if (vit == shaders_.end() || pit == shaders_.end()) return;
+     const Shader& vs = vit->second;
+     const Shader& ps = pit->second;
+-    const ShaderId ps_id = (ps.varyings & ~vs.varyings) ? PixelShaderFor(d.ps, pit->second, vs.varyings) : d.ps;
++    const ShaderId ps_id = PixelShaderFor(d.ps, pit->second, vs.varyings, pass_.depth != nil);
+     const uint32_t count = d.primitives;
+     MTLPrimitiveType type;
+     uint32_t n;  // vertices or indices used
+@@ -2388,19 +2388,23 @@ void AddTex(TextureId tid, const Tex& t) {
+     // that leave some of its inputs unwritten, by the inputs they do write
+     // (PixelShaderFor).
+     std::shared_ptr<const hlsl::Program> program;
+-    std::unordered_map<uint32_t, ShaderId> variants;
++    std::unordered_map<uint64_t, ShaderId> variants;
+     bool has_lean = false;  // also made lean (MslOptions(false)): kLeanPs
+   };
+ 
+   // The pixel shader `sid` (ps) as drawn after a vertex shader writing
+   // the varying locations `written`: itself if that covers its inputs,
+-  // else a variant made once with the others as constants (Metal rejects
+-  // a pipeline whose fragment inputs the vertex function lacks; D3D9 does
+-  // not).
+-  ShaderId PixelShaderFor(ShaderId sid, Shader& ps, uint32_t written) {
++  // else a variant made once with the others as constants. A pass without
++  // a depth buffer also needs a variant without a depth output: D3D9
++  // ignores it, but Metal rejects that pipeline. Keep these variants
++  // separate so rebinding a depth buffer restores the original output.
++  ShaderId PixelShaderFor(ShaderId sid, Shader& ps, uint32_t written, bool depth) {
+     written &= ps.varyings;
+-    if (written == ps.varyings || !ps.program) return sid;
+-    auto it = ps.variants.find(written);
++    if (!ps.program) return sid;
++    const bool drop_depth = !depth && ps.program->writes_depth;
++    if (written == ps.varyings && !drop_depth) return sid;
++    const uint64_t key = uint64_t(written) | (uint64_t(drop_depth) << 32);
++    auto it = ps.variants.find(key);
+     if (it != ps.variants.end()) return it->second;
+     hlsl::Program v = *ps.program;
+     v.glsl = hlsl::GlslWithDefaultInputs(v, written);
+@@ -2408,8 +2412,14 @@ ShaderId PixelShaderFor(ShaderId sid, Shader& ps, uint32_t written) {
+       int l = hlsl::VaryingLocation(s);
+       return l >= 0 && !(written & (1u << l));
+     });
++    if (drop_depth) {
++      // Redirect the built-in to an ordinary variable, preserving RHS
++      // evaluation, color output and discard/alpha-test behavior.
++      v.glsl = "#define gl_FragDepth r_ignored_depth\nfloat r_ignored_depth;\n" + v.glsl;
++      v.writes_depth = false;
++    }
+     ShaderId vid = CreateShader(v);  // ps stays valid: shaders_ is node-based
+-    ps.variants[written] = vid;
++    ps.variants[key] = vid;
+     return vid;
+   }
+ 

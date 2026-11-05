@@ -29,6 +29,13 @@ enable_testing()
 # Both measured: 58-69 -> 71-83 fps on the benchmark street with PGO.
 set(RECOMP_LTO ON CACHE BOOL "ThinLTO of lifted code")
 set(RECOMP_SSE_HOST ON CACHE BOOL "Host SSE arithmetic in lifted code")
+# Keep renderer implementation in the pinned dependency. The patch is carried
+# here until it is upstreamed, so clean checkouts and Builder kits are reproducible.
+execute_process(COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/tools/apply-renderer-patches.sh" "${X86RECOMP_DIR}"
+  RESULT_VARIABLE renderer_patch_result)
+if(NOT renderer_patch_result EQUAL 0)
+  message(FATAL_ERROR "Could not prepare the pinned x86recomp renderer")
+endif()
 add_subdirectory("${X86RECOMP_DIR}" x86recomp)
 
 # The game: runtime + HLE + lifted code (generated/, produced by
@@ -96,6 +103,7 @@ if(TARGET gtaiv_lifted)
     # copied to /Applications. Signed (ad hoc) together with the bundle.
     set_property(TARGET gtaiv APPEND PROPERTY BUILD_RPATH "@executable_path/../Frameworks")
     set(app "${CMAKE_BINARY_DIR}/Liberty Pro Max.app")
+    set_property(TARGET gtaiv APPEND PROPERTY LINK_DEPENDS "$<TARGET_FILE:recomp_gfx>")
     add_custom_command(TARGET gtaiv POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E make_directory "${app}/Contents/MacOS" "${app}/Contents/Frameworks"
       COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/macos/Info.plist"
@@ -107,4 +115,14 @@ if(TARGET gtaiv_lifted)
       COMMAND codesign --force --sign - "${app}"
       VERBATIM)
   endif()
+endif()
+
+# Opt-in regression needs a logged-in macOS session and a Metal GPU.
+option(GTAIV_METAL_TESTS "Build macOS Metal regression tests" OFF)
+if(APPLE AND NOT RECOMP_IOS AND GTAIV_METAL_TESTS)
+  add_executable(gtaiv_metal_depth_output_test tests/metal_depth_output_test.mm)
+  target_compile_options(gtaiv_metal_depth_output_test PRIVATE -fobjc-arc)
+  target_link_libraries(gtaiv_metal_depth_output_test PRIVATE recomp_gfx "-framework Foundation")
+  add_test(NAME metal_depth_output COMMAND gtaiv_metal_depth_output_test)
+  set_tests_properties(metal_depth_output PROPERTIES TIMEOUT 30 RUN_SERIAL TRUE)
 endif()

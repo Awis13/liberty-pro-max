@@ -70,7 +70,7 @@ const std::vector<Def> kLayouts[3] = {
 };
 
 constexpr CGFloat kStickRadius = 125;
-constexpr CGFloat kLookFullSpeed = 14;  // points a tick for the right stick at full
+constexpr CGFloat kLookFullSpeed = 840;  // points a second for the right stick at full
 
 Sint16 Axis(CGFloat v) { return Sint16(std::clamp(v, -1.0, 1.0) * 32767); }
 
@@ -124,6 +124,7 @@ bool RealPad() {
   UIView* _knob;
   CGSize _laidOutFor;
   CGFloat _lookX, _lookY;
+  CFTimeInterval _lastTick;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -279,11 +280,15 @@ bool RealPad() {
 - (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self end:touches]; }
 - (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event { [self end:touches]; }
 
-// Each frame: the right layout for the moment, and the camera from how far the
-// finger went since the last one, eased so that a stopped finger stops it.
+// Each frame: the right layout for the moment, and the camera from how fast the
+// finger went since the last one, eased so that a stopped finger stops it. Both
+// by the time since the last tick, so the camera feels the same at any frame rate.
 - (void)tick {
   const int want = g_context.load();
   if (want != _layout || !CGSizeEqualToSize(_laidOutFor, self.bounds.size)) [self showLayout:want];
+  const CFTimeInterval now = CACurrentMediaTime();
+  const CGFloat dt = _lastTick > 0 ? std::max<CGFloat>(now - _lastTick, 1.0 / 240) : 1.0 / 60;
+  _lastTick = now;
   CGFloat dx = 0, dy = 0;
   for (auto& [key, t] : _tracks) {
     if (t.button >= 0 || t.left) continue;
@@ -291,8 +296,9 @@ bool RealPad() {
     dy += t.at.y - t.last.y;
     t.last = t.at;
   }
-  _lookX += (dx / kLookFullSpeed - _lookX) * 0.5;
-  _lookY += (dy / kLookFullSpeed - _lookY) * 0.5;
+  const CGFloat ease = 1 - std::pow(0.5, dt * 60);  // a half each 60th of a second
+  _lookX += (dx / (kLookFullSpeed * dt) - _lookX) * ease;
+  _lookY += (dy / (kLookFullSpeed * dt) - _lookY) * ease;
   if (g_pad) {
     SDL_SetJoystickVirtualAxis(g_pad, SDL_GAMEPAD_AXIS_RIGHTX, Axis(_lookX));
     SDL_SetJoystickVirtualAxis(g_pad, SDL_GAMEPAD_AXIS_RIGHTY, Axis(_lookY));

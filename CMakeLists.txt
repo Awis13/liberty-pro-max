@@ -31,6 +31,12 @@ set(RECOMP_LTO ON CACHE BOOL "ThinLTO of lifted code")
 set(RECOMP_SSE_HOST ON CACHE BOOL "Host SSE arithmetic in lifted code")
 # Keep renderer implementation in the pinned dependency. The patch is carried
 # here until it is upstreamed, so clean checkouts and Builder kits are reproducible.
+file(GLOB renderer_patches CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/patches/x86recomp/*.patch")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${CMAKE_CURRENT_SOURCE_DIR}/X86RECOMP"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tools/apply-renderer-patches.sh"
+  ${renderer_patches})
 execute_process(COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/tools/apply-renderer-patches.sh" "${X86RECOMP_DIR}"
   RESULT_VARIABLE renderer_patch_result)
 if(NOT renderer_patch_result EQUAL 0)

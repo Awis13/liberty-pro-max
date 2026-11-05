@@ -183,8 +183,10 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
       cell.textLabel.text = row[0];
       key = row[1];
     } else {
-      cell.textLabel.text = ShownFix(ip.row).title;
-      key = ShownFix(ip.row).key;
+      const Fix& f = ShownFix(ip.row);
+      // (On the iPad the saves go through iCloud Drive: save_cloud.mm.)
+      cell.textLabel.text = [f.key isEqualToString:@"SaveSync"] ? @"Saves synced with your Mac through iCloud Drive" : f.title;
+      key = f.key;
     }
     UISwitch* sw = [UISwitch new];
     sw.on = [_d boolForKey:key];
@@ -300,6 +302,9 @@ void RunIosLauncher(std::string* game_args) {
     ApplyOptions(d);
     // The Mac's vsync choice does not apply: the iPad paces at its display.
     setenv("GTAIV_VSYNC", "1", 1);
+    // Nor its keeping running behind other windows (not shown here; iOS
+    // suspends an app that is not in front), even if saved on before.
+    setenv("GTAIV_RUN_IN_BACKGROUND", "0", 1);
     const int limit = kFrameLimits[std::clamp<NSInteger>([d integerForKey:kIosFrameLimitKey], 0, 2)];
     if (limit) setenv("GTAIV_FPS_LIMIT", std::to_string(limit).c_str(), 1);
     const Resolution& r = kResolutions[std::clamp<NSInteger>([d integerForKey:kIosResolutionKey], 0, NSInteger(std::size(kResolutions)) - 1)];

@@ -306,7 +306,7 @@ void f_008B3A30(Ctx& c) {
 // groups 3-5; other peds take their ped type's multiplier.
 namespace {
 bool PlayerFullDamage() {
-  static const bool on = OptionOn("GTAIV_PLAYER_FULL_DAMAGE", true);
+  static const bool on = OptionOn("GTAIV_PLAYER_FULL_DAMAGE", false);
   return on;
 }
 }  // namespace

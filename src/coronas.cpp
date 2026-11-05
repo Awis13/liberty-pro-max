@@ -3,10 +3,11 @@
 // lights); past that the rest are dropped, and which ones changes from
 // frame to frame: lights flicker where there are many, more so with the
 // distant lights seen from the street. The two arrays (the registered
-// coronas, 0x40 bytes each at 014332D0, and the ones drawn, three buffers
-// of 256 x 0x20 bytes at 014272D0) are moved to guest memory of their own
-// for 49152 (3 << 14) each: the 42 instructions that address them (all
-// of them in the game) use the new bases, the buffers' index shift is 14
+// coronas, 0x40 bytes each at 014332D0, and the ones drawn, two buffers
+// of 768 x 0x20 bytes at 014272D0, one per [011F9F88]) are moved to guest
+// memory of their own for 49152 (3 << 14) each, per buffer: the 42
+// instructions that address them (all of them in the game) use the new
+// bases, the buffers' index shift is 14
 // instead of 8, and the three limit checks are raised. GTAIV_CORONA_LIMIT=0
 // keeps the game's own.
 
@@ -34,7 +35,8 @@ void Init() {
   static std::once_flag once;
   std::call_once(once, [] {
     if (!OptionOn("GTAIV_CORONA_LIMIT", true)) return;
-    const uint32_t a_size = kLimit * 0x40, b_size = kLimit * 0x20;
+    // B: two buffers, buffer n at entry (n * 3) << kShift.
+    const uint32_t a_size = kLimit * 0x40, b_size = 2 * kLimit * 0x20;
     const uint64_t a = g_proc->vm.Reserve(0, a_size), b = g_proc->vm.Reserve(0, b_size);
     if (!a || !b || !g_proc->vm.Commit(a, a_size, Prot::RW) || !g_proc->vm.Commit(b, b_size, Prot::RW)) return;
     g_a = uint32_t(a);

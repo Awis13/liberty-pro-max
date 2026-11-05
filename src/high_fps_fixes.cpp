@@ -113,7 +113,10 @@ struct ShakeTicks {
 void f_008CEF80(Ctx& c) {
   static const bool fix = OptionOn("GTAIV_SHAKE_FIX", true);
   static const bool shake = OptionOn("GTAIV_CAMERA_SHAKE", true);
-  if (!fix && shake) {
+  if (!fix) {
+    // The game's own shaker; without the shake its matrix is made from
+    // angles times 0 (the scale is used for nothing else).
+    if (!shake && RdF32(c.esp + 4) != 75.0f) WrF32(c.esp + 4, 0.0f);
     f_008CEF80_lifted(c);
     return;
   }
@@ -286,6 +289,7 @@ void hook_009AD73B(Ctx& c) {
     }
     return;
   }
+  g_water_flip_pending = false;  // flipped now: a held flip is stale
   Wr32(0x01352E80, c.eax);
 }
 void hook_008A187C(Ctx& c) {  // cmp byte [018CACDD], 0
@@ -355,9 +359,9 @@ void hook_004B2CB7(Ctx& c) { SetLane0(c.xmm[1], Lane0(c.xmm[1]) - RadarZoomStep(
 // of its own here: it runs with real time, is drawn toward the audio
 // position (slowly for small differences, quicker for larger ones), never
 // gets further ahead of it than one of its steps (the audio stalled) and
-// never goes back, except when the audio jumps (a new section, a skip)
-// (FusionFix's cutscene clock, by its idea). IV only: the episodes' drift
-// corrections are the game's.
+// never goes back, except when the audio jumps (a new section, a skip).
+// Not in TBoGT (episode 2): its corrections for two cutscenes' drift are
+// the game's; TLAD has none.
 namespace {
 
 struct CutsceneClock {
@@ -403,7 +407,7 @@ struct CutsceneClock {
 
 void f_007F16B0(Ctx& c) {
   static const bool on = OptionOn("GTAIV_CUTSCENE_CLOCK", true);
-  if (!on || Rd32(0x0112D754) != 0) return f_007F16B0_lifted(c);  // IV only
+  if (!on || Rd32(0x0112D754) == 2) return f_007F16B0_lifted(c);  // not in TBoGT
   static CutsceneClock clock;
   const uint32_t out = Rd32(c.esp + 4);
   const float in = RdF32(out);
@@ -481,6 +485,7 @@ namespace {
 bool g_spring_fixed_step;
 struct Spring {
   float due = 0, old[3] = {0, 0, 0};
+  uint32_t last[3] = {0, 0, 0};  // the offsets as the last call left them
   bool started = false;
 };
 }  // namespace
@@ -495,8 +500,14 @@ void f_00A7CFC0(Ctx& c) {
   const uint32_t scale = Rd32(c.esp + 16);
   Spring& sp = springs[self];
   auto pos = [&](int i) { return RdF32(self + 0x2C0 + 4 * uint32_t(i)); };
-  if (!sp.started) {
+  // The offsets change only in the steps below; changed in between, the
+  // spring was reset (a new camera at this address, 00A7F470 zeroes it):
+  // started over from there, not from the last camera's sway.
+  bool reset = !sp.started;
+  for (int i = 0; i < 3; i++) reset |= Rd32(self + 0x2C0 + 4 * uint32_t(i)) != sp.last[i];
+  if (reset) {
     sp.started = true;
+    sp.due = 0;
     for (int i = 0; i < 3; i++) sp.old[i] = pos(i);
   }
   sp.due += RdF32(0x010FCB74);
@@ -520,6 +531,7 @@ void f_00A7CFC0(Ctx& c) {
     g_spring_fixed_step = false;
     c.esp = esp;
   }
+  for (int i = 0; i < 3; i++) sp.last[i] = Rd32(self + 0x2C0 + 4 * uint32_t(i));
   if (sp.due > 1.0f / 30.0f) sp.due = 0;  // after a long frame: no catching up beyond that
   const float t = sp.due * 30.0f;
   float k;

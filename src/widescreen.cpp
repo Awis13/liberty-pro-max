@@ -38,7 +38,18 @@ namespace {
 constexpr uint32_t kActiveWidth = 0x010A7518, kActiveHeight = 0x010A751C;
 constexpr float kDefaultAspect = 16.0f / 9.0f;
 
+// The game's aspect ratio, as its aspect function (89BA00) gives it: the
+// display setting's ([010FC2F8]: 1 4:3, 2 5:4, 3 15:9, 5 16:10, other
+// 16:9), or with "auto" (0) the active width and height (see 89BA65).
 float ScreenAspect() {
+  switch (Rd32(0x010FC2F8)) {
+    case 0: break;
+    case 1: return 4.0f / 3.0f;
+    case 2: return 5.0f / 4.0f;
+    case 3: return 15.0f / 9.0f;
+    case 5: return 16.0f / 10.0f;
+    default: return kDefaultAspect;
+  }
   const int32_t w = int32_t(Rd32(kActiveWidth)), h = int32_t(Rd32(kActiveHeight));
   return w > 0 && h > 0 ? float(w) / float(h) : kDefaultAspect;
 }
@@ -208,16 +219,17 @@ void hook_00486E9E(Ctx& c) {  // movss xmm3, [k]
 // bytes from 85E390, made a rectangle by 861780 (thiscall: rect, colour)
 // and queued by 475920), or drawn at once on the render thread (DrawRect,
 // when its thread-local "queue" pointer is 0). The screen's size: the
-// window's or the full screen's (407600). On a screen wider than 16:9 two
-// more, left and right of the 16:9 frame, the same way (FusionFix's
-// cutscene pillarbox, by its idea).
+// window's or the full screen's (407600). The game draws them only on a
+// screen no wider than 3:2 (89BB60 says 0). On a screen wider than 16:9
+// two more, left and right of the 16:9 frame, the same way (FusionFix's
+// cutscene pillarbox, by its idea); not while a replay export forces 16:9
+// ([011F8280+454], the other half of 89BB60's test).
 void f_007F2630(Ctx& c) {
   static const bool on = OptionOn("GTAIV_CUTSCENE_PILLARS", true);
   f_007F2630_lifted(c);
   if (!on) return;
+  if (Rd8(0x011F8280 + 0x454)) return;
   const uint32_t ebx = c.ebx, esi = c.esi, edi = c.edi, ebp = c.ebp;
-  c.ecx = 0x011F8280;
-  if (CallGuest(c, 0x0089BB60, {}) & 0xFF) return;  // a menu is up: no borders
   const bool windowed = (CallGuest(c, 0x00407600, {}) & 0xFF) != 0;
   const float w = float(int32_t(Rd32(windowed ? 0x010A7510 : 0x010A7518)));
   const float h = float(int32_t(Rd32(windowed ? 0x010A7514 : 0x010A751C)));

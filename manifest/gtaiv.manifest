@@ -569,6 +569,7 @@ hook 00A23628 00A2362D   # cutscene camera: phase update with and without the ho
 hook 00C9AB1B 00C9AB20
 hook 00C9A591 00C9A599   # cutscene camera: the held frame not stored
 hook 00C9A5D2 00C9A5DA
+hook 00C9FF04 00C9FF0B   # distant lights: TBoGT halves them too (CmpFlags in community_fixes.cpp)
 hook 009AD73B 009AD740   # water buffers: the flip held until the render wait
 hook 008A187C 008A1883   # CMainLoop::Synchronise after its wait: the held flip
 hook 00B4F179 00B4F180   # SET_MINIGAME_IN_PROGRESS: which script

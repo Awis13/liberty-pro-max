@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
@@ -539,7 +540,12 @@ void hook_00AC4DE8(Ctx& c) {
 namespace {
 std::mutex g_preload_mu;
 std::vector<std::string> g_preloaded;  // lower case, as loaded
+std::atomic<bool> g_model_shaders{false};  // models' shaders loaded here (ff_shaders.cpp)
 }  // namespace
+
+// Whether the update folder's model shaders (gta_...) were loaded: their
+// constants are then written even with the rest of its shaders off.
+bool UpdateModelShadersLoaded() { return g_model_shaders.load(std::memory_order_relaxed); }
 
 void f_00418820_lifted(Ctx& c);
 void f_00418820(Ctx& c) {
@@ -580,6 +586,7 @@ void hook_0041E550(Ctx& c) {  // cmp [edi+14], ebx
       c.esp += room;
       WarnF("gtaiv: update folder: shader %s loaded (not in the preload list)\n", n.c_str());
     }
+    if (!names.empty()) g_model_shaders = true;
   }
   Flags f;
   UnpackEFlags(f, c.eflags);

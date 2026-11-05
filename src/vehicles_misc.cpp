@@ -1,6 +1,4 @@
-// Vehicle fixes and additions, done again for 1.0.8.0 by the community's
-// ideas (FusionFix's turn indicators, GPL-3.0; its code not taken). Each
-// one is an option (the launcher sets them), off unless said otherwise;
+// Vehicle fixes and additions, for 1.0.8.0. Each one is an option (the launcher sets them), off unless said otherwise;
 // GTAIV_TURN_INDICATORS_ROUTE is described by its code below:
 //   GTAIV_TURN_INDICATORS (off by default): the player's vehicle shows its
 //     indicators through a real turn: on once the wheel is over and the
@@ -856,14 +854,17 @@ void hook_008FC09A(Ctx& c) {
 // A ped in a vehicle's crash is to be thrown through the windscreen
 // (00AA0B40: esi the ped, edi its vehicle; the event type set here, then
 // the check whether it can go): mov dword ptr [eax], 6. The vehicle's
-// hazard lights go on.
+// hazard lights go on when the ped really goes (the game's check after it,
+// 004C5030: [ped+218] clear and [ped+219] set).
 void hook_00AA0F75(Ctx& c) {
   Wr32(c.eax, 6);
   if (!TurnIndicatorsOn() || !c.edi) return;
+  if (Rd8(c.esi + 0x218) || !Rd8(c.esi + 0x219)) return;
   std::lock_guard<std::mutex> l(g_mu);
   const uint32_t h = Handle(c.edi);
   if (h == kNone) return;
-  const bool player = c.esi == PlayerPed();
+  const uint32_t me = PlayerPed();
+  const bool player = c.esi == me || (me && PlayerVehicle(me) == c.edi);  // the player was in it
   SetHazard(c.edi, true);
   for (Crash& k : g_crashes)
     if (k.car == h) {

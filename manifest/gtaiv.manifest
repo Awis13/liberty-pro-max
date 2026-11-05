@@ -812,7 +812,7 @@ hook 007F5F02 007F5F08   # cutscene far clip keyframes none with volumetric fog
 # Gameplay, round 2 (src/gameplay_misc2.cpp).
 replace 00B51C70 GetFrameTimeNative   # GET_FRAME_TIME: finale2's climb decay check gets >= 0.06 s
 hook 00BA006A 00BA0072   # damage to the player, guns: whole (GTAIV_PLAYER_FULL_DAMAGE)
-hook 00BA0079 00BA0081   # damage to the player, melee and explosions: whole
+hook 00BA0079 00BA0081   # damage to the player, explosions, fire, thrown: whole
 hook 00946555 00946558   # health from a save: at most 200 (GTAIV_SAVE_HEALTH_CAP)
 replace 0084D2B0 StopPhoneRingingNative   # STOP_MOBILE_PHONE_RINGING: phone cheats at the cheat check
 replace 008B3A30 ScriptLauncher   # the launcher behind [0108E7B8] after game init: alternative banter counters

@@ -1,12 +1,9 @@
-// Shadows and lights, done again for 1.0.8.0 by the community's ideas:
-// FusionFix (ThirteenAG and contributors, GPL-3.0; its code not taken)
-// and ZolikaPatch (by its ini's descriptions only). Each one an option
-// (the launcher's Advanced tab sets them):
+// Shadows and lights, for 1.0.8.0. Each one an option (the launcher's
+// Advanced tab sets them):
 //   GTAIV_VEHICLE_NIGHT_SHADOWS: vehicles cast shadows from street lights,
 //     tunnel lights and searchlights, and people in vehicles too; the
-//     headlights then cast none (FusionFix's vehicle night shadows,
-//     ZolikaPatch's CarDynamicShadowFix). It draws vehicles with a shadow
-//     technique only FusionFix's vehicle shaders have, so it does anything
+//     headlights then cast none. It draws vehicles with a shadow
+//     technique only the extended vehicle shaders have, so it does anything
 //     only with them (GTAIV_FF_SHADERS);
 //   GTAIV_EMISSIVE_NO_DEPTH_WRITE: glowing surfaces (lamps, signs, strobe
 //     lights) drawn without writing depth, as before patch 1.0.6.0 (no
@@ -14,7 +11,7 @@
 //   GTAIV_DYNAMIC_SHADOWS_EVERYWHERE (off by default): every placed light
 //     that may cast shadows casts moving ones (very costly);
 //   GTAIV_CAR_SHADOW_ANY_DISTANCE: the dark patch under cars does not
-//     fade out at 70-80 m (on by default, as in ZolikaPatch);
+//     fade out at 70-80 m (on by default);
 //   GTAIV_NO_STATIC_CAR_SHADOWS (off by default): no dark patch under cars
 //     at all; GTAIV_NO_CUTSCENE_STATIC_CAR_SHADOWS (off by default): none
 //     in cutscenes.
@@ -49,7 +46,7 @@ constexpr uint32_t kRenderPhase = 0x014663BC;    // CRenderPhase being drawn (0 
 // tunnel lights, searchlights) are filled by 0095AC40 (cdecl: render list,
 // cascade or -1): with -1 it leaves out the entity lists 0 and 1, so
 // vehicles never shadow there. Here they are drawn into it too, with the
-// shadow technique for local lights FusionFix's vehicle shaders add
+// shadow technique for local lights the extended vehicle shaders add
 // ("wd_local", pushed and popped around them as the game does its own).
 // The technique group is registered just after the game's own "wd"
 // (shaders map the groups known when they load). People sitting in a
@@ -161,8 +158,8 @@ void hook_008F7421(Ctx& c) { Push(c, HeadlightFlags(0x104)); }
 // state 6 = D3DRS_ZWRITEENABLE; push 1 to its constructor 0085F2B0), since
 // patch 1.0.6.0; glow then hides what is drawn after it (strobe lights in
 // clubs). Off, as before; but on as the game has it in the intro cutscene
-// and at QUB3D's height (the arcade game is drawn above 3000 m), where
-// FusionFix found it needed.
+// and at QUB3D's height (the arcade game is drawn above 3000 m), where it
+// is needed.
 void hook_00959C3E(Ctx& c) {
   static const bool on = OptionOn("GTAIV_EMISSIVE_NO_DEPTH_WRITE", true);
   bool write = true;
@@ -215,15 +212,8 @@ void hook_008FB380(Ctx& c) {
 
 }  // namespace recomp::gen
 
-// The glowing signs of gta_emissivestrong.fxc (JIMS, Comrades Bar...) sit on
-// or just behind what they light, and the shader moves them towards the camera
-// by its zShift (c210.x), as every other emissive shader does: z - zShift. In
-// this one the sign is wrong (add oPos.z, r0.z, c210.x, in all six of the
-// game's shader folders and in no other shader), so they go behind the wall and
-// show only at some angles. As FusionFix's shaders have it.
-// GTAIV_SIGN_GLOW_FIX=0 leaves it.
-// A shader of FusionFix's that a mod's model needs while the rest of them
-// are off (update_folder.cpp): its logarithmic depth (from PS c209, not set
+// A model shader of the update folder's that a mod's model needs while the
+// rest of its shaders are off (update_folder.cpp): its logarithmic depth (from PS c209, not set
 // without them) does not belong with the game's own depth. The write to oDepth
 // goes; nothing else in it reads what is computed for it.
 namespace {
@@ -255,12 +245,28 @@ void DropLogDepth(std::vector<uint32_t>& tokens) {
 }
 }  // namespace
 
+// The glowing signs of gta_emissivestrong.fxc (JIMS, Comrades Bar...) sit on
+// or just behind what they light, and the shader moves them towards the camera
+// by its zShift (c210.x), as every other emissive shader does: z - zShift. In
+// this one the sign is wrong (add oPos.z, r0.z, c210.x, in all six of the
+// game's shader folders and in no other shader), so they go behind the wall and
+// show only at some angles: the operand gets its negation. Instructions are
+// walked (comments skipped), in vertex shaders only.
+// GTAIV_SIGN_GLOW_FIX=0 leaves it.
 void GtaivShaderTokens(std::vector<uint32_t>& tokens) {
   if (!recomp::gen::FfShadersOn()) DropLogDepth(tokens);
   static const bool on = OptionOn("GTAIV_SIGN_GLOW_FIX", true);
-  if (!on) return;
-  for (size_t i = 0; i + 3 < tokens.size(); i++)
-    if (tokens[i] == 0x03000002 && tokens[i + 1] == 0xE0040000 && tokens[i + 2] == 0x80AA0000 &&
-        tokens[i + 3] == 0xA00000D2)
-      tokens[i + 3] = 0xA10000D2;
+  if (!on || tokens.empty() || (tokens[0] & 0xFFFF0000) != 0xFFFE0000) return;  // a vertex shader's
+  for (size_t i = 1; i < tokens.size();) {
+    const uint32_t op = tokens[i] & 0xFFFF;
+    if (op == 0xFFFF) break;  // end
+    if (op == 0xFFFE) {       // a comment
+      i += 1 + ((tokens[i] >> 16) & 0x7FFF);
+      continue;
+    }
+    if (tokens[i] == 0x03000002 && i + 3 < tokens.size() && tokens[i + 1] == 0xE0040000 &&
+        tokens[i + 2] == 0x80AA0000 && tokens[i + 3] == 0xA00000D2)
+      tokens[i + 3] = 0xA10000D2;  // add oPos.z, r0.z, -c210.x
+    i += 1 + ((tokens[i] >> 24) & 0xF);
+  }
 }

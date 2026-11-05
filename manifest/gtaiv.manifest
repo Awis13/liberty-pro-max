@@ -90,6 +90,8 @@ replace 00456460 sysIpcThreadStart
 # Fixes of the game's own bugs (src/fixes.cpp).
 replace 008CC970 Pool_SweepAtShutdown   # quit before the world loaded: no streaming table
 replace 0094A6D0 PedIntelligence_DecreasePinnedDown   # above 30 fps it never decreased: cops stuck in cover
+replace 008936A0 RadioHud_LogoBw      # a logo dictionary without the logo: the logo found stays
+replace 00893680 RadioHud_LogoColour  # the same
 # Millisecond clocks and script timers keep their fractions (src/fixes.cpp).
 hook 007CC06F 007CC075   # CTimer: the game's clock
 hook 007CC1BB 007CC1C1   # CTimer: a second clock

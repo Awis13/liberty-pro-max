@@ -20,6 +20,8 @@ void f_0094AC20_lifted(Ctx& c);
 void f_00A7C8E0_lifted(Ctx& c);
 void f_009AE2C0_lifted(Ctx& c);
 void f_009AE360_lifted(Ctx& c);
+void f_008936A0_lifted(Ctx& c);
+void f_00893680_lifted(Ctx& c);
 
 // The sweep of a pool of objects (cdecl, keep-all flag) that ends it at
 // shutdown (008CCA80) reads each object's model's streaming flags
@@ -33,6 +35,69 @@ void f_008CC970(Ctx& c) {
     return;
   }
   f_008CC970_lifted(c);
+}
+
+// The radio's logos are in four texture dictionaries, and each station asks
+// every one in turn (008960B0, 00896180). Setting a logo (0085DF40) lets go of
+// the one before and looks up the new, so a dictionary without the logo
+// leaves none. radio_hud_*_eflc, the only one with Vice City FM, RamJam FM and
+// Self-Actualization FM, is read first; a sprite without a texture is drawn as
+// a white box. A dictionary without the logo is passed over.
+namespace {
+
+// The game's name hash (0045CF50, seed 0), for the plain names of logos.
+uint32_t LogoHash(uint32_t name) {
+  uint32_t h = 0;
+  for (char ch; (ch = char(Rd8(name))) != 0; name++) {
+    if (ch >= 'A' && ch <= 'Z')
+      ch = char(ch + 32);
+    else if (ch == '\\')
+      ch = '/';
+    h += uint32_t(int32_t(int8_t(ch)));
+    h *= 0x401;
+    h ^= h >> 6;
+  }
+  h *= 9;
+  h ^= h >> 11;
+  h *= 0x8001;
+  return h;
+}
+
+// The lookup of 0043A490: the current dictionary, then its parents.
+bool LogoInDictionary(uint32_t name) {
+  const uint32_t hash = LogoHash(name);
+  for (uint32_t d = Rd32(0x019CE510); d; d = Rd32(d + 8)) {
+    const uint32_t keys = Rd32(d + 0x10);
+    int lo = 0, hi = int(Rd16(d + 0x14)) - 1;
+    while (lo <= hi) {
+      const int mid = (lo + hi) >> 1;
+      const uint32_t key = Rd32(keys + uint32_t(mid) * 4);
+      if (key == hash) return true;
+      if (hash < key)
+        hi = mid - 1;
+      else
+        lo = mid + 1;
+    }
+  }
+  return false;
+}
+
+// fastcall (station): al, whether it has a logo of this kind.
+bool PassOverLogo(Ctx& c, uint32_t name) {
+  if (!Rd8(name) || LogoInDictionary(name)) return false;
+  c.eax = (c.eax & ~0xFFu) | 1u;
+  c.esp += 4;  // ret
+  return true;
+}
+
+}  // namespace
+
+void f_008936A0(Ctx& c) {
+  if (!PassOverLogo(c, c.ecx + 0x10)) f_008936A0_lifted(c);
+}
+
+void f_00893680(Ctx& c) {
+  if (!PassOverLogo(c, c.ecx + 0x10F)) f_00893680_lifted(c);
 }
 
 // How pinned down a ped is (0-100, from being shot at) goes down each

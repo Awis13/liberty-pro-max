@@ -1,7 +1,7 @@
 // Vehicle fixes and additions, done again for 1.0.8.0 by the community's
 // ideas (FusionFix's turn indicators, GPL-3.0; its code not taken). Each
-// one is an option (the launcher's Advanced tab sets them), off unless
-// said otherwise:
+// one is an option (the launcher sets them), off unless said otherwise;
+// GTAIV_TURN_INDICATORS_ROUTE is described by its code below:
 //   GTAIV_TURN_INDICATORS (off by default): the player's vehicle shows its
 //     indicators through a real turn: on once the wheel is over and the
 //     vehicle has turned that way, or the wheel at full lock for a moment;
@@ -34,6 +34,7 @@
 #include <vector>
 
 #include "hook_util.h"
+#include "runtime/log.h"
 #include "option.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
@@ -129,11 +130,12 @@ bool ManualIndicators() {
 // a moment, as a stalk cancels. A tap is a press this short.
 constexpr float kTurnOnShare = 0.18f;
 constexpr float kTurnOffShare = 0.08f;
-constexpr float kTurnStartDeg = 12.0f;
+constexpr float kTurnStartDeg = 20.0f;
+constexpr float kTurnEasySpeed = 25.0f / 3.6f, kTurnHardSpeed = 60.0f / 3.6f, kTurnHardExtraDeg = 20.0f;
 constexpr float kTurnBackDeg = 35.0f;
 constexpr float kTurnBackWindowMs = 3000.0f;
 constexpr float kTurnMinSpeed = 1.0f;
-constexpr float kTurnMinRate = 10.0f;
+constexpr float kTurnMinRate = 20.0f;
 constexpr float kTurnRateMs = 200.0f;
 constexpr float kTurnFadeRate = 10.0f;
 constexpr float kTurnFullShare = 0.85f;
@@ -155,22 +157,16 @@ constexpr float kFlickRestMs = 800.0f;
 // other half, full over the other way this soon after, takes it back.
 constexpr float kFlickStopped = 5.0f / 3.6f;  // m/s
 constexpr float kFlickSlow = 20.0f / 3.6f;
-constexpr float kFlickFast = 60.0f / 3.6f;
+constexpr float kFlickFastest = 50.0f / 3.6f;
 constexpr float kFlickMidRestMs = 1700.0f;
-constexpr float kFlickFastRestMs = 3000.0f;
 constexpr float kFlickAheadSeconds = 5.0f, kFlickAheadMin = 30.0f, kFlickAheadMax = 120.0f;
 constexpr float kFlickCancelMs = 700.0f;
 constexpr float kTurnLatchMs = 12000.0f;
-// A turn counts near a junction only: among the closest road nodes, one not
-// far behind and within this distance (m) whose road crosses the vehicle's
-// way by at least this much (degrees; a curving street's nodes stay nearer).
+// A turn counts near a junction only: a node of 3+ links, within this distance
+// (m) and not far behind.
 // Asked only when a turn would start, and not more often than this.
-constexpr uint32_t kFindNative = 0x00626AF0;  // esi: the hash; returns the handler
-constexpr uint32_t kNthClosestCarNodeWithHeading = 0x1F6B3FF0;
-constexpr int kJunctionNodes = 8;
 constexpr float kJunctionRange = 30.0f;
 constexpr float kJunctionBehind = 10.0f;
-constexpr float kJunctionCross = 50.0f;
 constexpr float kJunctionAskMs = 400.0f;
 constexpr float kTapMs = 300.0f;
 
@@ -207,6 +203,15 @@ struct Indicators {
   bool left = false, right = false;  // manual: what is down
   float left_ms = 0, right_ms = 0;   //   since when
   bool both = false;                 //   both were down together
+  bool route_on = false;  // on because the GPS route turns ahead, or ends
+  bool route_arrive = false;  //   ends: towards the kerb
+  int route_side = 0;
+  float route_x = 0, route_y = 0, route_near = 1e9f;  //   the turn, and how near it has come
+  float skip_x = 1e9f, skip_y = 1e9f;                 //   a turn he said no to
+  uint32_t route_slot = 0;  //   whose route
+  int logged_side = 0;      // the last side written to the log
+  float since_stop = 0;     // metres driven since it was last parked
+  float stood_ms = 0;       // standing this long
 };
 
 // A vehicle whose hazard lights a crash put on; wait_exit while the
@@ -266,11 +271,12 @@ float FlickRestNeeded(Ctx& c) {
   const float far = std::clamp(s.forward * kFlickAheadSeconds, kFlickAheadMin, kFlickAheadMax);
   for (float d = kFlickAheadMin; d <= far; d += kFlickAheadMin)
     if (JunctionNear(c, s.x + fx * d, s.y + fy * d, s.z, fx, fy)) return kFlickRestMs;
-  return s.forward <= kFlickFast ? kFlickMidRestMs : kFlickFastRestMs;
+  return kFlickMidRestMs;
 }
 
 int Flick(Ctx& c, float dt) {
   Indicators& s = g_ind;
+  if (dt <= 0) return 0;  // paused: the stick is working a menu
   int raw = 0;
   {
     KeepRegs keep(c);
@@ -291,7 +297,8 @@ int Flick(Ctx& c, float dt) {
   }
   const int dir = raw < 0 ? 1 : 2;
   if (!s.flick_dir) {
-    s.flick_dir = s.rest_ms >= FlickRestNeeded(c) ? dir : 3;
+    // (Fast, it is a correction: on the road a player's log showed nothing else.)
+    s.flick_dir = s.forward <= kFlickFastest && s.rest_ms >= FlickRestNeeded(c) ? dir : 3;
     s.flick_rest_ms = s.rest_ms;
     s.flick_ms = 0;
   } else if (s.flick_dir != dir) {
@@ -305,48 +312,296 @@ int Flick(Ctx& c, float dt) {
   return 0;
 }
 
-// Whether a road crosses near the vehicle (at x, y, z, forward fx, fy): the
-// scripts' GET_NTH_CLOSEST_CAR_NODE_WITH_HEADING (x, y, z, n, out x, y, z,
-// heading), called as a script calls it. No nodes at all (none loaded) counts
-// as yes, so as not to lose the indicator.
-bool JunctionNear(Ctx& c, float x, float y, float z, float fx, float fy) {
-  KeepRegs keep(c);
-  const auto bits = [](float f) {
-    uint32_t u;
-    std::memcpy(&u, &f, 4);
-    return u;
-  };
-  c.esi = kNthClosestCarNodeWithHeading;
-  const gaddr fn = gaddr(CallGuest(c, kFindNative, {}));
-  if (!fn) return true;
-  const uint32_t stack = uint32_t(c.esp);
-  const uint32_t base = (stack - 0x100) & ~0xFu;  // below the caller's; calls go below it
-  c.esp = base;
-  const uint32_t ctx = base, args = base + 0x60, out = base + 0xA0;
-  const float way = std::atan2(-fx, fy) * 180 / kPi;  // as the game's headings
-  bool any = false, found = false;
-  char line[256];
-  int used = std::snprintf(line, sizeof line, "turn: nodes");
-  for (int n = 1; n <= kJunctionNodes; n++) {
-    std::memset(GPtr(base), 0, 0xC0);
-    Wr32(ctx + 0x00, args);
-    Wr32(ctx + 0x04, 8);
-    Wr32(ctx + 0x08, args);
-    const uint32_t a[8] = {bits(x), bits(y), bits(z), uint32_t(n), out, out + 4, out + 8, out + 12};
-    for (int i = 0; i < 8; i++) Wr32(args + 4 * i, a[i]);
-    CallGuest(c, fn, {ctx});
-    const float dx = RdF32(out) - x, dy = RdF32(out + 4) - y, heading = RdF32(out + 12);
-    if (dx == -x && dy == -y) continue;  // no such node
-    any = true;
-    const float dist = std::hypot(dx, dy), along = dx * fx + dy * fy;
-    float cross = std::fmod(std::fabs(heading - way), 180.0f);
-    if (cross > 90) cross = 180 - cross;
-    if (dist <= kJunctionRange && along >= -kJunctionBehind && cross >= kJunctionCross) found = true;
-    if (TurnLog() && used < 220) used += std::snprintf(line + used, sizeof line - used, " %.0fm/%.0f", dist, cross);
+constexpr gaddr kAreaNodes = 0x0121CF24, kAreaCount = 0x0121D224;
+
+// Whether a junction is near the vehicle (at x, y, forward fx, fy): a road node of 3+
+// links (+1E, the low 4 bits), within this distance and not far behind, at any angle:
+// the areas' nodes (0121CF24, a grid of 750 m from -3000) as the game's AI reads them.
+// Nodes in boats' routes (height about 0) are not roads. None loaded counts as yes, so
+// as not to lose the indicator.
+constexpr float kBoatRoute = 1.0f;
+constexpr float kJunctionLevel = 6.0f;  // m: more above or below is a road over or under this one
+
+bool JunctionNear(Ctx&, float x, float y, float z, float fx, float fy) {
+  bool any = false;
+  for (int ay = int((y - kJunctionRange + 3000) / 750); ay <= int((y + kJunctionRange + 3000) / 750); ay++) {
+    for (int ax = int((x - kJunctionRange + 3000) / 750); ax <= int((x + kJunctionRange + 3000) / 750); ax++) {
+      if (ax < 0 || ay < 0 || ax > 7 || ay > 7) continue;
+      const uint32_t area = uint32_t(ax + 8 * ay), nodes = Rd32(kAreaNodes + area * 4), count = Rd32(kAreaCount + area * 4);
+      if (!nodes) continue;
+      any = true;
+      for (uint32_t i = 0; i < count; i++) {
+        const uint32_t n = nodes + i * 0x20;
+        if ((Rd8(n + 0x1E) & 0xF) < 3 || (Rd8(n + 0x1C) >> 4) != 0 || (Rd8(n + 0x1E) & 0x80)) continue;
+        const float dx = float(int16_t(Rd16(n + 0x14))) * 0.125f - x, dy = float(int16_t(Rd16(n + 0x16))) * 0.125f - y;
+        if (dx * dx + dy * dy > kJunctionRange * kJunctionRange) continue;
+        const float node_z = float(int16_t(Rd16(n + 0x18))) * 0.015625f;
+        if (node_z < kBoatRoute || std::fabs(node_z - z) > kJunctionLevel) continue;
+        if (dx * fx + dy * fy < -kJunctionBehind) continue;
+        return true;
+      }
+    }
   }
-  c.esp = stack;
-  if (TurnLog()) std::fprintf(stderr, "%s -> %d%s\n", line, found, any ? "" : " (none)");
-  return found || !any;
+  return !any;
+}
+
+// GTAIV_TURN_INDICATORS_ROUTE (off by default, with the automatic ones): with a
+// GPS route, the indicator comes on before the route's turn, up to 40 m ahead as
+// the game's AI does (00C5C330), at a node of 3+ links, the side from the cross
+// product. Unlike the AI, which takes a turn only from 75.5 degrees, a bend of 37
+// degrees counts: on a fork at an angle the hint is what he needs. Near the end of the
+// route, towards the kerb, until he stops or drives on. A route's points are thinned, to
+// within about 7 degrees; a byte for each at +C80 is the node's links. The scripts' route
+// first (a mission's), then the waypoint's.
+bool RouteIndicatorsOn() {
+  static const bool on = OptionOn("GTAIV_TURN_INDICATORS_ROUTE", false);
+  return on;
+}
+
+constexpr uint32_t kRouteSlots[] = {0x011F72A0, 0x011F64F0};
+constexpr uint32_t kRouteLinks = 0xC80, kRouteTarget = 0xD50, kRouteCount = 0xD60, kRouteState = 0xD64, kRouteOffLine = 0xD9C;
+constexpr uint32_t kRouteReady = 3, kRouteRedo = 1, kRouteRedoNow = 2, kRouteMostPoints = 200;
+constexpr float kRouteAhead = 40.0f;
+constexpr float kRouteOffMost = 25.0f;  // m from the route's line: past this the game's GPS says he has left it (00892870)
+constexpr float kRouteFastest = 70.0f;  // m/s: more is a teleport's one frame
+// The wheel the other way, this far and this far over, by the junction: he knows better.
+constexpr float kRouteOverrideDeg = 25.0f, kRouteOverrideShare = 0.5f, kRouteOverrideNear = 25.0f;
+// Pulling away: parked by the kerb 15 m from the route's right turn, the car has to leave
+// the kerb first, so not before this far from where it stood this long. A shorter stand is
+// traffic, or a light, and the hint is as good after it as before.
+constexpr float kRouteAfterStart = 20.0f, kRouteParkedMs = 10000.0f;
+constexpr float kRoutePast = 8.0f;     // this much further than it came: the turn is behind
+constexpr float kRouteForgetSkip = 30.0f;  // a turn he said no to, once this far from it
+
+// The way into and out of a junction, along the route, this far each way. Not from the
+// next point alone: a wide junction is often two nodes a few metres apart, and the short
+// link between them points anywhere. A turn is 37 degrees or more: streets at an angle
+// count, a highway's exit at 20 does not. The way in must be about how the car is going:
+// the game keeps a route up to 50 m off it, so he may be coming along another street.
+// Nearly straight back is a U-turn, whose cross product says nothing: to the left.
+constexpr float kRouteLook = 25.0f, kRouteTurnCos = 0.8f, kRouteSameJunction = 20.0f;
+constexpr float kRouteHeadingCos = 0.7f, kRouteUTurnCos = -0.9f, kRouteCloseNode = 15.0f;
+// The end of the route: how far before it, and how far aside the target has to be to count
+// as off this road. The game takes the route off 20 m from its end (00891D80), so it has to
+// be earlier than that. Stopped this long, he has arrived.
+constexpr float kArriveAhead = 40.0f, kArriveOnRoad = 6.0f, kArriveStopMs = 1000.0f;
+
+float PointX(uint32_t slot, int i) { return RdF32(slot + uint32_t(i) * 16); }
+float PointY(uint32_t slot, int i) { return RdF32(slot + uint32_t(i) * 16 + 4); }
+
+// The place this far along the route's points from point i, going by step; returns how far
+// the points went.
+float AlongRoute(uint32_t slot, int i, int step, int count, float* x, float* y) {
+  float left = kRouteLook;
+  float ax = PointX(slot, i), ay = PointY(slot, i);
+  for (int k = i + step; k >= 0 && k < count; k += step) {
+    const float bx = PointX(slot, k), by = PointY(slot, k);
+    const float len = std::hypot(bx - ax, by - ay);
+    if (len >= left) {
+      *x = ax + (bx - ax) * left / len;
+      *y = ay + (by - ay) * left / len;
+      return kRouteLook;
+    }
+    left -= len;
+    ax = bx;
+    ay = by;
+  }
+  *x = ax;
+  *y = ay;
+  return kRouteLook - left;
+}
+
+// Whether the route turns at point i for a car here, and which way. Where the points do not
+// go far enough back (the game trims those behind the car), the way in is the car's own, but
+// not close to the node: there the car is already steering through the junction, and its
+// heading says nothing about the road. Too late for a hint anyway.
+bool TurnAt(uint32_t slot, int i, int count, float px, float py, float fx, float fy, int* side) {
+  const float x = PointX(slot, i), y = PointY(slot, i);
+  float bx = px - fx * kRouteLook, by = py - fy * kRouteLook, ax, ay, ox, oy;
+  if (i && AlongRoute(slot, i, -1, count, &ax, &ay) >= kRouteLook) {
+    bx = ax;
+    by = ay;
+  } else if (std::hypot(x - px, y - py) < kRouteCloseNode) {
+    return false;
+  }
+  AlongRoute(slot, i, 1, count, &ox, &oy);
+  float ux = x - bx, uy = y - by, vx = ox - x, vy = oy - y;
+  const float lu = std::max(std::hypot(ux, uy), 0.01f), lv = std::max(std::hypot(vx, vy), 0.01f);
+  ux /= lu;
+  uy /= lu;
+  vx /= lv;
+  vy /= lv;
+  if (ux * fx + uy * fy < kRouteHeadingCos) return false;
+  const float cosine = ux * vx + uy * vy;
+  if (cosine >= kRouteTurnCos) return false;
+  *side = cosine < kRouteUTurnCos || vy * ux - uy * vx >= 0 ? 1 : 2;
+  return true;
+}
+
+struct RouteTurn {
+  int side;
+  float x, y;
+  uint32_t slot;
+};
+
+// A route the indicator can go by: the first ready one, its points, not left behind.
+bool ReadyRoute(uint32_t* slot, int* count) {
+  for (const uint32_t r : kRouteSlots) {
+    const uint32_t n = Rd32(r + kRouteCount);
+    if (Rd32(r + kRouteState) != kRouteReady || n < 2 || n > kRouteMostPoints) continue;
+    if (RdF32(r + kRouteOffLine) >= kRouteOffMost) return false;
+    *slot = r;
+    *count = int(n);
+    return true;
+  }
+  return false;
+}
+
+// Where the route really bends, of the nodes of a junction starting at point i: the turn
+// is over only past that one.
+void SharpestNear(uint32_t slot, int i, int count, float px, float py, float* x, float* y) {
+  const float ix = PointX(slot, i), iy = PointY(slot, i);
+  float least = 2;
+  *x = ix;
+  *y = iy;
+  for (int k = i; k + 1 < count; k++) {
+    const float cx = PointX(slot, k), cy = PointY(slot, k);
+    if (std::hypot(cx - ix, cy - iy) > kRouteSameJunction) break;
+    const float ax = k ? PointX(slot, k - 1) : px, ay = k ? PointY(slot, k - 1) : py;
+    const float bx = PointX(slot, k + 1), by = PointY(slot, k + 1);
+    const float lu = std::max(std::hypot(cx - ax, cy - ay), 0.01f), lv = std::max(std::hypot(bx - cx, by - cy), 0.01f);
+    const float cosine = ((cx - ax) * (bx - cx) + (cy - ay) * (by - cy)) / (lu * lv);
+    if (cosine < least) {
+      least = cosine;
+      *x = cx;
+      *y = cy;
+    }
+  }
+}
+
+bool NextRouteTurn(float px, float py, float fx, float fy, RouteTurn* out) {
+  uint32_t slot;
+  int count;
+  if (!ReadyRoute(&slot, &count)) return false;
+  float way = 0, lx = px, ly = py;
+  bool started = false;
+  for (int i = 0; i + 1 < count; i++) {
+    const float x = PointX(slot, i), y = PointY(slot, i);
+    if (!started && (x - px) * fx + (y - py) * fy < 0) continue;  // the first points can be behind
+    started = true;
+    way += std::hypot(x - lx, y - ly);
+    lx = x;
+    ly = y;
+    if (way > kRouteAhead) return false;
+    if ((Rd8(slot + kRouteLinks + uint32_t(i)) & 0x7F) <= 2) continue;
+    int side;
+    if (!TurnAt(slot, i, count, px, py, fx, fy, &side)) continue;
+    out->side = side;
+    out->slot = slot;
+    SharpestNear(slot, i, count, px, py, &out->x, &out->y);
+    return true;
+  }
+  return false;
+}
+
+// The route's end, if it is near: to the side its target lies on, off the road, or else
+// to the right.
+bool RouteEnd(float px, float py, float fx, float fy, RouteTurn* out) {
+  uint32_t slot;
+  int count;
+  if (!ReadyRoute(&slot, &count)) return false;
+  float way = 0, lx = px, ly = py;
+  bool started = false;
+  for (int i = 0; i < count; i++) {
+    const float x = PointX(slot, i), y = PointY(slot, i);
+    if (!started && (x - px) * fx + (y - py) * fy < 0) continue;
+    started = true;
+    way += std::hypot(x - lx, y - ly);
+    lx = x;
+    ly = y;
+    if (way > kArriveAhead) return false;
+  }
+  if (!started) return false;
+  const float ex = PointX(slot, count - 1), ey = PointY(slot, count - 1);
+  float ux = ex - PointX(slot, count - 2), uy = ey - PointY(slot, count - 2);
+  const float len = std::hypot(ux, uy);
+  if (len < 0.01f) return false;
+  ux /= len;
+  uy /= len;
+  const float right = (RdF32(slot + kRouteTarget) - ex) * uy - (RdF32(slot + kRouteTarget + 4) - ey) * ux;
+  *out = {right < -kArriveOnRoad ? 1 : 2, ex, ey, slot};
+  return true;
+}
+
+// Whether the route on the indicator still turns that way at that place. Being worked out
+// again it keeps its say for now (up to 3 s). Close to the turn, the car's heading and the
+// trimmed points tell nothing: the distance decides that.
+bool RouteStillTurns(const Indicators& s, float px, float py, float fx, float fy, float d) {
+  const uint32_t state = Rd32(s.route_slot + kRouteState), n = Rd32(s.route_slot + kRouteCount);
+  if (state == kRouteRedo || state == kRouteRedoNow) return true;
+  if (state != kRouteReady || n < 2 || n > kRouteMostPoints) return false;
+  if (d <= kRouteCloseNode) return true;
+  for (int i = 0; i + 1 < int(n); i++) {
+    if (std::hypot(PointX(s.route_slot, i) - s.route_x, PointY(s.route_slot, i) - s.route_y) > kRouteSameJunction) continue;
+    int side;
+    if (TurnAt(s.route_slot, i, int(n), px, py, fx, fy, &side) && side == s.route_side) return true;
+  }
+  return false;
+}
+
+// A new route's end somewhere else ends the arriving; the game taking this one off does not.
+bool RouteStillEnds(const Indicators& s) {
+  const uint32_t n = Rd32(s.route_slot + kRouteCount);
+  if (Rd32(s.route_slot + kRouteState) != kRouteReady || n < 2 || n > kRouteMostPoints) return true;
+  return std::hypot(PointX(s.route_slot, int(n) - 1) - s.route_x, PointY(s.route_slot, int(n) - 1) - s.route_y) <= kRouteSameJunction;
+}
+
+// The route has no more say on this turn; off, if nothing else holds it.
+void DropRouteHint(Indicators& s, bool off) {
+  s.route_on = s.route_arrive = false;
+  s.skip_x = s.route_x;
+  s.skip_y = s.route_y;
+  if (off) s.on_ms = std::max(s.on_ms, kTurnMinOnMs);
+}
+
+// The route's say on the indicator, for this frame.
+void RouteIndicator(float px, float py, float fx, float fy, float forward) {
+  Indicators& s = g_ind;
+  if (std::hypot(s.skip_x - px, s.skip_y - py) > kRouteForgetSkip) s.skip_x = s.skip_y = 1e9f;
+  if (s.route_on) {
+    const float d = std::hypot(s.route_x - px, s.route_y - py);
+    s.route_near = std::min(s.route_near, d);
+    if (s.side != s.route_side) {  // he steered or flicked the other way
+      DropRouteHint(s, false);
+    } else if (d > s.route_near + kRoutePast || forward < -kTurnMinSpeed) {  // behind now: the wheel has the rest
+      DropRouteHint(s, true);
+    } else if (s.route_arrive ? s.stood_ms >= kArriveStopMs || !RouteStillEnds(s) : !RouteStillTurns(s, px, py, fx, fy, d)) {
+      DropRouteHint(s, true);
+    }
+    if (s.route_on) return;
+  }
+  if (s.since_stop < kRouteAfterStart) return;
+  if (forward < -kTurnMinSpeed || forward > kRouteFastest) return;
+  RouteTurn t;
+  bool arrive = false;
+  if (!NextRouteTurn(px, py, fx, fy, &t)) {
+    if (!RouteEnd(px, py, fx, fy, &t)) return;
+    arrive = true;
+  }
+  if (std::hypot(t.x - s.skip_x, t.y - s.skip_y) < kRouteSameJunction) return;  // (its other node, too)
+  if (s.side && s.side != t.side) return;  // his, or a turn still ending
+  if (!s.side) s.on_ms = s.back_ms = 0;
+  s.side = t.side;
+  s.latched = false;
+  s.stopping = false;
+  s.real_turn = false;
+  s.route_on = true;
+  s.route_arrive = arrive;
+  s.route_side = t.side;
+  s.route_x = t.x;
+  s.route_y = t.y;
+  s.route_slot = t.slot;
+  s.route_near = std::hypot(t.x - px, t.y - py);
 }
 
 void Automatic(Ctx& c, uint32_t veh, float dt) {
@@ -416,11 +671,13 @@ void Automatic(Ctx& c, uint32_t veh, float dt) {
       s.back_ms = kTurnBackMs;
     }
   }
+  const bool route_was_on = flick && s.route_on;
+  if (route_was_on) DropRouteHint(s, false);  // no to the route's turn: this one stays his
   if (flick && s.side == flick) {  // the same way again: off
     s.latched = s.real_turn = false;
     s.on_ms = kTurnMinOnMs;
     s.back_ms = kTurnBackMs;
-  } else if (flick && (s.latched || (!s.side && !(s.real_turn && s.last_ms < kTurnBackWindowMs)))) {
+  } else if (flick && (route_was_on || s.latched || (!s.side && !(s.real_turn && s.last_ms < kTurnBackWindowMs)))) {
     // (Not while a turn's indicator is on or just over: the wheel being
     // straightened can look like a flick.)
     s.side = flick;
@@ -429,9 +686,16 @@ void Automatic(Ctx& c, uint32_t veh, float dt) {
     s.real_turn = false;
   }
   const bool back = s.last_side && turn != s.last_side && s.last_ms < kTurnBackWindowMs;
-  bool turning = turn && (s.turned >= (back ? kTurnBackDeg : kTurnStartDeg) ||
+  // The faster, the more it takes: weaving through traffic turns the car too, and a real
+  // turn at speed gets to it anyway.
+  const float start_deg = kTurnStartDeg + std::clamp((forward - kTurnEasySpeed) / (kTurnHardSpeed - kTurnEasySpeed), 0.0f, 1.0f) * kTurnHardExtraDeg;
+  bool turning = turn && (s.turned >= (back ? std::max(kTurnBackDeg, start_deg) : start_deg) ||
                           s.full_ms >= (back ? kTurnFullBackMs : kTurnFullMs));
-  if (turning && turn != s.side && mat) {
+  // The route said one way and the wheel goes the other: at once, wherever this is.
+  const bool route_overruled = s.route_on && turn && turn != s.side && s.turned >= kRouteOverrideDeg &&
+                               std::fabs(share) >= kRouteOverrideShare && std::hypot(s.route_x - px, s.route_y - py) <= kRouteOverrideNear;
+  if (route_overruled) turning = true;
+  if (turning && turn != s.side && mat && !route_overruled) {
     if (s.asked_ms >= kJunctionAskMs) {
       s.junction = JunctionNear(c, px, py, pz, fx, fy);
       s.asked_ms = 0;
@@ -446,7 +710,21 @@ void Automatic(Ctx& c, uint32_t veh, float dt) {
   } else if (s.latched && (s.latch_ms += dt) >= kTurnLatchMs) {
     s.latched = false;
   }
-  s.stopping = s.side && !s.latched && s.on_ms >= kTurnMinOnMs && s.back_ms >= kTurnBackMs;
+  if (dt > 0) {  // (paused, nothing here has been read)
+    s.stood_ms = forward < kTurnMinSpeed ? s.stood_ms + dt : 0;
+    if (s.stood_ms >= kRouteParkedMs) s.since_stop = 0;
+    else if (forward > 0) s.since_stop += std::min(forward, kRouteFastest) * dt / 1000;
+    if (RouteIndicatorsOn() && mat) RouteIndicator(px, py, fx, fy, forward);
+  }
+  // Each change, with why: so that a wrong one can be told from the log afterwards.
+  if (s.side != s.logged_side) {
+    s.logged_side = s.side;
+    WarnF("turn: %s by %s at %.0f,%.0f heading %.0f %.0f km/h wheel %+.2f turned %.0f rate %.0f junction %d corner %.0f,%.0f\n",
+          s.side == 1 ? "left" : s.side == 2 ? "right" : "off",
+          s.route_arrive ? "arriving" : s.route_on ? (s.route_slot == kRouteSlots[0] ? "script route" : "waypoint route") : s.latched ? "flick" : s.real_turn ? "wheel" : "-", px, py,
+          std::atan2(fy, fx) * 180 / kPi, forward * 3.6f, share, s.turned, s.rate, s.junction, s.route_on ? s.route_x : 0.0f, s.route_on ? s.route_y : 0.0f);
+  }
+  s.stopping = s.side && !s.latched && !s.route_on && s.on_ms >= kTurnMinOnMs && s.back_ms >= kTurnBackMs;
 
   // GTAIV_TURN_LOG=1: the wheel and the speed, four times a second.
   if (TurnLog()) {
@@ -466,6 +744,7 @@ void Automatic(Ctx& c, uint32_t veh, float dt) {
 
 void Manual(Ctx& c, uint32_t veh, float dt) {
   Indicators& s = g_ind;
+  if (dt <= 0) return;  // paused: the bumpers are working a menu
   const bool left = ButtonDown(c, 4, 0x1A);   // left bumper, [
   const bool right = ButtonDown(c, 6, 0x1B);  // right bumper, ]
   if (left && !s.left) s.left_ms = 0;
@@ -508,7 +787,10 @@ void Update(Ctx& c) {
   if (dt < 0) dt = 0;
   if (dt > 250) dt = 250;  // a pause or a load
 
-  const uint32_t veh = PlayerVehicle(PlayerPed());
+  // (Not as a passenger: a taxi's indicators are its driver's.)
+  const uint32_t ped = PlayerPed();
+  uint32_t veh = PlayerVehicle(ped);
+  if (veh && Rd32(veh + 0xFA0) != ped) veh = 0;
   for (size_t i = 0; i < g_crashes.size();) {
     Crash& k = g_crashes[i];
     const uint32_t v = VehicleAt(k.car);

@@ -447,9 +447,9 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
 }
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender {
-  // Return through the launcher loop before exiting the process.
-  [self quit:sender];
-  return NSTerminateCancel;
+  // Accept system quit so logout and shutdown receive a successful reply.
+  [self.window orderOut:nil];
+  return NSTerminateNow;
 }
 
 - (BOOL)windowShouldClose:(NSWindow*)window {

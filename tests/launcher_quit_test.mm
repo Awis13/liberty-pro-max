@@ -22,21 +22,34 @@ void RequestQuit(NSString* action) {
   } else if ([action isEqual:@"window"]) {
     [launcher.window performClose:nil];
   } else {
-    // Send the same quit Apple event as the Dock, without requiring the test
-    // bundle to be registered in Launch Services.
-    NSAppleEventDescriptor* event = [NSAppleEventDescriptor appleEventWithEventClass:kCoreEventClass
-        eventID:kAEQuitApplication targetDescriptor:[NSAppleEventDescriptor descriptorWithProcessIdentifier:getpid()]
-        returnID:kAutoGenerateReturnID transactionID:kAnyTransactionID];
-    NSError* error = nil;
-    [event sendEventWithOptions:NSAppleEventSendNoReply timeout:1 error:&error];
-    if (error) std::fprintf(stderr, "%s\n", error.description.UTF8String);
-    Require(!error, "System must accept the quit Apple event");
+    // Let the driver send Quit from another process so it can check the reply
+    // even after the launcher exits.
+    std::puts("ready");
+    std::fflush(stdout);
   }
+}
+
+void SendQuit(pid_t pid) {
+  // The same quit Apple event as the Dock, without Launch Services registration.
+  NSAppleEventDescriptor* event = [NSAppleEventDescriptor appleEventWithEventClass:kCoreEventClass
+      eventID:kAEQuitApplication targetDescriptor:[NSAppleEventDescriptor descriptorWithProcessIdentifier:pid]
+      returnID:kAutoGenerateReturnID transactionID:kAnyTransactionID];
+  NSError* error = nil;
+  NSAppleEventDescriptor* reply = [event sendEventWithOptions:NSAppleEventSendWaitForReply timeout:5 error:&error];
+  if (error) std::fprintf(stderr, "%s\n", error.description.UTF8String);
+  Require(reply && !error, "System must receive a quit reply");
+  const int32_t code = [reply paramDescriptorForKeyword:keyErrorNumber].int32Value;
+  if (code) std::fprintf(stderr, "Quit reply error: %d\n", code);
+  Require(code == 0, "Launcher must accept system quit, including logout and shutdown");
 }
 }
 
 int main(int argc, char** argv) {
   @autoreleasepool {
+    if (argc == 3 && !std::strcmp(argv[1], "dock-request")) {
+      SendQuit(static_cast<pid_t>(std::strtol(argv[2], nullptr, 10)));
+      return 0;
+    }
     Require(argc == 2, "Expected a quit action");
     NSString* action = @(argv[1]);
     // Isolate preferences so this never skips the launcher or changes options.

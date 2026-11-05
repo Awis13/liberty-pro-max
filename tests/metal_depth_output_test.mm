@@ -3,6 +3,7 @@
 #include <SDL3/SDL.h>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include "runtime/gfx/device.h"
 
 using namespace recomp;
@@ -111,6 +112,12 @@ int main() {
     dev->StretchRect({shadow, 0}, {0,0,32,32}, {0,0}, {0,0,32,32}, false);
     dev->SetRenderTarget(0, 0);
     expect(0xffff0000, "scalar shadow target lost color output");
+    // Leave distinct lean shader compilations queued when the device dies.
+    // Shutdown must finish them before destroying their maps and mutexes.
+    for (int i = 0; i < 32; i++) {
+      const auto source = "float4 main() : COLOR0 { return float4(" + std::to_string(i) + ".0/32.0,0,0,1); }";
+      dev->CreateShader(Compile(source.c_str(), "ps_3_0"));
+    }
     dev.reset();
     SDL_DestroyWindow(window);
     SDL_Quit();

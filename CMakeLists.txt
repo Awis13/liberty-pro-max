@@ -108,3 +108,19 @@ if(TARGET gtaiv_lifted)
       VERBATIM)
   endif()
 endif()
+
+# Opt-in native application-loop regression tests.
+option(GTAIV_LAUNCHER_TESTS "Build macOS launcher integration tests" OFF)
+if(APPLE AND NOT RECOMP_IOS AND GTAIV_LAUNCHER_TESTS)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_executable(gtaiv_launcher_quit_test tests/launcher_quit_test.mm)
+  target_include_directories(gtaiv_launcher_quit_test PRIVATE src)
+  target_compile_options(gtaiv_launcher_quit_test PRIVATE -fobjc-arc)
+  target_link_libraries(gtaiv_launcher_quit_test PRIVATE "-framework AppKit")
+  foreach(action keyboard dock window)
+    add_test(NAME launcher_quit_${action}
+      COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/launcher_quit_test.py"
+        "$<TARGET_FILE:gtaiv_launcher_quit_test>" ${action})
+    set_tests_properties(launcher_quit_${action} PROPERTIES TIMEOUT 15 RUN_SERIAL TRUE)
+  endforeach()
+endif()

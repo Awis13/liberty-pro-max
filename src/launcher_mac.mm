@@ -90,7 +90,7 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 
 }  // namespace
 
-@interface GtaivLauncher : NSObject <NSWindowDelegate>
+@interface GtaivLauncher : NSObject <NSApplicationDelegate, NSWindowDelegate>
 @property(strong) NSWindow* window;
 @property(strong) NSTextField* folderField;
 @property(strong) NSTextField* problem;
@@ -117,6 +117,7 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 @property(strong) NSButton* skip;
 @property(strong) NSButton* play;
 @property(copy) NSString* folder;
+@property NSModalResponse response;
 @end
 
 // A document view laid out from the top (the Advanced tab scrolls).
@@ -152,6 +153,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
                                               backing:NSBackingStoreBuffered
                                                 defer:NO];
   self.window.title = @"Liberty Pro Max";
+  self.window.releasedWhenClosed = NO;
   self.window.delegate = self;
 
   NSTextField* title = [NSTextField labelWithString:@"Liberty Pro Max"];
@@ -422,7 +424,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     [d setInteger:self.shaderChoices[i].indexOfSelectedItem forKey:kShaderChoices[i].key];
   [d setBool:self.skip.state == NSControlStateValueOn forKey:kSkipKey];
   [d synchronize];
-  [NSApp stopModalWithCode:NSModalResponseOK];
+  [self finishWithResponse:NSModalResponseOK];
 }
 
 - (void)openMods:(id)sender {
@@ -431,12 +433,28 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [NSWorkspace.sharedWorkspace openURL:[NSURL fileURLWithPath:ModsFolder()]];
 }
 
-- (void)quit:(id)sender {
-  [NSApp stopModalWithCode:NSModalResponseCancel];
+- (void)finishWithResponse:(NSModalResponse)response {
+  self.response = response;
+  [NSApp stop:nil];
+  // Wake run: so it observes stop: even when no more user input arrives.
+  [NSApp postEvent:[NSEvent otherEventWithType:NSEventTypeApplicationDefined location:NSZeroPoint
+      modifierFlags:0 timestamp:0 windowNumber:0 context:nil subtype:0 data1:0 data2:0] atStart:NO];
 }
 
-- (void)windowWillClose:(NSNotification*)n {
-  [NSApp stopModalWithCode:NSModalResponseCancel];
+- (void)quit:(id)sender {
+  [self.window orderOut:nil];
+  [self finishWithResponse:NSModalResponseCancel];
+}
+
+- (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender {
+  // Accept system quit so logout and shutdown receive a successful reply.
+  [self.window orderOut:nil];
+  return NSTerminateNow;
+}
+
+- (BOOL)windowShouldClose:(NSWindow*)window {
+  [self quit:nil];
+  return YES;
 }
 
 @end
@@ -476,11 +494,13 @@ void RunLauncherIfWanted(int argc, char** argv) {
     NSMenuItem* appItem = [NSMenuItem new];
     [bar addItem:appItem];
     NSMenu* appMenu = [NSMenu new];
-    [appMenu addItemWithTitle:@"Quit Liberty Pro Max" action:@selector(terminate:) keyEquivalent:@"q"];
+    NSMenuItem* quitItem = [appMenu addItemWithTitle:@"Quit Liberty Pro Max" action:@selector(quit:) keyEquivalent:@"q"];
     appItem.submenu = appMenu;
     NSApp.mainMenu = bar;
 
     GtaivLauncher* l = [GtaivLauncher new];
+    NSApp.delegate = l;
+    quitItem.target = l;
     l.folder = folder;
     [l build:d];
     // Dev aids: GTAIV_LAUNCHER_SNAPSHOT=file.png draws the window there
@@ -519,8 +539,9 @@ void RunLauncherIfWanted(int argc, char** argv) {
     }
     [l.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
-    const NSModalResponse r = [NSApp runModalForWindow:l.window];
-    if (r != NSModalResponseOK) std::exit(0);
+    // A modal session suppresses Command-Q and defers system quit Apple events.
+    [NSApp run];
+    if (l.response != NSModalResponseOK) std::exit(0);
     [l.window orderOut:nil];
     Launch(l.folder, d, args);
     NSAlert* a = [NSAlert new];

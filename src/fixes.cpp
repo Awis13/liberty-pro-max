@@ -265,8 +265,7 @@ void hook_00A98D7B(Ctx& c) { Lane0(c, 0) *= PerFrameShare(Operand(0x00A98D7B)); 
 // st0): the swing the follow camera adds each frame while the handbrake
 // turns the car, made for 30 fps. At 120 fps it is added four times as
 // often and the camera swings round the car, several turns in a fast
-// handbrake turn. Scaled by the frame's share of a 30 fps frame (as
-// FusionFix does).
+// handbrake turn. Scaled by the frame's share of a 30 fps frame.
 void f_00A7C8E0(Ctx& c) {
   f_00A7C8E0_lifted(c);
   const float k = StepsOf30();
@@ -277,7 +276,7 @@ void f_00A7C8E0(Ctx& c) {
 
 // CCamFollowVehicle auto-centring: two divisors clamped from below
 // (comiss; ja/jbe; movaps), which keeps the centring from scaling with the
-// frame rate. The clamps are skipped, as FusionFix does; the flags they
+// frame rate. The clamps are skipped; the flags they
 // set are dead (the next compare or test sets its own).
 void hook_00A810F4(Ctx& c) { c.xmm[2] = c.xmm[3]; }
 void hook_00A813DC(Ctx& c) { c.xmm[1] = c.xmm[7]; }

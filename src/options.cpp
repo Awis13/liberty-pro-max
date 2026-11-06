@@ -140,11 +140,10 @@ void f_00922630(Ctx& c) {
 // records it may leave pending ([019B3D34], 5, set once at 006CE499) and
 // skips all removal while more are due (006D51FC). In a busy district five
 // are due almost always, so parked cars, wrecks and far ambient entities
-// are hardly ever removed and pile up until the player leaves the district
-// (traced by the local model's RE, verified at these addresses).
+// are hardly ever removed and pile up until the player leaves the district.
 // Here the allowance is 20 (mov eax, [019B3D34] gives 20): in a 10-minute
 // session in one district the frame no longer grew (12-14 ms of main work
-// throughout) and Nikolai found it smoother. GTAIV_DESPAWN_NEED=n sets it.
+// throughout) and play felt smoother. GTAIV_DESPAWN_NEED=n sets it.
 void hook_006D4F92(Ctx& c) {
   static const uint32_t need = [] {
     const char* e = std::getenv("GTAIV_DESPAWN_NEED");

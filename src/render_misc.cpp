@@ -1,6 +1,4 @@
-// Rendering and streaming odds and ends, by the ideas of FusionFix
-// (ThirteenAG and contributors, GPL-3.0; its code not taken) and
-// ZolikaPatch (by its ini's descriptions only). Each one is an option (the
+// Rendering and streaming odds and ends. Each one is an option (the
 // launcher's Advanced tab sets them), on unless said otherwise:
 //   GTAIV_HIGH_DETAIL_REFLECTIONS (off by default): the reflection is
 //     drawn from what every render phase found visible, not from its own
@@ -73,11 +71,14 @@ void hook_0096ABCF(Ctx& c) {  // call 00A95B00
 
 // grcResourceCache::GetAvailableFreeMemory (thiscall, float share; ret 4):
 // the memory streaming may still take, from the total times the share
-// (0.9 at every call site). The share from how much of the game's 32-bit
-// address space is reserved: 1.5 below 2 GB, 0.9 from 2.9 GB, in between
-// a straight line. Reserved, not only committed, memory is what runs out
-// in a 32-bit process; measured at most twice a second (the guest
-// allocator's regions walked).
+// (0.9 at every call site). The share from how much of the game's address
+// space is reserved: 1.5 while at most half of it is, 0.9 from 71% (the
+// proportions of 2 and 2.9 GB of a 4 GB process), in between a straight
+// line. The game here has the space below the runtime's thunks
+// (kThunkBase, just under 2 GB: it is not large-address-aware), so the
+// thresholds are shares of that, not of 4 GB. Reserved, not only
+// committed, memory is what runs out in a 32-bit process; measured at most
+// twice a second (the guest allocator's regions walked).
 namespace {
 uint64_t GuestReserved() {
   auto& vm = g_proc->vm;
@@ -98,7 +99,8 @@ uint64_t GuestReserved() {
 }
 
 float StreamingShare() {
-  constexpr double kLow = 2048.0 * 1024 * 1024, kHigh = 2900.0 * 1024 * 1024;
+  constexpr double kSpace = double(kThunkBase);
+  constexpr double kLow = kSpace * 2048.0 / 4096.0, kHigh = kSpace * 2900.0 / 4096.0;
   constexpr float kMost = 1.5f, kLeast = 0.9f;
   static std::mutex mu;
   static std::chrono::steady_clock::time_point next;

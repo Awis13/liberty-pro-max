@@ -18,9 +18,10 @@
 //   GTAIV_MOUSE_RECOIL: weapon recoil with the mouse as with a gamepad;
 //   GTAIV_COVER_CAMERA: no forced camera centring at the edge of cover;
 //   GTAIV_LOD_LIGHTS: the city's distant lights from 7 pm (the consoles'
-//     time, not 10 pm), in cutscenes and seen from the street;
-//   GTAIV_CURSOR_SIZE: the mouse cursor a fixed share of the screen, not
-//     of its pixels (tiny on large screens);
+//     time, not 10 pm), in cutscenes and seen from the street, and not
+//     flickering in The Ballad of Gay Tony;
+//   GTAIV_CURSOR_SIZE: the mouse cursor's size the same whatever the size
+//     of its texture;
 //   GTAIV_RETICLE_HEALTH: the aimed-at ped's health on the reticle with
 //     keyboard and mouse too;
 //   GTAIV_RADAR_ZOOM_DELAY: the radar stays zoomed out 3 s after the key;
@@ -60,8 +61,8 @@
 //     the consoles (the PC overwrote them with fixed ones);
 //   GTAIV_HELI_SEARCHLIGHTS: with two or more helicopters only one shines
 //     its searchlight at a time (for up to 10 s), no flickering fight;
-//   GTAIV_NIGHT_SHADOW_RESOLUTION: the night shadows setting sets their
-//     resolution (256, 512, 1024);
+//   GTAIV_NIGHT_SHADOW_RESOLUTION: the night shadows setting alone sets
+//     their resolution (256, 512, 1024);
 //   GTAIV_CENTERED_CAR_CAMERA, GTAIV_CENTERED_FOOT_CAMERA (off by
 //     default): the camera behind the car or the player, not off to the
 //     side;
@@ -72,7 +73,8 @@
 //   GTAIV_BRAKE_LIGHTS_STOPPED (off by default): the player's brake
 //     lights stay lit while the car stands, as the AI's do;
 //   GTAIV_CAR_CAMERA_RETURN: with keyboard and mouse the car camera swings
-//     back behind the car faster (FusionFix's default turn speed 3);
+//     back behind the car faster (a camera turn speed of 3), but
+//     not while the mouse moves it;
 //   GTAIV_MOUSE_CAMERA_DELAY: on foot the camera does not swing back behind
 //     Niko for 2 s after the mouse moved it.
 
@@ -111,7 +113,7 @@ void hook_00C77C7D(Ctx& c) {
 // then the sliders' values do not apply. Worked out here instead.
 void hook_00493687(Ctx& c) {
   static const bool on = OptionOn("GTAIV_DRAW_DISTANCE_FIX", false);
-  if (on) CallGuest(c, 0x00477300, {});
+  if (on) CallGuest(c, 0x00477300, {1});  // its char argument, as the menu passes (004764EB)
 }
 
 // After a cutscene (cmp byte [esp+4], 0; je): with no station asked for,
@@ -212,10 +214,16 @@ void hook_00CA1B4E(Ctx& c) {  // call 7F02B0; test al, al (jne: none drawn)
 void hook_00C9FA5D(Ctx& c) {
   if (!LodLights()) SetLane0(c.xmm[0], Lane0(c.xmm[0]) - RdF32(0x00D9D640));
 }
+// In The Ballad of Gay Tony (cmp [episode], 2; jne) the same function
+// halves five of the lights' values after its loops, and they flicker at
+// some camera angles. Skipped in every episode.
+void hook_00C9FF04(Ctx& c) { CmpFlags<4>(c, LodLights() ? 0 : Rd32(0x0112D754), 2); }
 
-// The mouse cursor's size: its texture's pixels over the screen's, so on
-// a large screen a speck. 30 / 1024 of the width and 30 / 768 of the
-// height instead.
+// The mouse cursor's size: its texture's width over 1024 and height over
+// 768 (mulss by [00EDF3B8], [00EDF878]), a share of the screen whatever
+// its resolution, so a larger cursor texture is drawn larger. 30 / 1024
+// of the width and 30 / 768 of the height instead, whatever the texture's
+// size; with a texture of about 30 pixels it looks the same.
 namespace {
 bool CursorSize() {
   static const bool on = OptionOn("GTAIV_CURSOR_SIZE", true);
@@ -329,10 +337,13 @@ void hook_00866235(Ctx& c) {  // test dl, 1
 }
 void hook_0086648D(Ctx& c) {  // add esp, 1C (then test al, al: "back")
   c.esp += 0x1C;
-  if ((c.eax & 0xFF) == 0 && g_right_click) {
-    c.eax = (c.eax & ~0xFFu) | 1;
-    g_right_click = false;
-  }
+  // Only a right click of this frame (the buttons now at [017945CC], the
+  // frame before at [017945C4]): one remembered on a frame that did not
+  // get here does not count later.
+  const uint32_t buttons = Rd32(0x017945CC);
+  const bool clicked = (buttons ^ Rd32(0x017945C4)) & buttons & 2;
+  if ((c.eax & 0xFF) == 0 && g_right_click && clicked) c.eax = (c.eax & ~0xFFu) | 1;
+  g_right_click = false;
 }
 
 // The cinematic action camera's triggers (thiscall, returning whether to
@@ -523,14 +534,15 @@ void hook_00A63CE1(Ctx& c) { RainStore(c, 0x38, 0); }
 // first helicopter in a frame that gets to it (the frame it was last
 // drawn, [01367AD4], against the frame counter); with two they take turns
 // and the light flickers wildly. The one that has it keeps it, up to 10 s
-// at a time, while its light is on (on +1F6C, brightness +1F64, not off
-// +2030); the others' turn checks fail.
+// at a time, while its light is on (the game's own checks before drawing
+// it: on +1FBC, brightness +1FB4 above 0, not off +2080); the others' turn
+// checks fail.
 void f_009C8200(Ctx& c) {
   static const bool on = OptionOn("GTAIV_HELI_SEARCHLIGHTS", true);
   static uint32_t owner, until;
   if (on) {
     const uint32_t heli = c.ecx, frame = Rd32(0x010FCC30);
-    const bool lit = Rd8(heli + 0x1F6C) != 0 && RdF32(heli + 0x1F64) > 0.0f && Rd8(heli + 0x2030) == 0;
+    const bool lit = Rd8(heli + 0x1FBC) != 0 && RdF32(heli + 0x1FB4) > 0.0f && Rd8(heli + 0x2080) == 0;
     if (lit) {
       const uint32_t now = Rd32(0x010FCB6C);
       if (!owner || owner == heli || now > until) {
@@ -550,12 +562,13 @@ void f_009C8200(Ctx& c) {
 // The night shadows' resolution (no arguments, the size in eax): 64 <<
 // the shadow quality setting ([010FC31C]) up to 1024, when the night
 // shadows setting ([010FC318]) is on at all; the latter's levels did not
-// change their sharpness. By it instead: off, 256, 512, 1024.
+// change their sharpness. By it alone instead: off, 256, 512, 1024 (night
+// shadows also with the shadow quality off).
 void f_008C31B0(Ctx& c) {
   static const bool on = OptionOn("GTAIV_NIGHT_SHADOW_RESOLUTION", true);
   if (!on) return f_008C31B0_lifted(c);
   const int32_t level = int32_t(Rd32(0x010FC318));
-  c.eax = level <= 0 || Rd32(0x010FC31C) == 0 ? 0 : level == 1 ? 256 : level == 2 ? 512 : 1024;
+  c.eax = level <= 0 ? 0 : level == 1 ? 256 : level == 2 ? 512 : 1024;
   c.esp += 4;  // ret
 }
 
@@ -642,27 +655,29 @@ void hook_008FC1A5(Ctx& c) {
 
 // CCamFollowVehicle: how fast the camera swings back behind the car this
 // frame, across and up (divss by a time; movss to the frame). With
-// keyboard and mouse divided by 0.7 more (FusionFix's camera turn speed
-// 3: 1 - 3 * 0.1), with a gamepad as it was (the pad, 86A1A0(1), has
-// its "keyboard" byte +328D at 0 then).
+// keyboard and mouse divided by 0.7 more (a camera turn speed of 3: 1 -
+// 3 * 0.1), and none on a frame the mouse moves (its deltas at
+// [017945D0], [017945C0]), so it does not pull against the player's
+// look; with a gamepad as it was (the pad, 86A1A0(1), has its "keyboard"
+// byte +328D at 0 then).
 namespace {
-float CarCameraReturn(Ctx& c) {
+float CarCameraReturn(Ctx& c, float v, float time) {
   static const bool on = OptionOn("GTAIV_CAR_CAMERA_RETURN", true);
-  if (!on) return 1.0f;
+  if (!on) return v / time;
   KeepRegs keep(c);  // no call here in the game's code
   const uint32_t pad = uint32_t(CallGuest(c, 0x0086A1A0, {1}));
-  return pad && Rd8(pad + 0x328D) == 0 ? 1.0f : 0.7f;
+  if (pad && Rd8(pad + 0x328D) == 0) return v / time;
+  if (Rd32(0x017945D0) || Rd32(0x017945C0)) return 0.0f;
+  return v / (time * 0.7f);
 }
 }  // namespace
 void hook_00A813F9(Ctx& c) {  // divss xmm0, xmm1; movss [esp+58], xmm0
-  const float k = CarCameraReturn(c);
-  const float v = Lane0(c.xmm[0]) / (Lane0(c.xmm[1]) * k);
+  const float v = CarCameraReturn(c, Lane0(c.xmm[0]), Lane0(c.xmm[1]));
   SetLane0(c.xmm[0], v);
   WrF32(c.esp + 0x58, v);
 }
 void hook_00A81108(Ctx& c) {  // divss xmm0, xmm2; movss [esp+BC], xmm0
-  const float k = CarCameraReturn(c);
-  const float v = Lane0(c.xmm[0]) / (Lane0(c.xmm[2]) * k);
+  const float v = CarCameraReturn(c, Lane0(c.xmm[0]), Lane0(c.xmm[2]));
   SetLane0(c.xmm[0], v);
   WrF32(c.esp + 0xBC, v);
 }

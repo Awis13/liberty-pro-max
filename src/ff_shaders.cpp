@@ -1,8 +1,8 @@
-// The shader constants FusionFix's shaders read (its shaders.ixx, by its
-// idea; GPL-3.0, its code not taken): registers above the game's own,
-// written through the game's Direct3D device at the start of each frame's
+// The shader constants the extended shaders (from the update folder) read:
+// registers above the game's own, written through the game's Direct3D
+// device at the start of each frame's
 // drawing (grcSetup::BeginDraw) and whenever a viewport becomes current.
-// Only with FusionFix's shaders (GTAIV_FF_SHADERS, update_folder.cpp):
+// Only with the extended shaders (GTAIV_FF_SHADERS, update_folder.cpp):
 //   PS c209, VS c227: the viewport's clip planes for the logarithmic depth
 //     (no z-fighting far away);
 //   PS c217, c218: shadow filter, cascade blend, tone mapping;
@@ -14,12 +14,12 @@
 //   PS c223: tree lighting, field of view, definition, night;
 //   PS c208, c210, c211, VS c235-c237: sun shafts' intensity, volumetric
 //     fog (on with GTAIV_FF_VOLUMETRIC_FOG), smooth light volumes, the
-//     sun's light for the rain: FusionFix's timecycext.dat and the game's
+//     sun's light for the rain: the update folder's timecycext.dat and the game's
 //     timecyc.dat blended by hour and weather (wf2_fog2.cpp);
 //   VS c233: the trees' wind sway.
 //   PS c212-c216, VS c228-c234: the sky's colours and sun, as the game
 //     last set them on gta_atmoscatt_clouds.fxc (a frame late).
-// FusionFix's settings behind them, each an option at FusionFix's default:
+// The settings behind them, each an option at the shaders' own default:
 //   GTAIV_MOTION_BLUR=0-4: off, 1/8, 1/4 (default), 1/2, full;
 //   GTAIV_FF_SHADOW_FILTER=sharp|soft|chss (or 0-2; sharp by default):
 //     contact hardening (CHSS) only at Very High shadow quality;
@@ -37,7 +37,7 @@
 //   GTAIV_FF_SMOOTH_SHORELINES: soft edges where water meets land;
 //   GTAIV_FF_SMOOTH_LIGHT_VOLUMES: soft edges where light volumes meet
 //     geometry;
-//   GTAIV_FF_CASCADE_SHADOWS: the cascaded shadows as FusionFix's shaders
+//   GTAIV_FF_CASCADE_SHADOWS: the cascaded shadows as the extended shaders
 //     draw them: the atlas R32F (not R16F, 00AC4C33), the deferred
 //     G-buffers A8R8G8B8 (not A2R10G10B10, 00A95D21), the cascades'
 //     ranges 10/30/85/256 m at every quality and the first set of their
@@ -69,9 +69,10 @@
 
 namespace recomp::gen {
 
-bool FfShadersOn();  // update_folder.cpp
+bool FfShadersOn();               // update_folder.cpp
+bool UpdateModelShadersLoaded();  // update_folder.cpp
 
-// FusionFix's timecycext values blended for the frame (wf2_fog2.cpp).
+// The timecycext values blended for the frame (wf2_fog2.cpp).
 struct FfTimecycExt {
   float fog[4];
   float dir_light[4];
@@ -85,7 +86,11 @@ namespace {
 
 constexpr uint32_t kDevice = 0x01745630;     // rage::grcDevice: the IDirect3DDevice9
 constexpr uint32_t kViewport = 0x018CADA4;   // rage: the current grcViewport
-constexpr uint32_t kWorld = 0x00F488EC;      // non-zero once the world is set up
+constexpr uint32_t kWorld = 0x00F488EC;      // the root camera: non-zero once the world is set up
+constexpr uint32_t kCamFov = 0x60;           // a camera's field of view (what GET_CAM_FOV reads)
+constexpr uint32_t kInterior = 0x01399789;   // the player is in an interior (IS_INTERIOR_SCENE)
+constexpr uint32_t kMenuActive = 0x010FC63F; // CMenuManager: the pause menu is up
+constexpr uint32_t kMenuTab = 0x010FBF24;    // its tab (3: the map)
 constexpr uint32_t kLoading = 0x018CB06C;    // CMenuManager: a loading screen is up
 constexpr uint32_t kTimeStep = 0x010FCB74;   // CTimer::ms_fTimeStep
 constexpr uint32_t kTimeScale = 0x00F2E090;  // CTimer::ms_fTimeScale
@@ -174,7 +179,9 @@ void SkyConstants(Ctx& c);
 void FrameConstants(Ctx& c) {
   if (!Rd32(kWorld) || Rd8(kLoading)) return;
   Saved keep(c);
-  const float wind[4] = {F32(kWindAngle), std::clamp(F32(kTimeScale) * 0.015f, 0.0015f, 0.015f), 0, 0};
+  // No sway indoors: an interior's plants have no wind.
+  const float wind[4] = {Rd8(kInterior) ? 0.0f : F32(kWindAngle),
+                         std::clamp(F32(kTimeScale) * 0.015f, 0.0015f, 0.015f), 0, 0};
   SetConstant(c, false, 233, wind);
   const Settings& s = Prefs();
   FfTimecycExt ext;
@@ -204,10 +211,12 @@ void FrameConstants(Ctx& c) {
   // Definition, snow, menu blur, the trees' alpha scale (PC, PC+, console).
   static constexpr float kTreeAlpha[3] = {0.625f, 1.0f, 4.0f};
   const float definition = s.definition ? 1.0f : 0.0f;
-  const float settings[4] = {definition, 0.0f, 0.0f, kTreeAlpha[s.tree_alpha]};
+  // The menu's background is blurred behind the map tab.
+  const float menu_blur = Rd8(kMenuActive) && Rd32(kMenuTab) == 3 ? 1.0f : 0.0f;
+  const float settings[4] = {definition, 0.0f, menu_blur, kTreeAlpha[s.tree_alpha]};
   SetConstant(c, true, 221, settings);
   const float step = std::max(F32(kTimeStep), 1e-4f);
-  // GTAIV_MOTION_BLUR=0-4: off, 1/8, 1/4 (FusionFix's default), 1/2, full.
+  // GTAIV_MOTION_BLUR=0-4: off, 1/8, 1/4 (the default), 1/2, full.
   static const float blur = [] {
     const char* e = std::getenv("GTAIV_MOTION_BLUR");
     const int level = e && *e >= '0' && *e <= '4' ? *e - '0' : 2;
@@ -218,8 +227,9 @@ void FrameConstants(Ctx& c) {
   const float post[4] = {s.auto_exposure ? 1.0f / 9.0f : 1.0f / 16.0f, s.shorelines ? 1.0f : 0.0f, 0.0f,
                          blur / (30.0f * step)};
   SetConstant(c, true, 222, post);
-  const uint32_t viewport = Rd32(kViewport);
-  const float fov = viewport ? F32(viewport + 0x2B8) : 45.0f;
+  // The game camera's field of view: the root camera's (the viewport current
+  // here may be a 2D or shadow one left from the frame before).
+  const float fov = F32(Rd32(kWorld) + kCamFov);
   const uint32_t h = Rd32(kHours) & 0xFF, m = Rd32(kMinutes) & 0xFF;
   const bool day = ((h == 6 && m >= 45) || h > 6) && ((h == 19 && m < 15) || h < 19);
   // Tree lighting (PC 0, PC+ 1, console 2), field of view, definition, night.
@@ -339,7 +349,9 @@ void f_0040B280(Ctx& c) {
 // grcSetup::BeginDraw: cmp byte [esp+8], 0 (then je).
 void hook_005B62A8(Ctx& c) {
   if (CascadeShadows()) CascadeTables();
-  if (FfShadersOn()) FrameConstants(c);
+  // The models' shaders from the update folder read some of them too (the
+  // trees' alpha scale c221.w and sway c233) when the rest are off.
+  if (FfShadersOn() || UpdateModelShadersLoaded()) FrameConstants(c);
   lift::U<1> v = Rd8(c.esp + 8);
   Flags f;
   UnpackEFlags(f, c.eflags);
@@ -366,14 +378,14 @@ void hook_004142BE(Ctx& c) {
 }
 
 // The shadow atlas's format, when the device renders to R16F: mov dword
-// [014FE20C], 3 (rage's R16F). FusionFix's shaders read it as R32F (4),
+// [014FE20C], 3 (rage's R16F). The extended shaders read it as R32F (4),
 // the format the game takes when R16F is missing.
 void hook_00AC4C33(Ctx&) {
   Wr32(0x014FE20C, CascadeShadows() ? 4 : 3);
 }
 
 // The deferred G-buffers' format when the device has A2R10G10B10: mov
-// dword [esp+40h], 5. FusionFix's shaders are made for A8R8G8B8 (2), the
+// dword [esp+40h], 5. The extended shaders are made for A8R8G8B8 (2), the
 // format the game takes without it.
 void hook_00A95D21(Ctx& c) {
   Wr32(c.esp + 0x40, CascadeShadows() ? 2 : 5);
@@ -384,7 +396,7 @@ void hook_00A95D21(Ctx& c) {
 // ([012284A0], [012284A4]), CASCADE_TARGET_D24 and _R32, where each cascade
 // is drawn before 008C8B10 copies it into its quarter of the atlas (the
 // quarter from the atlas's own width), twice the size each way: add esi,
-// esi. FusionFix's shaders take the cascade at the tile's size, so no
+// esi. The extended shaders take the cascade at the tile's size, so no
 // doubling, unless the atlas is doubled too (high resolution shadows).
 void hook_008C896D(Ctx& c) {
   if (CascadeShadows() && !HighResShadows()) return;

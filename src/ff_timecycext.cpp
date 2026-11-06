@@ -3,12 +3,12 @@
 // settings.ixx; GPL-3.0, its code not taken). Only with FusionFix's
 // shaders (GTAIV_FF_SHADERS): ff_shaders.cpp writes what is blended here
 // into their constants (PS c208, c210, c211, c217.y; VS c235-c237).
-//   - pc\data\timecycext.dat (FusionFix's own file, from the update
-//     folder; its defaults when there is none): per weather (9) and
-//     timecycle hour (11) the fog's density, height falloff, altitude
-//     tweak and power, the sun shafts' intensity and the contact hardening
-//     shadows' light size; missing (-1) values filled in between the hours
-//     around them;
+//   - pc\data\timecycext.dat (a mod pack's file, from the mods folder or
+//     the update folder; built-in defaults when there is none): per
+//     weather (9) and timecycle hour (11) the fog's density, height
+//     falloff, altitude tweak and power, the sun shafts' intensity and the
+//     contact hardening shadows' light size; missing (-1) values filled in
+//     between the hours around them;
 //   - pc\data\timecyclemodifiersext.dat: the same per timecycle modifier
 //     (by its name's hash, the game's own 0045CF50), each blended in by
 //     the strength the game applies the modifier with (00A36790; an
@@ -49,13 +49,13 @@
 
 #include "hook_util.h"
 #include "option.h"
+#include "runtime/hle/kernel32_state.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
 
 namespace recomp::gen {
 
-bool FfShadersOn();                                              // update_folder.cpp
-std::string UpdateFolderRedirect(const std::string& guest_path);  // update_folder.cpp
+bool FfShadersOn();  // update_folder.cpp
 
 // What ff_shaders.cpp writes: PS c211 / VS c235 (fog), VS c237 (the sun's
 // light), PS c208.x (sun shafts), PS c217.y (CHSS light size).
@@ -112,13 +112,10 @@ uint32_t NameHash(const std::string& s) {
   return h;
 }
 
-// A file of pc\data on the host: the update folder's when it has one.
+// A file of pc\data on the host, found as the game finds its own: a mod's
+// first, then the update folder's, then the install's.
 std::string DataFile(const char* name) {
-  const std::string& dir = Game().guest_dir;
-  const std::string redirected = UpdateFolderRedirect(dir + "\\pc\\data\\" + name);
-  std::string rel = redirected.empty() ? std::string("pc\\data\\") + name : redirected.substr(dir.size() + 1);
-  std::replace(rel.begin(), rel.end(), '\\', '/');
-  return g_proc->game_dir + "/" + rel;
+  return HostPath(Game().guest_dir + "\\pc\\data\\" + name);
 }
 
 // The lines that carry values: not empty, not a comment ('/' or '#').

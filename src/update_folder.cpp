@@ -1,22 +1,23 @@
-// FusionFix's data, from the player's own install of it: its "update"
-// folder in the game folder (FusionFix's files are not part of the port).
-// Its files are read in place of the game's own, as FusionFix's loader
-// has Windows do (the folder's common\ over the game's common\, pc\ over
-// pc\), and its IMG archives (its fixed mission scripts, models and
-// animations) are added to the game's after its own update.img, as
-// FusionFix's IMG loader does, and its texts (<language>FF.gxt, its
-// scripts' and its own lines) are found before the game's, as its GXT
-// loader does (by their ideas). GTAIV_FF_DATA=0 turns it off.
+// A mod pack's data, from the player's own install of it: the "update"
+// folder in the game folder (its files are not part of the port). Its
+// files are read in place of the game's own (the folder's common\ over the
+// game's common\, pc\ over pc\; so is an archive at the path of one the
+// game has), its other IMG archives (fixed mission scripts, models and
+// animations) are added to the game's after its own update.img, and its
+// texts (<language>RR, CV, FF and 1 to 9 .gxt in common\text) are found
+// before the game's. GTAIV_FF_DATA=0 turns it off.
 //
-// Left out until the port can draw with them: FusionFix's shaders
-// (common\shaders: they need its per-frame shader constants), and its menu
-// layout (common\data\frontend_menus.xml: rows for its in-game settings,
-// which the launcher has instead). The episodes' folders (TLAD, TBoGT) are
-// not IV's.
+// Left out until the port can draw with them: the folder's shaders
+// (common\shaders: they need their own per-frame shader constants), and
+// its menu layout (common\data\frontend_menus.xml: rows for in-game
+// settings, which the launcher has instead, and common\data\frontend_pc.dat,
+// its menu text made smaller to fit those rows). The episodes' folders
+// (TLAD, TBoGT) are not IV's.
 
 #include <sys/stat.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
@@ -33,6 +34,7 @@
 
 #include "hook_util.h"
 #include "option.h"
+#include "runtime/hle/kernel32_state.h"
 #include "runtime/lifted.h"
 #include "runtime/log.h"
 #include "runtime/runtime.h"
@@ -67,8 +69,14 @@ bool NaturalLess(const std::string& a, const std::string& b) {
       size_t i2 = i, j2 = j;
       while (i2 < a.size() && std::isdigit(uint8_t(a[i2]))) i2++;
       while (j2 < b.size() && std::isdigit(uint8_t(b[j2]))) j2++;
-      const unsigned long x = std::stoul(a.substr(i, i2 - i)), y = std::stoul(b.substr(j, j2 - j));
-      if (x != y) return x < y;
+      // By value, of any length: without leading zeros the longer is larger,
+      // and the same length compares digit by digit.
+      size_t xi = i, yj = j;
+      while (xi + 1 < i2 && a[xi] == '0') xi++;
+      while (yj + 1 < j2 && b[yj] == '0') yj++;
+      if (i2 - xi != j2 - yj) return i2 - xi < j2 - yj;
+      const int cmp = a.compare(xi, i2 - xi, b, yj, j2 - yj);
+      if (cmp != 0) return cmp < 0;
       i = i2;
       j = j2;
       continue;
@@ -99,13 +107,14 @@ std::string GameKey(std::string key) {
   return key;
 }
 
-// Archives come in the order FusionFix loads them (a later archive's files
-// win): by the folder they are in at the top (a mod's own: "0 Minor Mods",
-// "1 Potential Grim"...), within it shallower first (the shared archives
-// before IV's own), then by name.
+// Archives come in the order mod packs are made for (a later archive's
+// files win): by the folder they are in at the top (a mod's own: "0 Minor
+// Mods", "1 Potential Grim"...), those character by character without case
+// ("10" before "2a"), within it shallower first (the shared archives before
+// IV's own), then by name, its numbers by value.
 bool ArchiveLess(const std::string& a, const std::string& b) {
   const std::string ta = Lower(a.substr(0, a.find('\\'))), tb = Lower(b.substr(0, b.find('\\')));
-  if (ta != tb) return NaturalLess(ta, tb);
+  if (ta != tb) return ta < tb;
   const auto da = std::count(a.begin(), a.end(), '\\'), db = std::count(b.begin(), b.end(), '\\');
   return da != db ? da < db : NaturalLess(a, b);
 }
@@ -152,6 +161,27 @@ bool GameHasShaderFile(const std::string& folder, const std::string& name) {
       it->second.insert(Lower(d->path().filename().string()));
   }
   return it->second.count(name) != 0;
+}
+
+// Whether the game's own folder has this file (lower case, backslashes),
+// its names matched without case.
+bool GameHasFile(const std::string& lower_rel) {
+  namespace fs = std::filesystem;
+  fs::path at = g_proc->game_dir;
+  std::error_code ec;
+  for (size_t from = 0; from <= lower_rel.size();) {
+    const size_t end = std::min(lower_rel.find('\\', from), lower_rel.size());
+    const std::string comp = lower_rel.substr(from, end - from);
+    bool found = false;
+    for (fs::directory_iterator d(at, ec), e; !ec && d != e && !found; d.increment(ec)) {
+      if (Lower(d->path().filename().string()) != comp) continue;
+      at = d->path();
+      found = true;
+    }
+    if (!found) return false;
+    from = end + 1;
+  }
+  return fs::is_regular_file(at, ec);
 }
 
 // The file a mod brings for this read of the game's shader folders, without
@@ -214,8 +244,8 @@ bool LeftOut(const std::string& lower_rel) {
   // (named entries after the header; the game then hands Direct3D no
   // shader): the game's own stays.
   if (lower_rel == "common\\shaders\\win32_30\\rage_postfx.fxc") return true;
-  return lower_rel == "common\\data\\frontend_menus.xml" || lower_rel == "update.txt" ||
-         lower_rel == "update.img";
+  return lower_rel == "common\\data\\frontend_menus.xml" || lower_rel == "common\\data\\frontend_pc.dat" ||
+         lower_rel == "update.txt" || lower_rel == "update.img";
 }
 
 const UpdateFolder& Folder() {
@@ -226,17 +256,30 @@ const UpdateFolder& Folder() {
     const fs::path root = fs::path(g_proc->game_dir) / "update";
     std::error_code ec;
     if (!fs::is_directory(root, ec)) return;
+    std::vector<std::pair<std::string, std::string>> loose;  // lower case, as on disk
     for (auto it = fs::recursive_directory_iterator(root, fs::directory_options::follow_directory_symlink, ec);
          !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
       if (!it->is_regular_file(ec)) continue;
       std::string rel = it->path().lexically_relative(root).string();
       std::replace(rel.begin(), rel.end(), '/', '\\');
       const std::string lower = Lower(rel);
-      if (lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".img") == 0) {
+      // An archive is added to the game's, except one at the path of an
+      // archive the game has itself (IV's): that is read in its place.
+      if (lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".img") == 0 &&
+          (EpisodePath(lower) || !GameHasFile(lower))) {
         if (lower != "update.img") f.imgs.push_back(rel);
         continue;
       }
       if (EpisodePath(lower)) continue;
+      loose.emplace_back(lower, rel);
+    }
+    // The same file in more than one place: the one at its own path below
+    // the folder first, then the mod's folder that loads last.
+    std::sort(loose.begin(), loose.end(), [](const auto& a, const auto& b) {
+      const bool da = GameKey(a.first) == a.first, db = GameKey(b.first) == b.first;
+      return da != db ? da : ArchiveLess(b.first, a.first);
+    });
+    for (const auto& [lower, rel] : loose) {
       const std::string key = GameKey(lower);
       if (!Excluded(key)) NoteShaderFile(key, "update\\" + rel, false);
       if (!LeftOut(key) && !f.files.count(key)) f.files[key] = rel;
@@ -278,6 +321,13 @@ void UpdateFolderEndMod() {
   g_this_mod_imgs.clear();
 }
 
+// Whether a file below the install (lower case, backslashes) is IV's map or
+// game data while an episode runs: that would stop the episode, which has
+// its own. Neither the update folder nor a mod serves it then.
+bool UpdateFolderEpisodeData(const std::string& rel) {
+  return Rd32(0x0112D788) != 0 && (rel.rfind("common\\data\\", 0) == 0 || rel.rfind("pc\\data\\maps\\", 0) == 0);
+}
+
 // GameConfig::read_redirect: a file below the install read from the update
 // folder when it has one.
 std::string UpdateFolderRedirect(const std::string& guest_path) {
@@ -301,8 +351,7 @@ std::string UpdateFolderRedirect(const std::string& guest_path) {
   if (it == f.files.end()) return {};
   static std::mutex mu;
   static std::unordered_map<std::string, bool> told;
-  // IV's map and game data would stop an episode, which has its own.
-  if (Rd32(0x0112D788) != 0 && (rel.rfind("common\\data\\", 0) == 0 || rel.rfind("pc\\data\\maps\\", 0) == 0)) return {};
+  if (UpdateFolderEpisodeData(rel)) return {};
   {
     std::lock_guard<std::mutex> l(mu);
     if (!told[rel]) {
@@ -314,13 +363,17 @@ std::string UpdateFolderRedirect(const std::string& guest_path) {
 }
 
 // Whether an archive (lower case) is for the episode being started (0: IV).
-// An episode's own are in its folder; the rest are IV's, with its mission
-// scripts (SRCP10 in an episode), unless the file is named for the episodes
-// too (EFLC).
+// One below a folder named IV, TLAD or TBoGT is that game's only (IV's have
+// IV's mission scripts: SRCP10 in an episode); the rest are for all three.
 static bool ArchiveForEpisode(const std::string& lower, uint32_t episode) {
-  if (lower.find("tlad\\") != std::string::npos) return episode == 1;
-  if (lower.find("tbogt\\") != std::string::npos) return episode == 2;
-  return episode == 0 || lower.find("eflc", lower.rfind('\\') + 1) != std::string::npos;
+  const auto in = [&lower](const char* folder) {
+    for (size_t at = 0, end; (end = lower.find('\\', at)) != std::string::npos; at = end + 1)
+      if (lower.compare(at, end - at, folder) == 0) return true;
+    return false;
+  };
+  const bool iv = in("iv"), tlad = in("tlad"), tbogt = in("tbogt");
+  if (!iv && !tlad && !tbogt) return true;
+  return episode == 0 ? iv : episode == 1 ? tlad : episode == 2 && tbogt;
 }
 
 // The start of the IMG list's reading (the function at 00AC6590, after
@@ -355,16 +408,16 @@ void hook_00AC659A(Ctx& c) {
   c.eax = list;
 }
 
-// FusionFix's texts: its GXT for the game's language, by key hash, the
+// The mods' texts: their GXTs for the game's language, by key hash, the
 // strings copied into guest memory (the game draws them from there).
 namespace {
 
 std::mutex g_text_mu;
 std::unordered_map<uint32_t, uint32_t> g_texts;  // key hash -> guest wide string
-std::string g_text_file;                         // the GXT they came from
+std::string g_text_files;                        // the GXTs they came from
 
 // A GXT of one table (version 4, 16-bit characters): TKEY (string offset,
-// key hash) pairs, then TDAT, the strings.
+// key hash) pairs, then TDAT, the strings. Its texts over those read before.
 void LoadTexts(const std::string& host) {
   std::ifstream in(host, std::ios::binary);
   std::vector<uint8_t> d((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -373,22 +426,28 @@ void LoadTexts(const std::string& host) {
     if (at + 4 <= d.size()) std::memcpy(&v, d.data() + at, 4);
     return v;
   };
-  g_texts.clear();
   if (d.size() < 16 || u32(0) != 0x00100004 || std::memcmp(d.data() + 4, "TKEY", 4) != 0) return;
   const uint32_t keys = u32(8);
   const size_t dat = 12 + keys;
   if (dat + 8 > d.size() || std::memcmp(d.data() + dat, "TDAT", 4) != 0) return;
   const size_t text = dat + 8, text_end = std::min(d.size(), text + u32(dat + 4));
-  // One guest block for all of them (they live as long as the game).
-  const uint32_t size = uint32_t((text_end - text + 0xFFFF) & ~size_t(0xFFFF));
+  // One guest block for all of them (they live as long as the game), with
+  // zeros after them: a string a broken file does not end still ends there.
+  const size_t n = text_end - text;
+  const uint32_t size = uint32_t((n + 4 + 0xFFFF) & ~size_t(0xFFFF));
   const uint64_t block = g_proc->vm.Reserve(0, size);
   if (!block || !g_proc->vm.Commit(block, size, Prot::RW)) return;
-  std::memcpy(GPtr(uint32_t(block)), d.data() + text, text_end - text);
+  std::memcpy(GPtr(uint32_t(block)), d.data() + text, n);
+  std::memset(GPtr(uint32_t(block + n)), 0, 4);
+  size_t count = 0;
   for (uint32_t i = 0; i + 8 <= keys; i += 8) {
     const uint32_t off = u32(12 + i), hash = u32(16 + i);
-    if (text + off < text_end) g_texts[hash] = uint32_t(block) + off;
+    if (off < n) {
+      g_texts[hash] = uint32_t(block) + off;
+      count++;
+    }
   }
-  WarnF("gtaiv: update folder: %zu texts from %s\n", g_texts.size(), host.c_str());
+  WarnF("gtaiv: update folder: %zu texts from %s\n", count, host.c_str());
 }
 
 uint32_t FindText(uint32_t hash) {
@@ -400,8 +459,10 @@ uint32_t FindText(uint32_t hash) {
 }  // namespace
 
 // The GXT file's path for the language (thiscall, three arguments): its
-// "FF" companion in the update folder is read along (american.gxt ->
-// common\text\americanFF.gxt).
+// companions in common\text, from the update folder or the mods folder, are
+// read along, each one's texts over those before (american.gxt ->
+// americanRR.gxt, americanCV.gxt, americanFF.gxt, american1.gxt to
+// american9.gxt). Another language's are dropped.
 void f_008A3F70_lifted(Ctx& c);
 void f_008A3F70(Ctx& c) {
   f_008A3F70_lifted(c);
@@ -410,15 +471,22 @@ void f_008A3F70(Ctx& c) {
   name = name.substr(name.find_last_of("/\\:") + 1);
   const size_t dot = name.find_last_of('.');
   if (dot == std::string::npos) return;
-  const std::string rel = Lower("common\\text\\" + name.substr(0, dot) + "FF" + name.substr(dot));
-  const UpdateFolder& f = Folder();
-  auto it = f.files.find(rel);
+  static const char* const kSuffixes[] = {"RR", "CV", "FF", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
+  std::vector<std::string> hosts;
+  std::string files;
+  for (const char* suffix : kSuffixes) {
+    const std::string host =
+        HostPath(Game().guest_dir + "\\common\\text\\" + name.substr(0, dot) + suffix + name.substr(dot));
+    struct stat st;
+    if (stat(host.c_str(), &st) != 0 || !S_ISREG(st.st_mode)) continue;
+    hosts.push_back(host);
+    files += host + "\n";
+  }
   std::lock_guard<std::mutex> l(g_text_mu);
-  if (it == f.files.end() || it->second == g_text_file) return;
-  g_text_file = it->second;
-  std::string host = it->second;
-  std::replace(host.begin(), host.end(), '\\', '/');
-  LoadTexts(g_proc->game_dir + "/update/" + host);
+  if (files == g_text_files) return;
+  g_text_files = files;
+  g_texts.clear();
+  for (const std::string& host : hosts) LoadTexts(host);
 }
 
 // CText::GetTextByKey (thiscall: key hash, and one more; returns the wide
@@ -472,7 +540,12 @@ void hook_00AC4DE8(Ctx& c) {
 namespace {
 std::mutex g_preload_mu;
 std::vector<std::string> g_preloaded;  // lower case, as loaded
+std::atomic<bool> g_model_shaders{false};  // models' shaders loaded here (ff_shaders.cpp)
 }  // namespace
+
+// Whether the update folder's model shaders (gta_...) were loaded: their
+// constants are then written even with the rest of its shaders off.
+bool UpdateModelShadersLoaded() { return g_model_shaders.load(std::memory_order_relaxed); }
 
 void f_00418820_lifted(Ctx& c);
 void f_00418820(Ctx& c) {
@@ -513,6 +586,7 @@ void hook_0041E550(Ctx& c) {  // cmp [edi+14], ebx
       c.esp += room;
       WarnF("gtaiv: update folder: shader %s loaded (not in the preload list)\n", n.c_str());
     }
+    if (!names.empty()) g_model_shaders = true;
   }
   Flags f;
   UnpackEFlags(f, c.eflags);

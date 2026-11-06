@@ -100,6 +100,21 @@ void f_00893680(Ctx& c) {
   if (!PassOverLogo(c, c.ecx + 0x10F)) f_00893680_lifted(c);
 }
 
+// The time listened to each radio station (00895E50) is added to a table
+// of 20 floats at 011F8150 for the stats, at the current station's index
+// ([01171FBC]) when it is at most the station count (00893E40). The count
+// comes from the data files: 23 stations in IV with radiohud.dat's Vice
+// City FM, RamJam FM and Self-Actualization FM. Stations 20 to 22 then
+// write past the table, and station 20 into the table's length right
+// after it ([011F81A0], set to 20 by 00893E80), a float's bits counted as
+// a length: the stats' save block (00893E60) grows to hundreds of
+// megabytes or more and the save hangs or runs out of memory. The count
+// is held to the table: those stations' time is not counted.
+void hook_00895F59(Ctx& c) {
+  constexpr int32_t kLastSlot = 19;
+  c.eax = uint32_t(std::min(int32_t(CallGuest(c, 0x00893E40, {})), kLastSlot));
+}
+
 // How pinned down a ped is (0-100, from being shot at) goes down each
 // frame by the time step * 30 (thiscall, float amount; CPedIntelligence),
 // cut to a whole number: above 30 fps that is 0, it never goes down, and

@@ -353,9 +353,10 @@ Each folder in `~/Library/Application Support/gtaiv/drive_c/mods` is a mod (the
 launcher's **Open Mods Folder** opens it). Its files replace the game's at the
 same path, such as `pc/...` or `common/...`, wherever they are inside it, so a
 mod pack's `update` folder can go there whole. Its `.img` archives are added to
-the game's, and files for the episodes (`TLAD`, `TBoGT`) are left out. If two
-mods have the same file, the later name wins. Your game folder is not changed,
-and **Load mods** turns them off.
+the game's. A file in an episode's folder (`TLAD`, `TBoGT`) replaces that
+episode's file; archives there, and the files left out for IV, are left out for
+the episodes too. If two mods have the same file, the later name wins. Your game
+folder is not changed, and **Load mods** turns them off.
 
 The game's own `update` folder is read the same way, so mods already there keep
 working.

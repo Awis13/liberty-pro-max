@@ -3,7 +3,9 @@
 // anywhere inside it (a leading update/, as many mods carry for FusionFix's
 // loader, a mod pack's folders); its .img archives are added to the game's, and
 // what the update folder leaves out is left out here too (update_folder.cpp:
-// the episodes' folders, FusionFix's shaders while they are off...). The game's
+// FusionFix's shaders while they are off...). A file below an episode's folder
+// (TLAD/, TBoGT/) replaces that episode's file in the install; archives there,
+// and the files left out for IV, are left out for the episodes too. The game's
 // reads of its install are pointed at the files, case-insensitively like NTFS;
 // of two mods with the same file the later name wins, and a mod's files win
 // over the update folder's. The install is never touched. GTAIV_MODS=0 turns

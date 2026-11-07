@@ -297,26 +297,22 @@ bool FfShadersOn() { return FfShaders(); }
 // One file of the mods folder (rel: its path in the mod, guest: where it is).
 // Its archive is kept for the game's IMG list, and the rest is given back as
 // the path it stands for in the game's folder (lower case, '/'), or "" when
-// it is not used. An episode's file (below TLAD\ or TBoGT\) stands for that
-// episode's file in the install, as it is: the update folder's rules are
-// IV's (a radio mod's episode lists are read by the main story too).
+// it is not used. A file below an episode's folder (the first TLAD\ or
+// TBoGT\ in its path) stands for that episode's file in the install, unless
+// it is an archive or a file left out for IV.
 std::string UpdateFolderAddModFile(const std::string& rel, const std::string& guest) {
   std::string lower = Lower(rel);
   std::replace(lower.begin(), lower.end(), '/', '\\');
-  if (EpisodePath(lower)) {
-    size_t at = 0;
-    for (const char* ep : {"tlad\\", "tbogt\\"}) {
-      const size_t i = lower.rfind(std::string("\\") + ep);
-      if (lower.rfind(ep, 0) == 0) at = 0;
-      else if (i != std::string::npos) at = i + 1;
-      else continue;
-      break;
-    }
+  const bool img = lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".img") == 0;
+  for (size_t at = 0, end; (end = lower.find('\\', at)) != std::string::npos; at = end + 1) {
+    const std::string comp = lower.substr(at, end - at);
+    if (comp != "tlad" && comp != "tbogt") continue;
+    if (img || LeftOut(lower.substr(end + 1))) return {};
     std::string key = lower.substr(at);
     std::replace(key.begin(), key.end(), '\\', '/');
     return key;
   }
-  if (lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".img") == 0) {
+  if (img) {
     if (lower != "update.img") g_this_mod_imgs.emplace_back(lower, guest);
     return {};
   }

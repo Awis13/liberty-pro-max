@@ -21,6 +21,7 @@
 #import <Foundation/Foundation.h>
 #include <TargetConditionals.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -107,6 +108,26 @@ NSDictionary* CloudMeta(NSString* file) {
   return m;
 }
 
+// The time a cloud copy's sidecar gives, whether or not the copy matches it
+// yet (0: none).
+double SidecarTime(NSString* file) {
+  NSData* d = [NSData dataWithContentsOfFile:[file stringByAppendingString:@".json"]];
+  NSDictionary* m = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:nil] : nil;
+  id t = [m isKindOfClass:NSDictionary.class] ? m[@"time"] : nil;
+  return [t isKindOfClass:NSNumber.class] ? [t doubleValue] : 0;
+}
+
+// A save the game is writing right now (CreateFile truncates it in place,
+// then fills it): true once it has not changed for 2 s; waits at most 2 s.
+bool Settled(NSString* path) {
+  for (int i = 0;; ++i) {
+    NSDate* t = MTime(path);
+    if (!t || -t.timeIntervalSinceNow >= 2) return true;
+    if (i == 20) return false;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+}
+
 // Not yet on this device: iCloud keeps a placeholder; ask for the file.
 void Fetch(NSString* file) {
 #if !TARGET_OS_OSX
@@ -179,6 +200,8 @@ void Round(bool down, bool up) {
 
     // The cloud's copies of each save, under any of its names.
     NSMutableDictionary<NSString*, NSMutableArray<NSString*>*>* copies = [NSMutableDictionary dictionary];
+    // Saves with a copy or sidecar not on this device yet: none goes up over it.
+    NSMutableSet<NSString*>* arriving = [NSMutableSet set];
     for (NSString* rel in [fm enumeratorAtPath:cloudSaves]) {
       NSString* r = rel;
       NSString* name = r.lastPathComponent;
@@ -186,6 +209,9 @@ void Round(bool down, bool up) {
         r = [r.stringByDeletingLastPathComponent
             stringByAppendingPathComponent:[name substringWithRange:NSMakeRange(1, name.length - 8)]];
         Fetch([cloudSaves stringByAppendingPathComponent:r]);
+        NSString* c = Canonical(r);
+        if ([c hasSuffix:@".json"]) c = [c substringToIndex:c.length - 5];
+        [arriving addObject:c];
         continue;
       }
       NSString* c = Canonical(r);
@@ -204,15 +230,22 @@ void Round(bool down, bool up) {
       // The newest complete cloud copy.
       NSString* cp = nil;
       NSDictionary* meta = nil;
+      // The newest time any of its sidecars gives, matched or not.
+      double claimed = 0;
       for (NSString* candidate in copies[rel]) {
         NSDictionary* m = CloudMeta(candidate);
         if (m && (!meta || [m[@"time"] doubleValue] > [meta[@"time"] doubleValue])) {
           meta = m;
           cp = candidate;
         }
+        claimed = std::max(claimed, SidecarTime(candidate));
       }
+      const bool settled = !(up && haveLocal) || Settled(lp);
       const double lt = haveLocal ? floor(MTime(lp).timeIntervalSince1970) : 0;
       const double ct = meta ? [meta[@"time"] doubleValue] : 0;
+      // A newer copy still on its way (its sidecar ahead of it, or either
+      // not downloaded yet) is not sent over: it is left for the next round.
+      const bool waiting = [arriving containsObject:rel] || claimed > lt + 1;
       if (down && meta && ct > lt + 1) {
         if (haveLocal) Backup(cloud, lp, rel, @"replaced here");
         if (Replace(cp, lp)) {
@@ -220,8 +253,9 @@ void Round(bool down, bool up) {
                       error:nil];
           Say([NSString stringWithFormat:@"%@ from iCloud (%@)", rel, meta[@"device"]]);
         }
-      } else if (up && haveLocal && lt > ct + 1) {
+      } else if (up && haveLocal && settled && !waiting && lt > ct + 1) {
         if (meta) Backup(cloud, cp, rel, @"replaced in iCloud");
+        else if ([fm fileExistsAtPath:canonicalCopy]) Backup(cloud, canonicalCopy, rel, @"replaced in iCloud");
         NSDictionary* m = @{@"time" : @(lt), @"sha256" : Sha256(lp) ?: @"", @"device" : DeviceName()};
         if (Replace(lp, canonicalCopy)) {
           // The save's own time on the copy as well: when two devices send
@@ -240,6 +274,7 @@ void Round(bool down, bool up) {
 }
 
 std::atomic<bool> g_running{false};
+std::atomic<bool> g_haveDir{false};  // the container's lookup has found it
 
 }  // namespace
 
@@ -276,30 +311,40 @@ extern "C" void GtaivCloudSavesStart() {
   dispatch_semaphore_t got = dispatch_semaphore_create(0);
   dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
     dir = CloudDir();
+    if (dir) g_haveDir = true;
     dispatch_semaphore_signal(got);
   });
-  if (dispatch_semaphore_wait(got, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC)) != 0 || !dir) {
+  // Still looking after 10 s: the game starts with its own saves, and they
+  // go up once the container is found.
+  const bool late = dispatch_semaphore_wait(got, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC)) != 0;
+  if (!late && !dir) {
     Say(@"no iCloud container (iCloud Drive off, or the app without its iCloud entitlement)");
     return;
   }
-  FetchAll(10);
-  Round(true, true);
+  if (late) {
+    Say(@"the iCloud container is slow to answer: saves go up once it does");
+  } else {
+    FetchAll(10);
+    Round(true, true);
+  }
 #if !TARGET_OS_OSX
   // The iPad app sent to the background may not come back: saves up then.
   [NSNotificationCenter.defaultCenter addObserverForName:@"UIApplicationDidEnterBackgroundNotification" object:nil
-                                                   queue:nil usingBlock:^(NSNotification*) { Round(false, true); }];
+                                                   queue:nil usingBlock:^(NSNotification*) {
+                                                     if (g_haveDir) Round(false, true);
+                                                   }];
 #endif
   // While the game runs: new saves up every 20 s.
   if (!g_running.exchange(true))
     std::thread([] {
       for (;;) {
         std::this_thread::sleep_for(std::chrono::seconds(20));
-        Round(false, true);
+        if (g_haveDir) Round(false, true);
       }
     }).detach();
 }
 
 // When the game quits (or the iPad app goes to the background).
 extern "C" void GtaivCloudSavesFlush() {
-  if (On() && CloudDir()) Round(false, true);
+  if (On() && g_haveDir) Round(false, true);
 }

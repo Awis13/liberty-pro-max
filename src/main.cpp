@@ -211,6 +211,15 @@ int main(int argc, char** argv) {
     GtaivCloudSavesFlush();
     GtaivSyncSaves("after the game");
   };
+#elif !TARGET_OS_TV
+  // The iPad: saves up to iCloud (save_cloud.mm); quitting through the
+  // game's own menu never sends the app to the background.
+  game.before_exit = [] {
+#ifdef GTAIV_PGO_GENERATE
+    WriteProfile();
+#endif
+    GtaivCloudSavesFlush();
+  };
 #elif defined(GTAIV_PGO_GENERATE)
   game.before_exit = WriteProfile;
 #endif

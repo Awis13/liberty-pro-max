@@ -44,14 +44,15 @@ struct Fix {
   const char* env;
   NSString* title;
   bool on = true;  // by default
+  bool hidden = false;  // needs the extended shaders (GTAIV_FF_SHADERS, not finished): not shown
 };
 const Fix kFixes[] = {
     {@"FixLadders", "GTAIV_LADDER_FIX", @"Ladders: no stalls before climbing at high frame rates"},
     {@"FixDrawDistance", "GTAIV_DRAW_DISTANCE_FIX", @"Draw distance settings apply from the start (costs fps)", false},
     {@"FixRadio", "GTAIV_RADIO_FIX", @"Radio keeps playing after cutscenes"},
     {@"InstantMenus", "GTAIV_INSTANT_MENUS", @"Pause menu opens and closes without delay"},
-    {@"VehicleBudget", "GTAIV_VEHICLE_BUDGET", @"Twice the vehicle budget (no streets full of taxis)"},
-    {@"BiggerPools", "GTAIV_BIGGER_POOLS", @"Bigger task and pointer pools"},
+    {@"VehicleBudget", "GTAIV_VEHICLE_BUDGET", @"More kinds of cars in traffic (no streets full of taxis)"},
+    {@"BiggerPools", "GTAIV_BIGGER_POOLS", @"Twice the game's limits for people's actions and object lists"},
     {@"DrawableLimit", "GTAIV_DRAWABLE_LIMIT", @"No crash in \"In the Crosshairs\" at long draw distance"},
     {@"SaveInVehicle", "GTAIV_SAVE_IN_VEHICLE", @"Saving from the phone works in vehicles"},
     {@"PauseMapAspect", "GTAIV_PAUSE_MAP_ASPECT", @"Pause menu map fits wide screens"},
@@ -63,38 +64,38 @@ const Fix kFixes[] = {
     {@"CursorSize", "GTAIV_CURSOR_SIZE", @"Mouse cursor scaled to the screen"},
     {@"HideCursorOnPad", "GTAIV_HIDE_CURSOR_ON_PAD", @"Menu cursor hidden while playing with a gamepad"},
     {@"ReticleHealth", "GTAIV_RETICLE_HEALTH", @"Target health on the reticle with the mouse"},
-    {@"PlayerFullDamage", "GTAIV_PLAYER_FULL_DAMAGE", @"Niko takes full damage (the game gives him a third of it)"},
+    {@"PlayerFullDamage", "GTAIV_PLAYER_FULL_DAMAGE", @"Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5", false},
     {@"SaveHealthCap", "GTAIV_SAVE_HEALTH_CAP", @"Health from a save at most a full bar (trainer saves)"},
     {@"SaveSync", "GTAIV_SAVE_SYNC", @"Saves synced with your iPad and Apple TV at start and quit (needs Xcode)"},
     {@"RadarZoomDelay", "GTAIV_RADAR_ZOOM_DELAY", @"Radar stays zoomed out for 3 seconds"},
     {@"TrainLanes", "GTAIV_TRAIN_LANES", @"Cars do not swerve under trains"},
     {@"DateFix", "GTAIV_DATE_FIX", @"Date does not go back after dying or arrest"},
-    {@"NoMemRestrict", "GTAIV_NO_MEM_RESTRICT", @"Streaming not held back by the memory budget"},
+    {@"NoMemRestrict", "GTAIV_NO_MEM_RESTRICT", @"City not held back from loading by the game's memory limit"},
     {@"TimerFloor", "GTAIV_TIMER_FLOOR", @"No speed-up above 300 fps"},
     {@"HeliCeiling", "GTAIV_HELI_CEILING", @"Helicopters fly up to 770 m (as in TBoGT)", false},
     {@"PhysicsStep", "GTAIV_PHYSICS_STEP", @"Vehicle and ragdoll physics steady at high frame rates"},
     {@"SlideObject", "GTAIV_SLIDE_OBJECT", @"Scripted doors and gates move at the right speed"},
     {@"ShakeFix", "GTAIV_SHAKE_FIX", @"Camera shake as strong at any frame rate"},
-    {@"CameraShake", "GTAIV_CAMERA_SHAKE", @"Camera shake (hand-held, drunk, vehicles)"},
-    {@"CutsceneCamera", "GTAIV_CUTSCENE_CAMERA", @"Cutscene cameras without zoom fits and flicker at cuts"},
+    {@"CameraShake", "GTAIV_CAMERA_SHAKE", @"Keep camera shake (hand-held, drunk, vehicles)"},
+    {@"CutsceneCamera", "GTAIV_CUTSCENE_CAMERA", @"Cutscene cameras steady, without sudden zooms or flicker at cuts"},
     {@"CutsceneClock", "GTAIV_CUTSCENE_CLOCK", @"Cutscene animations smooth and in sync with their audio"},
     {@"HeliRotorDamage", "GTAIV_HELI_ROTOR_DAMAGE", @"Helicopter rotors break as easily at any frame rate"},
     {@"LoadingAnimation", "GTAIV_LOADING_ANIMATION", @"Loading screen pictures move at console speed"},
-    {@"WaterFlip", "GTAIV_WATER_FLIP", @"No water flicker (buffers swapped in step with rendering)"},
+    {@"WaterFlip", "GTAIV_WATER_FLIP", @"No water flicker"},
     {@"Minigame30", "GTAIV_MINIGAME_30FPS", @"30 fps in pool, air hockey, arm wrestling, bowling, drinking"},
     {@"RadarEveryFrame", "GTAIV_RADAR_EVERY_FRAME", @"Radar moves smoothly at high frame rates"},
     {@"HoodCamera", "GTAIV_HOOD_CAMERA", @"Bonnet camera sway smooth at high frame rates"},
     {@"CarCameraReturn", "GTAIV_CAR_CAMERA_RETURN", @"Car camera swings back faster with keyboard and mouse"},
     {@"FusionFixData", "GTAIV_FF_DATA", @"Use FusionFix's mission and model fixes if installed (update folder)"},
     {@"RunInBackground", "GTAIV_RUN_IN_BACKGROUND", @"Keep running when the window is not in front", false},
-    {@"MenuRightClick", "GTAIV_MENU_RIGHT_CLICK", @"Right click goes back in menus"},
+    {@"MenuRightClick", "GTAIV_MENU_RIGHT_CLICK", @"Right click goes back in menus and steps an option down"},
     {@"ActionCamera", "GTAIV_ACTION_CAMERA", @"Cinematic camera when vaulting walls and jacking cars"},
     {@"StuntJumpCamera", "GTAIV_STUNT_JUMP_CAMERA", @"Cinematic camera and slow motion on stunt jumps"},
     {@"ConsoleReflections", "GTAIV_CONSOLE_REFLECTIONS", @"Reflections and car dirt as on consoles"},
-    {@"MirrorOffset", "GTAIV_MIRROR_OFFSET", @"Mirrors show decals near them"},
+    {@"MirrorOffset", "GTAIV_MIRROR_OFFSET", @"Mirrors show graffiti and other marks near them"},
     {@"WaterTiling", "GTAIV_WATER_TILING", @"Water surface tiling as on consoles"},
     {@"MouseCameraDelay", "GTAIV_MOUSE_CAMERA_DELAY", @"On foot, the camera waits 2 s after the mouse before recentring"},
-    {@"CoronaLimit", "GTAIV_CORONA_LIMIT", @"No flickering lights where there are many (corona limit 768 -> 49152)"},
+    {@"CoronaLimit", "GTAIV_CORONA_LIMIT", @"No flickering lights where there are many"},
     {@"CopHats", "GTAIV_COP_HATS", @"Cops take off their hats in vehicles (as on consoles)"},
     {@"CounterDeathAnim", "GTAIV_COUNTER_DEATH_ANIM", @"No double death animation after a melee counter"},
     {@"ReversingLights", "GTAIV_REVERSING_LIGHTS", @"Reversing lights at the back of the car"},
@@ -102,35 +103,35 @@ const Fix kFixes[] = {
     {@"SniperMovement", "GTAIV_SNIPER_MOVEMENT", @"Walk while zoomed in with a sniper rifle"},
     {@"RainLighting", "GTAIV_RAIN_LIGHTING", @"Rain lit as on consoles (visible at night)"},
     {@"HeliSearchlights", "GTAIV_HELI_SEARCHLIGHTS", @"Police helicopter searchlights do not flicker"},
-    {@"NightShadowResolution", "GTAIV_NIGHT_SHADOW_RESOLUTION", @"Night shadows setting sets their sharpness"},
+    {@"NightShadowResolution", "GTAIV_NIGHT_SHADOW_RESOLUTION", @"The Night Shadows setting changes how sharp night shadows are"},
     {@"CenteredCarCamera", "GTAIV_CENTERED_CAR_CAMERA", @"Car camera centred behind the car", false},
-    {@"CenteredFootCamera", "GTAIV_CENTERED_FOOT_CAMERA", @"On-foot camera centred behind Niko", false},
+    {@"CenteredFootCamera", "GTAIV_CENTERED_FOOT_CAMERA", @"On-foot camera centred behind the player", false},
     {@"BrakeLightsStopped", "GTAIV_BRAKE_LIGHTS_STOPPED", @"Brake lights stay on while your car stands", false},
-    {@"Bloom", "GTAIV_BLOOM", @"Bloom (glow around bright lights)"},
-    {@"DepthOfField", "GTAIV_DEPTH_OF_FIELD", @"Depth of field blur"},
+    {@"Bloom", "GTAIV_BLOOM", @"Keep bloom (glow around bright lights)"},
+    {@"DepthOfField", "GTAIV_DEPTH_OF_FIELD", @"Keep depth of field blur"},
     {@"PadCameraDelay", "GTAIV_PAD_CAMERA_DELAY", @"On foot with a gamepad: camera waits 2 s before recentring", false},
     {@"CarCameraDelay", "GTAIV_CAR_CAMERA_DELAY", @"In vehicles: camera waits 2 s before recentring", false},
     {@"AimZoomMemory", "GTAIV_AIM_ZOOM_MEMORY", @"Aiming zoom remembered between aims (as on Xbox)", false},
     {@"HeliPadReticle", "GTAIV_HELI_PAD_RETICLE", @"First-person helicopter reticle with a gamepad", true},
     {@"AutoLadders", "GTAIV_AUTO_LADDERS", @"Climb ladders by walking into them", false},
     {@"WheelStuntCamera", "GTAIV_WHEEL_STUNT_CAMERA", @"Stunt jumps: mouse wheel sets the slow motion", true},
-    {@"VehicleNightShadows", "GTAIV_VEHICLE_NIGHT_SHADOWS", @"Vehicles cast shadows from street lights (needs FusionFix shaders)"},
-    {@"EmissiveNoDepthWrite", "GTAIV_EMISSIVE_NO_DEPTH_WRITE", @"Glowing lights and signs without depth artifacts"},
-    {@"SignGlowFix", "GTAIV_SIGN_GLOW_FIX", @"Neon signs glow from every angle (the game's depth shift corrected)"},
+    {@"VehicleNightShadows", "GTAIV_VEHICLE_NIGHT_SHADOWS", @"Vehicles cast shadows from street lights (needs FusionFix shaders)", true, true},
+    {@"EmissiveNoDepthWrite", "GTAIV_EMISSIVE_NO_DEPTH_WRITE", @"The glow of lamps and signs does not cut into what is in front of it"},
+    {@"SignGlowFix", "GTAIV_SIGN_GLOW_FIX", @"Neon signs glow from every angle"},
     {@"DynamicShadowsEverywhere", "GTAIV_DYNAMIC_SHADOWS_EVERYWHERE", @"Every light casts moving shadows (very slow)", false},
     {@"CarShadowAnyDistance", "GTAIV_CAR_SHADOW_ANY_DISTANCE", @"Shadow under cars at any distance"},
     {@"NoStaticCarShadows", "GTAIV_NO_STATIC_CAR_SHADOWS", @"No shadow patch under cars", false},
     {@"NoCutsceneStaticCarShadows", "GTAIV_NO_CUTSCENE_STATIC_CAR_SHADOWS", @"No shadow patch under cars in cutscenes", false},
     {@"HighDetailReflections", "GTAIV_HIGH_DETAIL_REFLECTIONS", @"High detail reflections (heavy for the GPU)", false},
     {@"ShakeBlurFix", "GTAIV_SHAKE_BLUR_FIX", @"No motion blur flicker while the camera shakes (drunk)"},
-    {@"ExtraStreamingMemory", "GTAIV_EXTRA_STREAMING_MEMORY", @"Extra streaming memory while there is room", false},
-    {@"MenuExtraInfo", "GTAIV_MENU_EXTRA_INFO", @"Pause menu: version, IMG files and streaming memory", false},
+    {@"ExtraStreamingMemory", "GTAIV_EXTRA_STREAMING_MEMORY", @"More memory for loading the city", false},
+    {@"MenuExtraInfo", "GTAIV_MENU_EXTRA_INFO", @"Pause menu shows the game's version, the archives open and memory use", false},
     {@"GlassShardColours", "GTAIV_GLASS_SHARD_COLOURS", @"Red and amber glass from broken tail lights and indicators"},
     {@"BulletTracers", "GTAIV_BULLET_TRACERS", @"Tracer on every shot", false},
     {@"Episodes", "GTAIV_EPISODES", @"The episodes, when their folders are in the game's"},
     {@"TBoGTTracerFx", "GTAIV_TBOGT_TRACER_FX", @"TBoGT: tracers drawn in the right place"},
     {@"PauseInfoSpacing", "GTAIV_PAUSE_INFO_SPACING", @"Pause menu time and money spaced as on consoles"},
-    {@"CompareStringFix", "GTAIV_COMPARE_STRING_FIX", @"No script crash comparing missing strings (TLAD calls)"},
+    {@"CompareStringFix", "GTAIV_COMPARE_STRING_FIX", @"No crash on phone calls in The Lost and Damned"},
     {@"LongMenuLists", "GTAIV_LONG_MENU_LISTS", @"Menu lists show 32 rows before scrolling"},
     {@"DeathMusic", "GTAIV_DEATH_MUSIC", @"Death and arrest music (cut on PC)", false},
     {@"EditorFreeCamera", "GTAIV_EDITOR_FREE_CAMERA", @"Video editor: free camera without bounds"},
@@ -140,41 +141,47 @@ const Fix kFixes[] = {
     {@"TurnIndicatorsManual", "GTAIV_TURN_INDICATORS_MANUAL", @"Turn indicators by hand: [ and ] or bumpers, both for hazards", false},
     {@"RouteIndicators", "GTAIV_TURN_INDICATORS_ROUTE", @"Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand)", false},
     {@"KeepWheelsTurned", "GTAIV_KEEP_WHEELS_TURNED", @"Parked vehicles keep their wheels turned", false},
-    {@"FFToneMapping", "GTAIV_FF_TONE_MAPPING", @"FusionFix shaders: tone mapping (highlights not clipped)", false},
-    {@"FFNoBloomColorShift", "GTAIV_FF_NO_BLOOM_COLOR_SHIFT", @"FusionFix shaders: bloom keeps its colour with tone mapping"},
-    {@"FFAutoExposure", "GTAIV_FF_AUTO_EXPOSURE", @"FusionFix shaders: exposure adapts as on consoles"},
-    {@"FFDefinition", "GTAIV_FF_DEFINITION", @"FusionFix shaders: definition (sharper image)"},
-    {@"FFUnclampLighting", "GTAIV_FF_UNCLAMP_LIGHTING", @"FusionFix shaders: unclamped sunlight", false},
-    {@"FFSmoothShorelines", "GTAIV_FF_SMOOTH_SHORELINES", @"FusionFix shaders: smooth shorelines"},
-    {@"FFSmoothLightVolumes", "GTAIV_FF_SMOOTH_LIGHT_VOLUMES", @"FusionFix shaders: smooth light volumes"},
-    {@"FFCascadeShadows", "GTAIV_FF_CASCADE_SHADOWS", @"FusionFix shaders: cascaded shadow fixes (atlas, ranges)"},
+    {@"FFToneMapping", "GTAIV_FF_TONE_MAPPING", @"FusionFix shaders: tone mapping (highlights not clipped)", false, true},
+    {@"FFNoBloomColorShift", "GTAIV_FF_NO_BLOOM_COLOR_SHIFT", @"FusionFix shaders: bloom keeps its colour with tone mapping", true, true},
+    {@"FFAutoExposure", "GTAIV_FF_AUTO_EXPOSURE", @"FusionFix shaders: exposure adapts as on consoles", true, true},
+    {@"FFDefinition", "GTAIV_FF_DEFINITION", @"FusionFix shaders: definition (sharper image)", true, true},
+    {@"FFUnclampLighting", "GTAIV_FF_UNCLAMP_LIGHTING", @"FusionFix shaders: unclamped sunlight", false, true},
+    {@"FFSmoothShorelines", "GTAIV_FF_SMOOTH_SHORELINES", @"FusionFix shaders: smooth shorelines", true, true},
+    {@"FFSmoothLightVolumes", "GTAIV_FF_SMOOTH_LIGHT_VOLUMES", @"FusionFix shaders: smooth light volumes", true, true},
+    {@"FFCascadeShadows", "GTAIV_FF_CASCADE_SHADOWS", @"FusionFix shaders: cascaded shadow fixes (atlas, ranges)", true, true},
     {@"DrivebyFovFix", "GTAIV_DRIVEBY_FOV_FIX", @"Drive-by shots land in the crosshair when high up"},
     {@"AlwaysRun", "GTAIV_ALWAYS_RUN", @"Always run (tap sprint: run or jog, hold: sprint)", false},
     {@"ExtendedSniper", "GTAIV_EXTENDED_SNIPER", @"Sniper rifles aim over the shoulder; Jump toggles the scope", false},
-    {@"TreeShadows", "GTAIV_TREE_SHADOWS", @"Trees and bushes cast real shadows (needs FusionFix shaders)"},
+    {@"TreeShadows", "GTAIV_TREE_SHADOWS", @"Trees and bushes cast real shadows (needs FusionFix shaders)", true, true},
     {@"NoImpostorHeightCutoff", "GTAIV_NO_IMPOSTOR_HEIGHT_CUTOFF", @"Distant traffic on every road at any height"},
-    {@"FFHighResShadows", "GTAIV_FF_HIGH_RES_SHADOWS", @"FusionFix shaders: high resolution cascaded shadows (heavy)", false},
-    {@"FFVolumetricFog", "GTAIV_FF_VOLUMETRIC_FOG", @"FusionFix shaders: volumetric fog", false},
+    {@"FFHighResShadows", "GTAIV_FF_HIGH_RES_SHADOWS", @"FusionFix shaders: high resolution cascaded shadows (heavy)", false, true},
+    {@"FFVolumetricFog", "GTAIV_FF_VOLUMETRIC_FOG", @"FusionFix shaders: volumetric fog", false, true},
     {@"OutOfCommissionFix", "GTAIV_OUT_OF_COMMISSION_FIX", @"Final mission: helicopter climb not harder at high frame rates"},
     {@"PhoneCheats", "GTAIV_PHONE_CHEATS", @"Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100)"},
     {@"AltDialogue", "GTAIV_ALT_DIALOGUE", @"Missions play the alternative car banter", false},
-    {@"AimProjectileFix", "GTAIV_AIM_PROJECTILE_FIX", @"No crash aiming thrown weapons with a ped that has no pad"},
+    {@"AimProjectileFix", "GTAIV_AIM_PROJECTILE_FIX", @"No crash when someone other than the player aims a thrown weapon"},
 };
 
-// FusionFix's shader options (keys "FF...", or naming them in the title):
-// hidden, as those shaders are off (GTAIV_FF_SHADERS, work in progress) and
-// the options would do nothing.
+// The options that need the extended shaders (Fix::hidden): not shown, as
+// those shaders are off (GTAIV_FF_SHADERS, work in progress) and the
+// options would do nothing.
 inline bool FixShown(const Fix& f) {
-  return ![f.key hasPrefix:@"FF"] && ![f.title containsString:@"needs FusionFix shaders"];
+  return !f.hidden;
+}
+// The iPad's Fixes list (launcher_ios.mm): the shown fixes but the Mac's
+// own, keeping running behind other windows (iOS suspends an app that is
+// not in front).
+inline bool IpadFixShown(const Fix& f) {
+  return FixShown(f) && ![f.key isEqualToString:@"RunInBackground"];
 }
 inline NSInteger ShownFixCount() {
   NSInteger n = 0;
-  for (const Fix& f : kFixes) n += FixShown(f);
+  for (const Fix& f : kFixes) n += IpadFixShown(f);
   return n;
 }
 inline const Fix& ShownFix(NSInteger row) {
   for (const Fix& f : kFixes)
-    if (FixShown(f) && row-- == 0) return f;
+    if (IpadFixShown(f) && row-- == 0) return f;
   return kFixes[0];
 }
 

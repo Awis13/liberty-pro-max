@@ -1,6 +1,4 @@
-// Gameplay fixes and extras, second round, done again for 1.0.8.0 by their
-// meaning (FusionFix's ideas, ZolikaPatch's ini descriptions; their code
-// and data not taken). The scripts' side was read from the game's own
+// Gameplay fixes and extras, second round, for 1.0.8.0. The scripts' side was read from the game's own
 // script.img (decrypted with the key the executable holds, disassembled
 // with the opcode table of its interpreter, 006240F0). Options:
 //   GTAIV_OUT_OF_COMMISSION_FIX: the bike-to-helicopter climb in the last
@@ -10,8 +8,9 @@
 //     beta's gloves, 288-555-0100 the beta's hair (dialled again: back);
 //   GTAIV_ALT_DIALOGUE (off by default): missions play the other variant
 //     of their car banter, the one a retry plays;
-//   GTAIV_PLAYER_FULL_DAMAGE: Niko takes weapons' whole damage, not a
-//     third of it (two thirds from melee and explosions);
+//   GTAIV_PLAYER_FULL_DAMAGE: Niko takes guns' whole damage, not a third
+//     of it (two thirds from explosions, fire and thrown objects; melee is
+//     never scaled);
 //   GTAIV_SAVE_HEALTH_CAP: a save's health over 200 (a trainer's) loads
 //     as 200.
 
@@ -55,7 +54,7 @@ constexpr uint8_t kOpNative = 0x2D, kOpI2F = 0x25, kOpPushF = 0x2A, kOpJmp = 0x2
 
 struct ScriptCode {
   uint32_t code = 0, size = 0, pc = 0;
-  bool Has(uint32_t off, uint32_t n) const { return code && off + n <= size; }
+  bool Has(uint32_t off, uint32_t n) const { return code && n <= size && off <= size - n; }
   uint8_t U8(uint32_t off) const { return Rd8(code + off); }
   uint16_t U16(uint32_t off) const { return uint16_t(U8(off) | U8(off + 1) << 8); }
   uint32_t U32(uint32_t off) const {
@@ -109,8 +108,8 @@ enum : uint32_t {
 
 }  // namespace
 
-// --- The climb onto the helicopter in the last mission (Zolika's
-// OutOfCommissionFix). finale2.sco's mash: each press adds 1.5 to the
+// --- The climb onto the helicopter in the last mission (Out of
+// Commission). finale2.sco's mash: each press adds 1.5 to the
 // climb, and while TIMERA > 500 x GET_FRAME_TIME it loses 0.15 and TIMERA
 // starts again (at 01CC47 and, for the other ending, 01F284). At 30 fps
 // that is once a frame (4.5 a second); the threshold shrinks with the
@@ -120,7 +119,7 @@ enum : uint32_t {
 // least 0.06 s: a loss at most every 30 timer ms, as at 30 fps (the
 // timers count exact ms with fixes.cpp's 00625414). Only where the
 // script's next instructions are that check (TIMERA; I2F; PUSHF 500.0), so
-// FusionFix's own finale2.sco (time-based already) is left alone.
+// an update folder's finale2.sco that is time-based already is left alone.
 void f_00B51C70(Ctx& c) {
   static const bool on = OptionOn("GTAIV_OUT_OF_COMMISSION_FIX", true);
   const uint32_t out = Rd32(Rd32(Rd32(c.esp + 4) + 8));
@@ -139,7 +138,7 @@ void f_00B51C70(Ctx& c) {
   if (qte && out) WrF32(out, std::max(RdF32(out), 0.06f));
 }
 
-// --- Phone cheats (FusionFix's, the ones that need nothing of its own).
+// --- Phone cheats (the ones that need nothing outside the game's data).
 // spcellphonecalling.sco: when a dialled number rang 2 s with nobody
 // answering it stops the ringing (006603) and goes on to the cheat check
 // (006617), which hashes the number (global 91 + 128 bytes) and compares
@@ -240,14 +239,13 @@ void f_0084D2B0(Ctx& c) {
   else if (dialled == "2885550100") ToggleComponent(c, 7);  // beta hair
 }
 
-// --- Alternative mission dialogue (FusionFix's AltDialogue, its list not
-// taken). Some IV missions keep a global counter of their car banter: 0
+// --- Alternative mission dialogue. Some IV missions keep a global counter of their car banter: 0
 // plays one conversation (..V1) and moves it on, 1 the other (..V2), past
 // that Niko listens to the radio; it lives on across retries, so a retry
 // hears the other one. Set to 1 as the mission starts, the first attempt
 // plays the retry's variant. The counters, from the 1.0.8.0 scripts: a
-// global only that mission reads or writes (startup.sco gives it its
-// first value), whose every read is a test opening code that only starts
+// global only that mission reads or writes (startup.sco gives most of
+// them their first value), whose every read is a test opening code that only starts
 // a conversation (or ambient speech), with its labels in pairs ..V1/..V2;
 // each checked by hand. START_NEW_SCRIPT (00625880) and
 // START_NEW_SCRIPT_WITH_ARGS (00625900) both start scripts through the
@@ -302,11 +300,12 @@ void f_008B3A30(Ctx& c) {
 
 // --- Damage to the player. CPedDamageCalculator (00BA0000) scales a
 // weapon's damage for the player as victim: mulss xmm0, [00DCDF14] (0.33)
-// for guns, mulss xmm0, [00DCDF1C] (0.66) for melee and explosive
-// groups 3-5; other peds take their ped type's multiplier.
+// for guns, mulss xmm0, [00DCDF1C] (0.66) for weapon groups 3-5
+// (explosions, fire, thrown objects); melee (group 1) branches past both;
+// other peds take their ped type's multiplier.
 namespace {
 bool PlayerFullDamage() {
-  static const bool on = OptionOn("GTAIV_PLAYER_FULL_DAMAGE", true);
+  static const bool on = OptionOn("GTAIV_PLAYER_FULL_DAMAGE", false);
   return on;
 }
 }  // namespace

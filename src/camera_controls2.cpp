@@ -186,7 +186,6 @@ void hook_00C0E758(Ctx& c) { CmpFlags<1>(c, NoSprintIndoors(), 0); }
 // unless the player asked for the scope.
 namespace {
 
-constexpr uint32_t kCamFpsWeapon = 27;  // camera factory 009DF770's type
 constexpr uint32_t kTaskAimGun = 0x411; // CTaskSimpleAimGun (1041)
 
 bool ExtendedSniper() {
@@ -195,13 +194,19 @@ bool ExtendedSniper() {
 }
 
 struct Sniper {
-  uint32_t last_camera = 0xFFFFFFFFu;  // type of the camera made last
   bool want_scope = false;
   bool cancel = false;          // scope taken down: no aiming till it is gone
   bool cancel_started = false;
 } g_sniper;
 
-bool InScope() { return g_sniper.last_camera == kCamFpsWeapon; }
+// A live scope camera (type 27): the camera manager's own lookup
+// (009DF560, thiscall on 00F488E8; finished cameras skipped), as the
+// reticle asks it (004A8E31).
+bool InScope(Ctx& c) {
+  KeepRegs keep(c);
+  c.ecx = 0x00F488E8;
+  return CallGuest(c, 0x009DF560, {}) != 0;
+}
 
 // CPedWeapons' current weapon (009CBC30, thiscall on ped +2B0) read in
 // place, and its info.
@@ -249,10 +254,11 @@ uint32_t SniperFlags(uint32_t flags) {
 void WantsToAim(Ctx& c) {
   bool block = false;
   if (ExtendedSniper()) {
+    const bool in_scope = InScope(c);
     if (JumpJustPressed(c)) {
       const uint32_t ped = PlayerPed();
       if (ped && (Rd32(CurrentWeaponInfo(ped) + 0x20) & 8) && Aiming(ped)) {
-        if (InScope()) {
+        if (in_scope) {
           g_sniper.want_scope = false;
           g_sniper.cancel = true;
           g_sniper.cancel_started = true;
@@ -261,9 +267,9 @@ void WantsToAim(Ctx& c) {
         }
       }
     }
-    if (g_sniper.cancel && InScope())
+    if (g_sniper.cancel && in_scope)
       block = true;
-    else if (!InScope())
+    else if (!in_scope)
       g_sniper.cancel = false;
   }
   if (block)
@@ -275,11 +281,10 @@ void WantsToAim(Ctx& c) {
 }  // namespace
 
 // The camera factory (009DF770, thiscall: type, ...): mov eax, [esp+0C],
-// the type; the last one made is noted (a scope is camera 27).
-void hook_009DF78E(Ctx& c) {
-  c.eax = Rd32(c.esp + 0x0C);
-  g_sniper.last_camera = c.eax;
-}
+// the type, nothing else (the scope is asked of the camera manager,
+// InScope: no camera is made when the scope goes and the follow camera
+// is kept).
+void hook_009DF78E(Ctx& c) { c.eax = Rd32(c.esp + 0x0C); }
 
 // The weapon's flags, read for the scope: mov eax, [eax+20] / mov eax,
 // [edx+20] (the aiming camera), mov ecx, [ebx+20] (the reticle).

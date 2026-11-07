@@ -1,12 +1,9 @@
-// Shadows, second round, done again for 1.0.8.0 by the community's ideas:
-// FusionFix (ThirteenAG and contributors, GPL-3.0; its code and lists not
-// taken). Each one an option (the launcher's Advanced tab sets them):
-//   GTAIV_TREE_SHADOWS: trees and bushes cast real moving shadows
-//     (FusionFix's dynamic shadows for trees). Which models are trees is
-//     decided by the game's own map data: every model the IDE files mark
+// Tree shadows, an option (the launcher's Advanced tab sets it):
+//   GTAIV_TREE_SHADOWS: trees and bushes cast real moving shadows. Which
+//     models are trees is decided by the game's own map data: every model the IDE files mark
 //     as an "instance" model (the vegetation of props/vegetation/ext_veg.ide).
 //     Drawn as ordinary map models they lose the wind sway the instanced
-//     drawing gives them; FusionFix's tree shaders sway them again (VS
+//     drawing gives them; the extended tree shaders sway them again (VS
 //     c233, ff_shaders.cpp), so it does anything only with them
 //     (GTAIV_FF_SHADERS).
 
@@ -35,11 +32,18 @@ using namespace hook;
 // not look at it, nor does 00AC5190 after it). The 9 of them
 // whose flags have bit 13 (no shadow) still cast none. The vanilla tree
 // shaders take the sway from the instanced drawing (colorize.w), so only
-// with FusionFix's shaders, which take it from c233. Read once at load:
-// the choice holds until restart.
+// with the extended shaders, which take it from c233. Read once at load:
+// the choice holds until restart. The base store does not check its size
+// ([00F3E8B8] its capacity, [00F3E8BC] the count): a model moved there
+// only while 2000 entries stay free for the rest of the map data, so a
+// mod pack with more vegetation gets instance models (no moving shadows)
+// rather than an overrun.
 void hook_00AC68D2(Ctx& c) {
   static const bool on = OptionOn("GTAIV_TREE_SHADOWS", true) && FfShadersOn();
-  c.eax = uint32_t(CallGuest(c, on ? 0x008DD450 : 0x008DD4C0, {}));  // name already pushed
+  constexpr uint32_t kCapacity = 0x00F3E8B8, kCount = 0x00F3E8BC, kKeepFree = 2000;
+  const uint32_t capacity = Rd32(kCapacity), count = Rd32(kCount);
+  const bool room = capacity > count && capacity - count > kKeepFree;
+  c.eax = uint32_t(CallGuest(c, on && room ? 0x008DD450 : 0x008DD4C0, {}));  // name already pushed
 }
 
 }  // namespace recomp::gen

@@ -48,6 +48,18 @@ Args ParseArgs(int argc, char** argv) {
   return a;
 }
 
+// Stores a choice only where it is not the default (RegisterDefaults; a
+// key without one reads as 0): an option left at its default follows it
+// when a later version changes it.
+void Store(NSUserDefaults* d, NSString* key, id value) {
+  id def = [[d volatileDomainForName:NSRegistrationDomain] objectForKey:key];
+  if ([value isEqual:def ?: @0]) [d removeObjectForKey:key];
+  else [d setObject:value forKey:key];
+}
+
+// Set once the settings hold only what differs from the defaults.
+NSString* const kChangesOnlyKey = @"StoredChangesOnly";
+
 extern "C" void GtaivSyncSaves(const char* when);  // save_sync_mac.mm
 
 // Runs the game: this executable again, with the options in its
@@ -402,27 +414,27 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
 - (void)play:(id)sender {
   NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
   [d setObject:self.folder forKey:kFolderKey];
-  [d setBool:self.display.indexOfSelectedItem == 1 forKey:kWindowKey];
-  [d setBool:self.overNotch.state == NSControlStateValueOn forKey:kOverNotchKey];
-  [d setInteger:self.vsync.indexOfSelectedItem forKey:kVsyncKey];
-  [d setInteger:self.antialiasing.indexOfSelectedItem forKey:kAntiAliasingKey];
-  [d setInteger:self.metalfxScale.indexOfSelectedItem forKey:kMetalFXScaleKey];
-  [d setInteger:self.taaSharpening.indexOfSelectedItem forKey:kTaaSharpeningKey];
-  [d setBool:self.hud.state == NSControlStateValueOn forKey:kHudKey];
-  [d setBool:self.skipIntro.state == NSControlStateValueOn forKey:kSkipIntroKey];
-  [d setBool:self.continueSave.state == NSControlStateValueOn forKey:kContinueKey];
-  [d setBool:self.mods.state == NSControlStateValueOn forKey:kModsKey];
-  [d setInteger:self.shadows.indexOfSelectedItem forKey:kShadowsKey];
-  [d setInteger:self.reflections.indexOfSelectedItem forKey:kReflectionsKey];
-  [d setInteger:self.fov.indexOfSelectedItem forKey:kFovKey];
-  [d setBool:self.fastLoading.state == NSControlStateValueOn forKey:kFastLoadingKey];
-  [d setBool:self.stunPunch.state == NSControlStateValueOn forKey:kStunPunchKey];
-  [d setBool:self.executions.state == NSControlStateValueOn forKey:kExecutionsKey];
+  Store(d, kWindowKey, @(self.display.indexOfSelectedItem == 1));
+  Store(d, kOverNotchKey, @(self.overNotch.state == NSControlStateValueOn));
+  Store(d, kVsyncKey, @(self.vsync.indexOfSelectedItem));
+  Store(d, kAntiAliasingKey, @(self.antialiasing.indexOfSelectedItem));
+  Store(d, kMetalFXScaleKey, @(self.metalfxScale.indexOfSelectedItem));
+  Store(d, kTaaSharpeningKey, @(self.taaSharpening.indexOfSelectedItem));
+  Store(d, kHudKey, @(self.hud.state == NSControlStateValueOn));
+  Store(d, kSkipIntroKey, @(self.skipIntro.state == NSControlStateValueOn));
+  Store(d, kContinueKey, @(self.continueSave.state == NSControlStateValueOn));
+  Store(d, kModsKey, @(self.mods.state == NSControlStateValueOn));
+  Store(d, kShadowsKey, @(self.shadows.indexOfSelectedItem));
+  Store(d, kReflectionsKey, @(self.reflections.indexOfSelectedItem));
+  Store(d, kFovKey, @(self.fov.indexOfSelectedItem));
+  Store(d, kFastLoadingKey, @(self.fastLoading.state == NSControlStateValueOn));
+  Store(d, kStunPunchKey, @(self.stunPunch.state == NSControlStateValueOn));
+  Store(d, kExecutionsKey, @(self.executions.state == NSControlStateValueOn));
   for (NSUInteger i = 0; i < self.fixes.count; i++)
-    [d setBool:self.fixes[i].state == NSControlStateValueOn forKey:kFixes[i].key];
+    Store(d, kFixes[i].key, @(self.fixes[i].state == NSControlStateValueOn));
   for (NSUInteger i = 0; i < self.shaderChoices.count; i++)
-    [d setInteger:self.shaderChoices[i].indexOfSelectedItem forKey:kShaderChoices[i].key];
-  [d setBool:self.skip.state == NSControlStateValueOn forKey:kSkipKey];
+    Store(d, kShaderChoices[i].key, @(self.shaderChoices[i].indexOfSelectedItem));
+  Store(d, kSkipKey, @(self.skip.state == NSControlStateValueOn));
   [d synchronize];
   [self finishWithResponse:NSModalResponseOK];
 }
@@ -469,9 +481,25 @@ void RunLauncherIfWanted(int argc, char** argv) {
     if (![NSBundle.mainBundle.bundlePath.pathExtension isEqualToString:@"app"]) return;
     const Args args = ParseArgs(argc, argv);
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
-    RegisterDefaults(d);
-    if ([d objectForKey:kMetalFXKey] && ![d objectForKey:kAntiAliasingKey])  // the older on/off setting
+    // The older on/off setting, before the defaults are registered (with
+    // them, the anti-aliasing always has a value).
+    if ([d objectForKey:kMetalFXKey] && ![d objectForKey:kAntiAliasingKey])
       [d setInteger:[d boolForKey:kMetalFXKey] ? 2 : 0 forKey:kAntiAliasingKey];
+    RegisterDefaults(d);
+    // Earlier versions stored every option on Play, the defaults too, so a
+    // default changed later never reached them. Once: the options whose
+    // default went from on to off are cleared if on, and every value equal
+    // to its default goes (the older MetalFX setting too, carried over
+    // above).
+    if (![d boolForKey:kChangesOnlyKey]) {
+      for (NSString* k in @[ @"PlayerFullDamage" ])
+        if ([d boolForKey:k]) [d removeObjectForKey:k];
+      NSDictionary* defaults = [d volatileDomainForName:NSRegistrationDomain];
+      for (NSString* k in defaults)
+        if ([[d objectForKey:k] isEqual:defaults[k]]) [d removeObjectForKey:k];
+      [d removeObjectForKey:kMetalFXKey];
+      [d setBool:YES forKey:kChangesOnlyKey];
+    }
     // The folder: given, else the last one, else the repository's run/game
     // next to the build ("out/build/<preset>/Liberty Pro Max.app").
     NSString* folder = args.game_dir ?: [d stringForKey:kFolderKey];

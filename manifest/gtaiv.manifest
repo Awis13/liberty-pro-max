@@ -569,6 +569,7 @@ hook 00A23628 00A2362D   # cutscene camera: phase update with and without the ho
 hook 00C9AB1B 00C9AB20
 hook 00C9A591 00C9A599   # cutscene camera: the held frame not stored
 hook 00C9A5D2 00C9A5DA
+hook 00C9FF04 00C9FF0B   # distant lights: TBoGT halves them too (CmpFlags in community_fixes.cpp)
 hook 009AD73B 009AD740   # water buffers: the flip held until the render wait
 hook 008A187C 008A1883   # CMainLoop::Synchronise after its wait: the held flip
 hook 00B4F179 00B4F180   # SET_MINIGAME_IN_PROGRESS: which script
@@ -811,7 +812,7 @@ hook 007F5F02 007F5F08   # cutscene far clip keyframes none with volumetric fog
 # Gameplay, round 2 (src/gameplay_misc2.cpp).
 replace 00B51C70 GetFrameTimeNative   # GET_FRAME_TIME: finale2's climb decay check gets >= 0.06 s
 hook 00BA006A 00BA0072   # damage to the player, guns: whole (GTAIV_PLAYER_FULL_DAMAGE)
-hook 00BA0079 00BA0081   # damage to the player, melee and explosions: whole
+hook 00BA0079 00BA0081   # damage to the player, explosions, fire, thrown: whole
 hook 00946555 00946558   # health from a save: at most 200 (GTAIV_SAVE_HEALTH_CAP)
 replace 0084D2B0 StopPhoneRingingNative   # STOP_MOBILE_PHONE_RINGING: phone cheats at the cheat check
 replace 008B3A30 ScriptLauncher   # the launcher behind [0108E7B8] after game init: alternative banter counters

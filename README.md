@@ -110,7 +110,7 @@ The game was made for 30 fps; these keep it right at any frame rate.
 | Target health on the reticle with the mouse | on |
 | Radar stays zoomed out for 3 seconds | on |
 | Pause menu opens and closes without delay | on |
-| Right click goes back in menus | on |
+| Right click goes back in menus and steps an option down | on |
 | Pause menu: version, IMG files and streaming memory | off |
 | Pause menu time and money spaced as on consoles | on |
 | Menu lists show 32 rows before scrolling | on |
@@ -353,9 +353,10 @@ Each folder in `~/Library/Application Support/gtaiv/drive_c/mods` is a mod (the
 launcher's **Open Mods Folder** opens it). Its files replace the game's at the
 same path, such as `pc/...` or `common/...`, wherever they are inside it, so a
 mod pack's `update` folder can go there whole. Its `.img` archives are added to
-the game's, and files for the episodes (`TLAD`, `TBoGT`) are left out. If two
-mods have the same file, the later name wins. Your game folder is not changed,
-and **Load mods** turns them off.
+the game's. A file in an episode's folder (`TLAD`, `TBoGT`) replaces that
+episode's file; archives there, and the files left out for IV, are left out for
+the episodes too. If two mods have the same file, the later name wins. Your game
+folder is not changed, and **Load mods** turns them off.
 
 The game's own `update` folder is read the same way, so mods already there keep
 working.

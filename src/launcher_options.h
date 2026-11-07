@@ -88,7 +88,7 @@ const Fix kFixes[] = {
     {@"CarCameraReturn", "GTAIV_CAR_CAMERA_RETURN", @"Car camera swings back faster with keyboard and mouse"},
     {@"FusionFixData", "GTAIV_FF_DATA", @"Use FusionFix's mission and model fixes if installed (update folder)"},
     {@"RunInBackground", "GTAIV_RUN_IN_BACKGROUND", @"Keep running when the window is not in front", false},
-    {@"MenuRightClick", "GTAIV_MENU_RIGHT_CLICK", @"Right click goes back in menus"},
+    {@"MenuRightClick", "GTAIV_MENU_RIGHT_CLICK", @"Right click goes back in menus and steps an option down"},
     {@"ActionCamera", "GTAIV_ACTION_CAMERA", @"Cinematic camera when vaulting walls and jacking cars"},
     {@"StuntJumpCamera", "GTAIV_STUNT_JUMP_CAMERA", @"Cinematic camera and slow motion on stunt jumps"},
     {@"ConsoleReflections", "GTAIV_CONSOLE_REFLECTIONS", @"Reflections and car dirt as on consoles"},

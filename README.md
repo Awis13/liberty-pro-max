@@ -110,7 +110,7 @@ The game was made for 30 fps; these keep it right at any frame rate.
 | Target health on the reticle with the mouse | on |
 | Radar stays zoomed out for 3 seconds | on |
 | Pause menu opens and closes without delay | on |
-| Right click goes back in menus | on |
+| Right click goes back in menus and steps an option down | on |
 | Pause menu: version, IMG files and streaming memory | off |
 | Pause menu time and money spaced as on consoles | on |
 | Menu lists show 32 rows before scrolling | on |

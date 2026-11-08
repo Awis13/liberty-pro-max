@@ -4,6 +4,8 @@
 // found opens with its own screen to choose what to play.
 //
 //   GTAIV_EPISODES: the game finds the episodes it has the folders of.
+//   Always on, IV too: native 2C89A1F9, which the Complete Edition scripts
+//     call, registered and answering 0.
 #include <cstring>
 #include <filesystem>
 #include <string>
@@ -20,6 +22,7 @@ using namespace hook;
 
 void f_0088F080_lifted(Ctx& c);
 void f_0085A5F0_lifted(Ctx& c);
+void f_008AE060_lifted(Ctx& c);
 
 namespace {
 
@@ -56,6 +59,30 @@ void f_0085A5F0(Ctx& c) {
   if (!EpisodesOn()) return f_0085A5F0_lifted(c);
   c.eax = 0xFFFFFFFFu;
   c.esp += 4;  // ret
+}
+
+// The Complete Edition scripts ask native 2C89A1F9 (no arguments, one bool)
+// whether multiplayer is there: the phone scripts (IV's and the episodes')
+// to decide whether the phone lists Multiplayer, and TLAD's mission billy2.
+// 1.0.8.0 has no such native. Loading a script looks up every native it
+// calls (006252D0, through 00626AF0), and one not found stops the game with
+// "SCRT70" and 747217401, 2C89A1F9 in decimal: in the episodes as soon as
+// the phone comes out, and when billy2 loads. 008AE060 registers most
+// native groups (the core ones come before it, the HTML and console ones
+// after it), once per game start, from 008B4460, before any script loads.
+// After it, 00626B40 (stdcall hash, handler; al, whether it was added)
+// registers this one with the game's handler that answers 0,
+// IS_XBOX360_VERSION's, 00B0EA50. 0 is what a game without multiplayer
+// answers. Always on, not only with GTAIV_EPISODES: IV's own Complete
+// Edition scripts ask it too.
+void f_008AE060(Ctx& c) {
+  constexpr uint32_t kMultiplayerNative = 0x2C89A1F9;
+  constexpr gaddr kIsXbox360Version = 0x00B0EA50;  // the handler that answers 0
+  constexpr gaddr kRegisterNative = 0x00626B40;
+  f_008AE060_lifted(c);
+  if (!(CallGuest(c, kRegisterNative, {kMultiplayerNative, kIsXbox360Version}) & 0xFF))
+    WarnF("gtaiv: natives: %08X not added (table full: scripts calling it stop with SCRT70; or already there)\n",
+          kMultiplayerNative);
 }
 
 }  // namespace recomp::gen

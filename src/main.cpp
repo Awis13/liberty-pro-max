@@ -62,6 +62,8 @@ void GtaivTouchStart();  // touch_ios.mm
 namespace recomp::gen {
 // update_folder.cpp: FusionFix's files from the game's update folder.
 std::string UpdateFolderRedirect(const std::string& guest_path);
+// ff_shaders.cpp: the current viewport's near and far planes.
+bool GtaivDepthPlanes(float* near_plane, float* far_plane);
 }  // namespace recomp::gen
 
 // shadows_lights.cpp: the game's own wrong shader bytecode corrected.
@@ -202,6 +204,12 @@ int main(int argc, char** argv) {
   if (const char* m = std::getenv("GTAIV_MODS"); !m || *m != '0') GtaivModsInit();
   game.read_redirect = ReadRedirect;
   game.shader_tokens = GtaivShaderTokens;
+  // Depth from w (x86recomp's gfx/reversed_z.h): the map's layers a few
+  // millimetres apart (posters on walls) keep their order. rage's shaders
+  // transform with gWorldViewProj in c8-c11; the exact planes come from
+  // the current viewport.
+  game.wvp_register = 8;
+  game.depth_planes = recomp::gen::GtaivDepthPlanes;
 #if !GTAIV_IOS
   // Saves to the player's iPad and Apple TV (save_sync_mac.mm).
   game.before_exit = [] {

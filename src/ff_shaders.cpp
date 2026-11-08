@@ -377,6 +377,18 @@ void hook_004142BE(Ctx& c) {
   CallGuest(c, 0x00414050, {c.esi});
 }
 
+// The current viewport's near and far planes, as hook_004142BE reads them:
+// exact, where the world-view-projection the shaders get is rounded. The
+// runtime's depth from w takes them for a depth buffer when its first
+// perspective draw agrees with them (main.cpp; on the drawing thread).
+bool GtaivDepthPlanes(float* near_plane, float* far_plane) {
+  const uint32_t vp = Rd32(kViewport);
+  if (!vp) return false;
+  *near_plane = F32(vp + 0x2C0);
+  *far_plane = F32(vp + 0x2C4);
+  return *near_plane > 0 && *far_plane > *near_plane;
+}
+
 // The shadow atlas's format, when the device renders to R16F: mov dword
 // [014FE20C], 3 (rage's R16F). The extended shaders read it as R32F (4),
 // the format the game takes when R16F is missing.

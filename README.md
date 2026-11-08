@@ -356,7 +356,6 @@ keyboard lighting, graphics API choice and plugin loaders have nothing to do.
 ## Known issues
 
 - Mac, iPad and (experimental) Apple TV for now. Linux and the Steam Deck are planned.
-- Some posters and badges flicker where two of them share the same spot on a wall.
 - iPad: busy streets need the game's view and detail distances lowered for a steady 60 fps.
 - Apple TV: no settings screen and no icon yet; high texture quality does not
   fit its memory (DXT decoded on upload).

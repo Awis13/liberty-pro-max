@@ -124,6 +124,9 @@ int main(int argc, char** argv) {
   setenv("GTAIV_GFX", "metal", 0);
   setenv("RECOMP_UPSCALER", "smaa", 0);
   setenv("GTAIV_VSYNC", "1", 0);
+  // These UIKit bundles support landscape only. Native display modes may
+  // still be reported in portrait; advertise them in the game's orientation.
+  setenv("GTAIV_DISPLAY_LANDSCAPE", "1", 0);
   setenv("GTAIV_SKIP_INTRO", "1", 0);
   setenv("GTAIV_FPS_REPORT", "10", 0);
 #if TARGET_OS_TV

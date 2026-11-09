@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Make tvOS layered icons from make_ios_icon.py's locally extracted artwork.
+"""Make tvOS layered icons from the supplied full GTA IV logo.
 
-  make_tvos_icon.py ICON_DIR   (needs Pillow and ICON_DIR/icon1024.png)
+  make_tvos_icon.py ICON_DIR [ARTWORK]   (needs Pillow)
 
 Writes ICON_DIR/tvos/Assets.xcassets and ICON_DIR/icon-tvos.png (preview).
-No game artwork is bundled with this script.
+ARTWORK defaults to port/ios/tvos/AppIcon.png. Its original transparency is
+preserved, and a solid black back layer fills the TV tile.
 """
 import json
 from pathlib import Path
@@ -23,27 +24,22 @@ def metadata(directory, **contents):
     )
 
 
-def layers(logo, size):
+def layers(logo, size, background):
     """Keep the mark inside the focus safe area; let tvOS supply the mask."""
     width, height = size
     mark = logo.copy()
-    mark.thumbnail((round(width * 0.64), round(height * 0.64)), Image.Resampling.LANCZOS)
+    mark.thumbnail((round(width * 0.76), round(height * 0.76)), Image.Resampling.LANCZOS)
     front = Image.new("RGBA", size)
     front.alpha_composite(mark, ((width - mark.width) // 2, (height - mark.height) // 2))
-    return front, Image.new("RGB", size, "black")
+    return front, Image.new("RGB", size, background)
 
 
-def generate(icon_dir):
+def generate(icon_dir, artwork=None):
     icon_dir = Path(icon_dir)
-    with Image.open(icon_dir / "icon1024.png") as source:
+    artwork = artwork or Path(__file__).resolve().parents[1] / "port/ios/tvos/AppIcon.png"
+    with Image.open(artwork) as source:
         logo = source.convert("RGBA")
-    # The existing iPad artwork is the IV mark on pure black. Lift that black
-    # into transparency so the mark and opaque background move independently.
-    logo.putalpha(logo.convert("RGB").convert("L").point(lambda v: 255 if v else 0))
-    bounds = logo.getbbox()
-    if bounds is None:
-        raise ValueError("icon1024.png contains no visible artwork")
-    logo = logo.crop(bounds)
+    background = "black"
 
     catalog = icon_dir / "tvos/Assets.xcassets"
     brand = catalog / "AppIcon.brandassets"
@@ -58,7 +54,7 @@ def generate(icon_dir):
                                 for layer in ("Front", "Back")])
         images = {"Front": [], "Back": []}
         for scale in scales:
-            front, back = layers(logo, tuple(value * scale for value in size))
+            front, back = layers(logo, tuple(value * scale for value in size), background)
             for layer, image in (("Front", front), ("Back", back)):
                 image_set = stack / f"{layer}.imagestacklayer/Content.imageset"
                 image_set.mkdir(parents=True, exist_ok=True)
@@ -79,7 +75,7 @@ def generate(icon_dir):
         image_set.mkdir(parents=True, exist_ok=True)
         images = []
         for scale in (1, 2):
-            front, back = layers(logo, tuple(value * scale for value in size))
+            front, back = layers(logo, tuple(value * scale for value in size), background)
             back.paste(front, (0, 0), front)
             filename = f"{name}@{scale}x.png"
             back.save(image_set / filename)
@@ -89,11 +85,11 @@ def generate(icon_dir):
                        "size": f"{size[0]}x{size[1]}"})
     metadata(brand, assets=assets)
 
-    front, preview = layers(logo, (1280, 768))
+    front, preview = layers(logo, (1280, 768), background)
     preview.paste(front, (0, 0), front)
     preview.save(icon_dir / "icon-tvos.png")
     return catalog
 
 
 if __name__ == "__main__":
-    print(generate(sys.argv[1]))
+    print(generate(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None))

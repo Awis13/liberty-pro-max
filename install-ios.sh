@@ -43,10 +43,12 @@ python3 -m venv out/venv && out/venv/bin/pip -q install pillow
 say "Signing profile"
 [[ -f out/apple/profiles/$profile.mobileprovision ]] || PLATFORM=$p tools/ios_profile.sh $team $bundle $device
 
-say "Icon, from the game's own logo"
-out/venv/bin/python -I tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons
 if (( tv )); then
+  say "Layered Apple TV icon"
   out/venv/bin/python -I tools/make_tvos_icon.py out/icons
+else
+  say "Icon, from the game's own logo"
+  out/venv/bin/python -I tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons
 fi
 
 say "The game for $kind"

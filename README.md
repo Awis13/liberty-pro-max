@@ -128,19 +128,19 @@ several times their size: keep the game's texture quality at its default,
 or the Apple TV's 2.1 GB per app runs out. The log is `log.txt` in the
 app's Library/Caches (`devicectl`).
 
-The installer generates a layered Apple TV icon from the same IV artwork
-used on iPad, extracted from your own game files. The mark and black
-background are separate parallax layers; small (1× and 2×), large, and
-Top Shelf images are compiled into the signed app. To regenerate by hand
-(with Pillow installed):
+The installer generates a layered Apple TV icon from the full GTA IV logo
+in `port/ios/tvos/AppIcon.png`. Its original transparency and a solid black
+background form separate layers; small (1× and 2×), large, and Top Shelf
+images are compiled into the signed app. To regenerate by hand (with
+Pillow installed):
 
 ```sh
-python3 tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons
 python3 tools/make_tvos_icon.py out/icons
 ```
 
-`out/icons/icon-tvos.png` is a flat preview; generated artwork stays in
-`out/` and is not included in the repository.
+`out/icons/icon-tvos.png` is a flat preview. Pass a second argument to use
+different transparent artwork. Generated catalogs stay in ignored `out/`.
+See [artwork source](port/ios/tvos/README.md) for provenance.
 
 ## Using it
 

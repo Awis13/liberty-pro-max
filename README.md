@@ -33,7 +33,7 @@ For the iPad and the Apple TV, see [Install](#install).
 | | Mac | iPad |
 |---|---|---|
 | **Renderer** | Metal, written for this port: drawing encoded on its own thread, geometry read in place from the game's memory, several frames in flight | the same |
-| **Frame rate** | about 125 fps indoors, 60–100 fps outdoors at 3440×1440, maximum settings, M3 Pro; no 30/60 fps cap | 60 fps indoors, 45–60 outdoors at 1792×1344, iPad Air (M4) |
+| **Frame rate** | about 125 fps indoors, 60–100 fps outdoors at 3440×1440, maximum settings, M3 Pro; no frame rate cap unless you set the launcher's frame limit (30, 60 or 120 fps) | 60 fps indoors, 45–60 outdoors at 1792×1344, iPad Air (M4) |
 | **Anti-aliasing** | TAA (default, sharpened), SMAA, MetalFX temporal and SMAA + MetalFX spatial upscaling | SMAA (default), TAA |
 | **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048, field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play** |
@@ -175,7 +175,8 @@ before `install-ios.sh` to have them on the iPad too.
 
 ## Fixes and options
 
-On the launcher's **General** tab: resolution and display, anti-aliasing
+On the launcher's **General** tab: resolution and display, vertical sync, a
+frame limit (off, 30, 60 or 120 fps), anti-aliasing
 (TAA, SMAA, MetalFX), shadow and reflection resolution, field of view, fast
 loading, skipping the logo screens, continuing the last save, mods, the
 performance overlay, and on a display with a notch the whole screen. On the

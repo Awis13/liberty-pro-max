@@ -18,6 +18,9 @@ NSString* const kWindowKey = @"Windowed";
 NSString* const kTouchKey = @"TouchControls";
 NSString* const kOverNotchKey = @"FullScreenOverNotch";
 NSString* const kVsyncKey = @"VerticalSync";  // 0 the game's setting, 1 on, 2 off
+// The Mac's frame limit (the iPad has its own, launcher_ios.mm): 0 off, 1-3 an entry of kMacFrameLimits.
+NSString* const kFrameLimitKey = @"FrameLimit";
+const int kMacFrameLimits[] = {0, 30, 60, 120};
 NSString* const kMetalFXKey = @"MetalFX";      // earlier versions: on/off
 NSString* const kAntiAliasingKey = @"AntiAliasing";  // 0 off, 1 SMAA, 2 MetalFX, 3 TAA, 4 SMAA + MetalFX spatial
 NSString* const kMetalFXScaleKey = @"MetalFXScale";  // 0 native, 1 quality, 2 balanced, 3 performance
@@ -233,6 +236,10 @@ void ApplyOptions(NSUserDefaults* d) {
     case 2: setenv("GTAIV_VSYNC", "0", 1); break;
     default: unsetenv("GTAIV_VSYNC"); break;
   }
+  // At most this many frames a second (the runtime's limiter); off, the
+  // variable is left as it is.
+  if (const int limit = kMacFrameLimits[std::clamp<NSInteger>([d integerForKey:kFrameLimitKey], 0, 3)])
+    setenv("GTAIV_FPS_LIMIT", std::to_string(limit).c_str(), 1);
   // The Metal renderer (its anti-aliasing, upscalers and fixes): without
   // GTAIV_GFX the runtime takes its generic SDL GPU path, much slower.
   setenv("GTAIV_GFX", "metal", 0);

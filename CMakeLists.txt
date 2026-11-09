@@ -94,6 +94,8 @@ if(TARGET gtaiv_lifted)
     # while it runs full screen in front. Its executable is the same build;
     # x86recomp's libraries go in Contents/Frameworks so the app can be
     # copied to /Applications. Signed (ad hoc) together with the bundle.
+    # Its icon is out/icons/AppIcon.icns when that has been made
+    # (tools/make_ios_icon.py --mac, from the player's game files).
     set_property(TARGET gtaiv APPEND PROPERTY BUILD_RPATH "@executable_path/../Frameworks")
     set(app "${CMAKE_BINARY_DIR}/Liberty Pro Max.app")
     add_custom_command(TARGET gtaiv POST_BUILD
@@ -104,6 +106,7 @@ if(TARGET gtaiv_lifted)
       COMMAND ${CMAKE_COMMAND} -E rm -f "${app}/Contents/MacOS/gtaiv"
       COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:gtaiv>" "${app}/Contents/MacOS/gtaiv"
       COMMAND sh -c "cp -f '${CMAKE_BINARY_DIR}'/x86recomp/*.dylib '${app}/Contents/Frameworks/' && codesign --force --sign - '${app}/Contents/Frameworks/'*.dylib"
+      COMMAND sh -c "[ ! -f '${CMAKE_CURRENT_SOURCE_DIR}/out/icons/AppIcon.icns' ] || { mkdir -p '${app}/Contents/Resources' && cp -f '${CMAKE_CURRENT_SOURCE_DIR}/out/icons/AppIcon.icns' '${app}/Contents/Resources/'; }"
       COMMAND codesign --force --sign - "${app}"
       VERBATIM)
   endif()

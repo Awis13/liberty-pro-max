@@ -63,6 +63,8 @@ cp $deps/lib/*.a $kit/lib/
 app="$kit/app/Liberty Pro Max.app"
 ditto "$kitbuild/Liberty Pro Max.app" "$app"
 rm -f "$app/Contents/MacOS/gtaiv"
+# Nothing of the game in the kit: not the icon made from its artwork either.
+rm -f "$app/Contents/Resources/AppIcon.icns"
 cp $deps/lib/libSDL3.0.dylib "$app/Contents/Frameworks/"
 # No run paths of this machine in what ships.
 for f in "$app"/Contents/Frameworks/*.dylib $kit/bin/recomp_lift; do

@@ -45,6 +45,13 @@ cmake --build --preset release
 say "The game's code, from your GTAIV.exe"
 tools/lift.sh
 
+say "The app's icon, from the game's own logo"
+icon=out/icons/AppIcon.icns
+if ! { python3 -m venv out/venv && out/venv/bin/pip -q install pillow &&
+       out/venv/bin/python -I tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons --mac; }; then
+  echo "No icon could be made from the game's files: the app has the standard one."
+fi
+
 say "The game"
 cmake --preset release >/dev/null
 cmake --build --preset release
@@ -54,6 +61,11 @@ app="out/build/release/Liberty Pro Max.app"
 [ -d "$app" ] || die "the build made no app: $app"
 rm -rf "/Applications/Liberty Pro Max.app"
 ditto "$app" "/Applications/Liberty Pro Max.app"
+# (The build puts the icon in only when it links the game anew.)
+if [ -f "$icon" ]; then
+  mkdir -p "/Applications/Liberty Pro Max.app/Contents/Resources"
+  cp -f "$icon" "/Applications/Liberty Pro Max.app/Contents/Resources/"
+fi
 codesign --force --sign - "/Applications/Liberty Pro Max.app" >/dev/null 2>&1 || true
 
 say "Done"

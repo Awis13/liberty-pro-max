@@ -91,7 +91,8 @@ cd liberty-pro-max
 
 `install.sh` installs the build tools from Homebrew, fetches the pinned
 x86recomp, checks your `GTAIV.exe`, translates the game's code, builds, and
-puts **Liberty Pro Max** in `/Applications`. The first run takes about 15
+puts **Liberty Pro Max** in `/Applications`, with an icon made from the logo
+in your game files (the Builder's app has the standard icon for now). The first run takes about 15
 minutes on an M-series Mac. Run it again after `git pull` to update.
 
 Saves and settings are kept in `~/Library/Application Support/gtaiv`; the
@@ -406,7 +407,8 @@ cmake --preset release && cmake --build --preset release   # the game
 
 The app is `out/build/release/Liberty Pro Max.app`; the plain executable,
 `out/build/release/gtaiv --game-dir "$GTAIV_GAME_DIR"`, starts without the
-launcher.
+launcher. For the app's icon, before the last build (with Pillow):
+`python3 tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons --mac`.
 
 For the iPad, after that: `tools/apple_deps.sh`, `cmake --preset iphoneos &&
 cmake --build --preset iphoneos`, then `tools/ios_profile.sh`,

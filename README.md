@@ -128,6 +128,20 @@ several times their size: keep the game's texture quality at its default,
 or the Apple TV's 2.1 GB per app runs out. The log is `log.txt` in the
 app's Library/Caches (`devicectl`).
 
+The installer generates a layered Apple TV icon from the same IV artwork
+used on iPad, extracted from your own game files. The mark and black
+background are separate parallax layers; small (1× and 2×), large, and
+Top Shelf images are compiled into the signed app. To regenerate by hand
+(with Pillow installed):
+
+```sh
+python3 tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons
+python3 tools/make_tvos_icon.py out/icons
+```
+
+`out/icons/icon-tvos.png` is a flat preview; generated artwork stays in
+`out/` and is not included in the repository.
+
 ## Using it
 
 ### Saves on every device
@@ -357,7 +371,7 @@ keyboard lighting, graphics API choice and plugin loaders have nothing to do.
 
 - Mac, iPad and (experimental) Apple TV for now. Linux and the Steam Deck are planned.
 - iPad: busy streets need the game's view and detail distances lowered for a steady 60 fps.
-- Apple TV: no settings screen and no icon yet; high texture quality does not
+- Apple TV: no settings screen yet; high texture quality does not
   fit its memory (DXT decoded on upload).
 - MetalFX temporal upscaling costs about 5 ms a frame at 3440×1440 output,
   more than it saves in this game; TAA at native resolution is the default.

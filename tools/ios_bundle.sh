@@ -4,7 +4,7 @@
 # Apple TV one (cmake --preset appletvos), into a signed Liberty Pro Max.app
 # and, given a device id, installs it:
 #   - the runtime's dylibs and SDL3 into Frameworks/;
-#   - the icon through an asset catalog (ICONS/icon1024.png, if present);
+#   - the icon through an asset catalog (ICONS/icon1024.png, tvOS: ICONS/tvos/);
 #   - the provisioning profile (PROFILE) and entitlements, then the signature.
 # The game's files are not in the bundle (15 GB): tools/ios_push_game.py
 # copies them into the app's Documents/game over the cable.
@@ -53,15 +53,21 @@ rsync -a --delete $BUILD/x86recomp/librecomp_*.dylib $PREFIX/lib/libSDL3.0.dylib
 # The launcher's logo (the icon's artwork).
 [[ -f $ICONS/icon1024.png ]] && cp $ICONS/icon1024.png $app/LauncherLogo.png
 
-# Icon: an asset catalog compiled by actool, its keys merged in (none
-# without the icons: tools/icon/make_icons.py).
+# Icon: an asset catalog compiled by actool, its keys merged in.
 icons=$OUT/icon
 mkdir -p $icons
 rm -f $icons/partial.plist
 if [[ ${PLATFORM:-ios} == tvos ]]; then
-  echo "Apple TV: no icon yet (it needs a layered one)"
+  if [[ -d $ICONS/tvos/Assets.xcassets ]]; then
+    xcrun actool $ICONS/tvos/Assets.xcassets --compile $app --platform appletvos \
+      --minimum-deployment-target 17.0 --app-icon AppIcon --target-device tv \
+      --output-partial-info-plist $icons/partial.plist \
+      --errors --warnings > $icons/actool.log
+  else
+    echo "no tvOS icons in $ICONS/tvos (tools/make_tvos_icon.py): the app has none"
+  fi
 elif [[ ! -f $ICONS/icon1024.png ]]; then
-  echo "no icons in $ICONS (tools/icon/make_icons.py): the app has none"
+  echo "no icons in $ICONS (tools/make_ios_icon.py): the app has none"
 else
 mkdir -p $icons/Assets.xcassets/AppIcon.appiconset
 cp $ICONS/icon1024.png $icons/Assets.xcassets/AppIcon.appiconset/icon1024.png

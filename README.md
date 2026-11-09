@@ -113,6 +113,23 @@ graphics menu decides the rest: lower its view and detail distance if busy
 streets drop below 60. The game's log is `log.txt` in the app's Documents
 (Files › On My iPad, or `devicectl`).
 
+### iPhone (experimental)
+
+The same iOS build can run on iPhone. Its launcher derives landscape
+resolution presets from the display's native dimensions, at half,
+two-thirds, five-sixths, and full size. For a 2868×1320 display these are
+1434×660, 1912×880 (default), 2390×1100, and 2868×1320.
+
+The iOS **Frame limit** choices are **60 / 40 / 30 / Off**. Off removes
+the app's frame cap; V-sync is controlled separately in the game's Graphics
+menu. ProMotion phones can render above 60 fps when performance allows.
+The launcher's **Performance overlay** setting controls Metal HUD.
+
+Landscape display modes require the companion x86recomp
+`DISPLAY_LANDSCAPE` support; otherwise changing graphics settings can
+select a portrait back buffer. Tested on an A20 Pro iPhone with iOS 27.2;
+performance and memory requirements on other phones have not been verified.
+
 ### Apple TV (experimental)
 
 After the Mac install, with the Apple TV paired:

@@ -9,26 +9,48 @@
 #include <TargetConditionals.h>
 
 #include <algorithm>
+#include <array>
 #include <string>
 
 #include "launcher_options.h"
 
 namespace {
 
-// iPad only: the game's resolution (its -width/-height), the frame limit.
-NSString* const kIosResolutionKey = @"IosResolution";  // index into kResolutions
-NSString* const kIosFrameLimitKey = @"IosFrameLimit";  // 0: 60 (the display's), 1: 40, 2: 30
+// The game's resolution (its -width/-height) and frame limit.
+NSString* const kIosResolutionKey = @"IosResolution";  // index into Resolutions()
+NSString* const kIosFrameLimitKey = @"IosFrameLimit";  // 0: 60, 1: 40, 2: 30, 3: uncapped
 struct Resolution {
   int w, h;
   NSString* title;
 };
-const Resolution kResolutions[] = {
+const std::array<Resolution, 4> kIpadResolutions = {{
     {1536, 1152, @"1536×1152"},
     {1792, 1344, @"1792×1344"},
     {2048, 1536, @"2048×1536"},
     {2732, 2048, @"2732×2048"},
-};
-const int kFrameLimits[] = {0, 40, 30};
+}};
+
+const std::array<Resolution, 4>& Resolutions() {
+  if (UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPhone)
+    return kIpadResolutions;
+  // Use the phone's landscape aspect at every quality level. The renderer
+  // preserves the back buffer's aspect, so the iPad's 4:3 presets leave bars.
+  static const auto phone = [] {
+    const CGSize size = UIScreen.mainScreen.nativeBounds.size;
+    const double width = std::max(size.width, size.height);
+    const double height = std::min(size.width, size.height);
+    const double scales[] = {0.5, 2.0 / 3.0, 5.0 / 6.0, 1.0};
+    std::array<Resolution, 4> result;
+    for (size_t i = 0; i < result.size(); ++i) {
+      const int w = std::max(2, int(width * scales[i]) / 2 * 2);
+      const int h = std::max(2, int(height * scales[i]) / 2 * 2);
+      result[i] = {w, h, [NSString stringWithFormat:@"%d×%d", w, h]};
+    }
+    return result;
+  }();
+  return phone;
+}
+const int kFrameLimits[] = {60, 40, 30, 0};
 
 bool g_play = false;
 
@@ -145,11 +167,11 @@ static NSArray* GameRows() {
 // Graphics: segmented choices (title, key, items).
 static NSArray* GraphicsRows() {
   NSMutableArray* res = [NSMutableArray array];
-  for (const Resolution& r : kResolutions) [res addObject:r.title];
+  for (const Resolution& r : Resolutions()) [res addObject:r.title];
   return @[
     @[ @"Resolution", kIosResolutionKey, res ],
     @[ @"Anti-aliasing", kAntiAliasingKey, @[ @"Off", @"SMAA", @"TAA" ] ],
-    @[ @"Frame limit", kIosFrameLimitKey, @[ @"60", @"40", @"30" ] ],
+    @[ @"Frame limit", kIosFrameLimitKey, @[ @"60", @"40", @"30", @"Off" ] ],
     @[ @"Shadows", kShadowsKey, @[ @"Game's", @"High" ] ],
     @[ @"Reflections", kReflectionsKey, @[ @"Game's", @"High" ] ],
     @[ @"Field of view", kFovKey, @[ @"+0", @"+5", @"+10", @"+15", @"+20" ] ],
@@ -300,14 +322,16 @@ void RunIosLauncher(std::string* game_args) {
     window.rootViewController = nil;
 
     ApplyOptions(d);
-    // The Mac's vsync choice does not apply: the iPad paces at its display.
-    setenv("GTAIV_VSYNC", "1", 1);
+    // The game's Graphics menu controls V-sync independently of the app's
+    // frame limit. In particular, Off must not force display pacing.
+    unsetenv("GTAIV_VSYNC");
     // Nor its keeping running behind other windows (not shown here; iOS
     // suspends an app that is not in front), even if saved on before.
     setenv("GTAIV_RUN_IN_BACKGROUND", "0", 1);
-    const int limit = kFrameLimits[std::clamp<NSInteger>([d integerForKey:kIosFrameLimitKey], 0, 2)];
-    if (limit) setenv("GTAIV_FPS_LIMIT", std::to_string(limit).c_str(), 1);
-    const Resolution& r = kResolutions[std::clamp<NSInteger>([d integerForKey:kIosResolutionKey], 0, NSInteger(std::size(kResolutions)) - 1)];
+    const int limit = kFrameLimits[std::clamp<NSInteger>([d integerForKey:kIosFrameLimitKey], 0, NSInteger(std::size(kFrameLimits)) - 1)];
+    setenv("GTAIV_FPS_LIMIT", std::to_string(limit).c_str(), 1);
+    const auto& resolutions = Resolutions();
+    const Resolution& r = resolutions[std::clamp<NSInteger>([d integerForKey:kIosResolutionKey], 0, NSInteger(resolutions.size()) - 1)];
     // Given a command line the game no longer reads commandline.txt: its
     // options go here too (no setting restrictions, and the video memory
     // its budget counts; without them it fits everything into 512 MB, all

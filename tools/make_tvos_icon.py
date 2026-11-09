@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Make tvOS layered icons from make_ios_icon.py's locally extracted artwork.
 
-  make_tvos_icon.py ICON_DIR   (needs Pillow and ICON_DIR/icon1024.png)
+  make_tvos_icon.py ICON_DIR [ARTWORK]   (needs Pillow)
 
 Writes ICON_DIR/tvos/Assets.xcassets and ICON_DIR/icon-tvos.png (preview).
+ARTWORK defaults to ICON_DIR/icon1024.png, the mark on black: the black
+becomes transparent. Artwork with transparency of its own keeps it.
 No game artwork is bundled with this script.
 """
 import json
@@ -26,23 +28,26 @@ def metadata(directory, **contents):
 def layers(logo, size):
     """Keep the mark inside the focus safe area; let tvOS supply the mask."""
     width, height = size
-    mark = logo.copy()
-    mark.thumbnail((round(width * 0.64), round(height * 0.64)), Image.Resampling.LANCZOS)
+    # An explicit scale: small artwork is enlarged to fill the area too.
+    scale = min(width * 0.64 / logo.width, height * 0.64 / logo.height)
+    mark = logo.resize((max(1, round(logo.width * scale)), max(1, round(logo.height * scale))),
+                       Image.Resampling.LANCZOS)
     front = Image.new("RGBA", size)
     front.alpha_composite(mark, ((width - mark.width) // 2, (height - mark.height) // 2))
     return front, Image.new("RGB", size, "black")
 
 
-def generate(icon_dir):
+def generate(icon_dir, artwork=None):
     icon_dir = Path(icon_dir)
-    with Image.open(icon_dir / "icon1024.png") as source:
+    with Image.open(artwork or icon_dir / "icon1024.png") as source:
         logo = source.convert("RGBA")
-    # The existing iPad artwork is the IV mark on pure black. Lift that black
-    # into transparency so the mark and opaque background move independently.
-    logo.putalpha(logo.convert("RGB").convert("L").point(lambda v: 255 if v else 0))
+    if logo.getchannel("A").getextrema()[0] == 255:
+        # The iPad artwork is the IV mark on pure black. Lift that black into
+        # transparency so the mark and opaque background move independently.
+        logo.putalpha(logo.convert("RGB").convert("L").point(lambda v: 255 if v else 0))
     bounds = logo.getbbox()
     if bounds is None:
-        raise ValueError("icon1024.png contains no visible artwork")
+        raise ValueError("the artwork contains nothing visible")
     logo = logo.crop(bounds)
 
     catalog = icon_dir / "tvos/Assets.xcassets"
@@ -96,4 +101,4 @@ def generate(icon_dir):
 
 
 if __name__ == "__main__":
-    print(generate(sys.argv[1]))
+    print(generate(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None))

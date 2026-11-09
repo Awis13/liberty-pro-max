@@ -128,19 +128,8 @@ several times their size: keep the game's texture quality at its default,
 or the Apple TV's 2.1 GB per app runs out. The log is `log.txt` in the
 app's Library/Caches (`devicectl`).
 
-The installer generates a layered Apple TV icon from the same IV artwork
-used on iPad, extracted from your own game files. The mark and black
-background are separate parallax layers; small (1× and 2×), large, and
-Top Shelf images are compiled into the signed app. To regenerate by hand
-(with Pillow installed):
-
-```sh
-python3 tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons
-python3 tools/make_tvos_icon.py out/icons
-```
-
-`out/icons/icon-tvos.png` is a flat preview; generated artwork stays in
-`out/` and is not included in the repository.
+The app's icon is made on your Mac from the logo in your own game files,
+as on the iPad.
 
 ## Using it
 
@@ -403,7 +392,14 @@ runs them in order).
 
 For the Apple TV, the same with `PLATFORMS=tvos tools/apple_deps.sh`, the
 preset `appletvos` and `PLATFORM=tvos` for `tools/ios_profile.sh` and
-`tools/ios_bundle.sh`.
+`tools/ios_bundle.sh`. Its icon is layered: after `tools/make_ios_icon.py`,
+`tools/make_tvos_icon.py out/icons` (with Pillow) writes an asset catalog
+to `out/icons/tvos` with the mark and the black background as separate
+parallax layers (400×240 at 1× and 2×, 1280×768), the Top Shelf images
+(1920×720 and 2320×720, at 1× and 2×), and a flat preview,
+`out/icons/icon-tvos.png`; `tools/ios_bundle.sh` compiles the catalog into
+the app. A second argument uses other artwork than `out/icons/icon1024.png`.
+Like everything in `out/`, none of it is in the repository.
 
 ## How it works
 

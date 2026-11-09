@@ -132,6 +132,7 @@ const Fix kFixes[] = {
     {@"GlassShardColours", "GTAIV_GLASS_SHARD_COLOURS", @"Red and amber glass from broken tail lights and indicators"},
     {@"BulletTracers", "GTAIV_BULLET_TRACERS", @"Tracer on every shot", false},
     {@"Episodes", "GTAIV_EPISODES", @"The episodes, when their folders are in the game's"},
+    {@"EpisodeRadioOwn", "GTAIV_EPISODE_RADIO_OWN", @"Episodes' radio songs only in their own episode, not in IV"},
     {@"TBoGTTracerFx", "GTAIV_TBOGT_TRACER_FX", @"TBoGT: tracers drawn in the right place"},
     {@"PauseInfoSpacing", "GTAIV_PAUSE_INFO_SPACING", @"Pause menu time and money spaced as on consoles"},
     {@"CompareStringFix", "GTAIV_COMPARE_STRING_FIX", @"No crash on phone calls in The Lost and Damned"},

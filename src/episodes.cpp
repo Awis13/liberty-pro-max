@@ -4,6 +4,8 @@
 // found opens with its own screen to choose what to play.
 //
 //   GTAIV_EPISODES: the game finds the episodes it has the folders of.
+//   GTAIV_EPISODE_RADIO_OWN: an episode's radio songs play only in that
+//     episode, not in IV or the other episode (on by default).
 //   Always on, IV too: native 2C89A1F9, which the Complete Edition scripts
 //     call, registered and answering 0.
 #include <cstring>
@@ -23,6 +25,8 @@ using namespace hook;
 void f_0088F080_lifted(Ctx& c);
 void f_0085A5F0_lifted(Ctx& c);
 void f_008AE060_lifted(Ctx& c);
+void f_008905E0_lifted(Ctx& c);
+void f_008906B0_lifted(Ctx& c);
 
 namespace {
 
@@ -31,7 +35,68 @@ bool EpisodesOn() {
   return on;
 }
 
+// Each episode's setup2.xml lists two contents: the episode itself, with its
+// number in <episode>, enabled while that episode is chosen (00890900), and
+// its radio (e1_radio.xml, e2_radio.xml in <audiometadata>), with no
+// <episode> and <enabled />: on whatever is played. Starting a game
+// (00494140) loads every enabled content's audio lists, through 008913E0
+// (00B70660) and, coming from IV, 00891440 (00493A00), one content at a time
+// (008905E0, 008906B0), so that IV's stations also play both episodes' songs
+// and each episode's the other's: as with the episodes downloaded on a
+// console, not as in IV alone.
+//
+// With GTAIV_EPISODE_RADIO_OWN, a content with audio lists and no episode
+// number is loaded only when the game being started is the episode of the
+// same setup2.xml. That game is in [0112D788] by then; [0112D754], the one
+// running, still holds the one before (it follows in 00493E20, after the
+// loads).
+constexpr gaddr kStartingEpisode = 0x0112D788;  // 0 IV, 1 TLAD, 2 TBoGT
+// The content manager (this): its contents, 0x22C bytes each.
+constexpr uint32_t kContents = 0x144, kContentCount = 0x148, kContentSize = 0x22C;
+// A content: the index of its setup2.xml, <audiometadata>, whether it is in
+// use, <episode>.
+constexpr uint32_t kContentSetup = 0x0, kContentAudio = 0xA4, kContentUsed = 0x226, kContentEpisode = 0x229;
+
+bool EpisodeRadioOwn() {
+  static const bool on = OptionOn("GTAIV_EPISODE_RADIO_OWN", true);
+  return on;
+}
+
+// Whether the content at this index is an episode's radio and the game
+// being started is not that episode.
+bool OtherGamesRadio(uint32_t manager, uint32_t index) {
+  if (!EpisodeRadioOwn() || !EpisodesOn()) return false;
+  const uint32_t count = Rd16(manager + kContentCount);
+  const uint32_t contents = Rd32(manager + kContents);
+  if (index >= count || !contents) return false;
+  const uint32_t content = contents + index * kContentSize;
+  if (!Rd8(content + kContentAudio) || Rd8(content + kContentEpisode)) return false;
+  // The episode of the same setup2.xml.
+  uint32_t episode = 0;
+  for (uint32_t i = 0; i < count && !episode; i++) {
+    const uint32_t other = contents + i * kContentSize;
+    if (Rd8(other + kContentUsed) && Rd32(other + kContentSetup) == Rd32(content + kContentSetup))
+      episode = Rd8(other + kContentEpisode);
+  }
+  const uint32_t starting = Rd32(kStartingEpisode);
+  if (!episode || episode == starting) return false;
+  WarnF("gtaiv: episodes: %s of episode %u left out of game %u\n",
+        reinterpret_cast<const char*>(GPtr(content + kContentAudio)), episode, starting);
+  return true;
+}
+
 }  // namespace
+
+// thiscall (index), both: a content's archives, data file and audio lists
+// loaded (008905E0), or its audio lists alone (008906B0).
+void f_008905E0(Ctx& c) {
+  if (!OtherGamesRadio(c.ecx, Rd32(c.esp + 4))) return f_008905E0_lifted(c);
+  c.esp += 8;  // ret 4
+}
+void f_008906B0(Ctx& c) {
+  if (!OtherGamesRadio(c.ecx, Rd32(c.esp + 4))) return f_008906B0_lifted(c);
+  c.esp += 8;  // ret 4
+}
 
 // thiscall (mask, out): the install folder of the episode in the mask (2
 // TLAD, 4 TBoGT) if it is there; al: whether it is.

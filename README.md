@@ -150,6 +150,11 @@ The Ballad of Gay Tony work: the game opens with its own screen to choose what
 to play. Their saves sit with IV's, in the same slots. A launcher checkbox turns
 them off.
 
+The episodes also bring radio songs, which the game would add to the same
+stations in IV and in the other episode. They play only in their own episode,
+so IV's stations keep IV's songs; the option "Episodes' radio songs only in
+their own episode, not in IV" turns that off.
+
 In an episode, the `update` folder gives its archives for that episode, such as
 `TLAD/...img`, and those named for all of them (`EFLC`). IV's archives and data
 files, and the mods folder's archives, stay out of the episodes, as they stop
@@ -188,7 +193,7 @@ port's own.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-103 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
+104 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
 
 #### High frame rates
 
@@ -340,6 +345,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 | Option | Default |
 |---|---|
 | The episodes, when their folders are in the game's | on |
+| Episodes' radio songs only in their own episode, not in IV | on |
 | Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand) | off |
 
 <!-- fixes:end -->

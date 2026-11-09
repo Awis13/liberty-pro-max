@@ -58,7 +58,7 @@ if(TARGET gtaiv_lifted)
   target_include_directories(gtaiv PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/generated")
   target_link_libraries(gtaiv PRIVATE recomp_runtime recomp_dsound recomp_bink
                         recomp_dinput8 recomp_xinput recomp_d3d9 recomp_xlive
-                        recomp_dbghelp)
+                        recomp_dbghelp recomp_wmvcore)
   set_target_properties(gtaiv PROPERTIES ENABLE_EXPORTS ON)  # names in fault backtraces
   if(RECOMP_IOS)
     # The .app with its Info.plist; tools/ios_bundle.sh adds the runtime

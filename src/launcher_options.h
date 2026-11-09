@@ -143,6 +143,7 @@ const Fix kFixes[] = {
     {@"TurnIndicators", "GTAIV_TURN_INDICATORS", @"Turn indicators when steering, hazard lights after a crash", false},
     {@"TurnIndicatorsManual", "GTAIV_TURN_INDICATORS_MANUAL", @"Turn indicators by hand: [ and ] or bumpers, both for hazards", false},
     {@"RouteIndicators", "GTAIV_TURN_INDICATORS_ROUTE", @"Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand)", false},
+    {@"PadIcons", "GTAIV_PAD_ICONS", @"Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder)", false},
     {@"KeepWheelsTurned", "GTAIV_KEEP_WHEELS_TURNED", @"Parked vehicles keep their wheels turned", false},
     {@"FFToneMapping", "GTAIV_FF_TONE_MAPPING", @"FusionFix shaders: tone mapping (highlights not clipped)", false, true},
     {@"FFNoBloomColorShift", "GTAIV_FF_NO_BLOOM_COLOR_SHIFT", @"FusionFix shaders: bloom keeps its colour with tone mapping", true, true},

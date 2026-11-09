@@ -35,7 +35,7 @@ GROUPS = [
      'AIM_ZOOM_MEMORY HELI_PAD_RETICLE WHEEL_STUNT_CAMERA EDITOR_FREE_CAMERA DRIVEBY_FOV_FIX SHAKE_BLUR_FIX'),
     ('Wide screens and the interface', '',
      'PAUSE_MAP_ASPECT CUTSCENE_PILLARS WEB_PAGES CURSOR_SIZE HIDE_CURSOR_ON_PAD RETICLE_HEALTH RADAR_ZOOM_DELAY '
-     'INSTANT_MENUS MENU_RIGHT_CLICK MENU_EXTRA_INFO PAUSE_INFO_SPACING LONG_MENU_LISTS'),
+     'INSTANT_MENUS MENU_RIGHT_CLICK MENU_EXTRA_INFO PAUSE_INFO_SPACING LONG_MENU_LISTS PAD_ICONS'),
     ("FusionFix", "Its mission and model fixes need its update folder in the game folder. Its shaders do not "
      "work in the port yet, so their options are not listed.",
      'FF_DATA'),

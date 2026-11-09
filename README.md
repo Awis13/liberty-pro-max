@@ -188,7 +188,7 @@ port's own.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-102 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
+103 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
 
 #### High frame rates
 
@@ -248,6 +248,7 @@ The game was made for 30 fps; these keep it right at any frame rate.
 | Pause menu shows the game's version, the archives open and memory use | off |
 | Pause menu time and money spaced as on consoles | on |
 | Menu lists show 32 rows before scrolling | on |
+| Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder) | off |
 
 #### FusionFix
 

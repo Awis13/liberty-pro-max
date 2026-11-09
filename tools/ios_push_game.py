@@ -9,9 +9,12 @@ movies/, update/, TLAD/, TBoGT/, index.bin, lang.ini, metadata.dat, commandline.
 symbolic links are followed. devicectl stages a folder on the Mac's system
 disk before sending it, so a folder is sent in one call only when it is under
 CHUNK bytes; bigger folders are split and their loose files go one by one.
-Before every call the Mac's free space is checked. Finished items are
-recorded in a state file next to this script's output (STATE), so a rerun
-continues where it stopped. Use the cable: over Wi-Fi it crawls.
+A folder with no files anywhere below it is left out (devicectl cannot copy
+one); a zero-byte file is sent, and a folder that cannot be read is an
+error, not an empty one. Before every call the Mac's free space is checked.
+Finished items are recorded in a state file next to this script's output
+(STATE), so a rerun continues where it stopped. Use the cable: over Wi-Fi it
+crawls.
 """
 import os
 import shutil
@@ -36,6 +39,13 @@ def size_of(path):
     return total
 
 
+def has_files(path):
+    """Whether any file is below path; a folder that cannot be read raises."""
+    def unreadable(error):
+        raise error
+    return any(files for _, _, files in os.walk(path, onerror=unreadable, followlinks=True))
+
+
 def plan(src, rel):
     """Yield (relative path, bytes) items to send, folders under CHUNK whole."""
     full = os.path.join(src, rel)
@@ -45,7 +55,7 @@ def plan(src, rel):
     size = size_of(full)
     # devicectl cannot copy a directory with no files. Preserve zero-byte
     # files, but leave empty directory trees out of the transfer plan.
-    if size == 0 and not any(files for _, _, files in os.walk(full, followlinks=True)):
+    if size == 0 and not has_files(full):
         return
     if size < CHUNK:
         yield rel, size

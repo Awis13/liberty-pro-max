@@ -1,5 +1,6 @@
 """Transfer-plan regressions; no Apple device or game installation required."""
 import importlib.util
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -44,6 +45,16 @@ class TransferPlanTests(unittest.TestCase):
         (self.root / "target/zero").touch()
         (self.root / "link").symlink_to(self.root / "target", target_is_directory=True)
         self.assertEqual(self.plan("link"), [("link", 0)])
+
+    @unittest.skipIf(os.geteuid() == 0, "root reads any directory")
+    def test_unreadable_directory_is_an_error_not_empty(self):
+        locked = self.root / "data/locked"
+        locked.mkdir(parents=True)
+        (locked / "content").write_bytes(b"game")
+        locked.chmod(0)
+        self.addCleanup(locked.chmod, 0o700)
+        with self.assertRaises(PermissionError):
+            self.plan("data")
 
     def test_chunked_plan_skips_empty_tree_and_preserves_other_files(self):
         (self.root / "pc/data/face/nested").mkdir(parents=True)

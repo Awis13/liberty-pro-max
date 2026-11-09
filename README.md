@@ -26,7 +26,7 @@ Expect rough edges, and please report what you find in the
 3. Press **Build Liberty Pro Max**. About 5 to 20 minutes later it is in
    Applications: open it, check the options, press **Play**.
 
-For the iPad and the Apple TV, see [Install](#install).
+For the iPad, the iPhone and the Apple TV, see [Install](#install).
 
 ## What you get
 
@@ -40,6 +40,9 @@ For the iPad and the Apple TV, see [Install](#install).
 | **Fixes built in** | about 100 fixes (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
 | **Extras** | the episodes, stun punch and executions on anyone, fast loading, a mods folder, saves shared through iCloud Drive | the same |
 | **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
+
+The iPad's build also runs on an iPhone (experimental): the same, at the
+phone's own wide resolutions, played with a controller.
 
 ## What you need
 
@@ -60,6 +63,10 @@ For the iPad and the Apple TV, see [Install](#install).
     Addressing* and *Increased Memory Limit* capabilities, which free
     accounts do not have;
   - a controller or a keyboard.
+- **For the iPhone** (experimental): an iPhone with iOS 17 or newer, in
+  Developer Mode and connected to the Mac by cable, with about 16 GB free;
+  the same Xcode and paid account; a controller. Which iPhones have the
+  memory for the game is not known yet.
 - **For the Apple TV** (experimental): an Apple TV 4K (3rd generation,
   A15) with tvOS 17 or newer, paired with Xcode (Window › Devices and
   Simulators) and in Developer Mode, on Ethernet (the game's 15 GB go over
@@ -110,25 +117,23 @@ The first run takes about 40 minutes.
 Then open **Liberty Pro Max** on the iPad, check the settings, press
 **Play**. The defaults are 1792×1344 with SMAA at 60 fps; the game's own
 graphics menu decides the rest: lower its view and detail distance if busy
-streets drop below 60. The game's log is `log.txt` in the app's Documents
-(Files › On My iPad, or `devicectl`).
+streets drop below 60. **Frame limit** is 60, 40, 30 or Off; Off leaves the
+pace to the screen, up to 120 fps on a 120 Hz one. The game's log is
+`log.txt` in the app's Documents (Files › On My iPad, or `devicectl`).
 
 ### iPhone (experimental)
 
-The same iOS build can run on iPhone. Its launcher derives landscape
-resolution presets from the display's native dimensions, at half,
-two-thirds, five-sixths, and full size. For a 2868×1320 display these are
-1434×660, 1912×880 (default), 2390×1100, and 2868×1320.
+The same, with the iPhone connected instead (with both connected,
+`--iphone` picks the phone):
 
-The iOS **Frame limit** choices are **60 / 40 / 30 / Off**. Off removes
-the app's frame cap; V-sync is controlled separately in the game's Graphics
-menu. ProMotion phones can render above 60 fps when performance allows.
-The launcher's **Performance overlay** setting controls Metal HUD.
+```bash
+./install-ios.sh --iphone YOUR_TEAM_ID
+```
 
-Landscape display modes require the companion x86recomp
-`DISPLAY_LANDSCAPE` support; otherwise changing graphics settings can
-select a portrait back buffer. Tested on an A20 Pro iPhone with iOS 27.2;
-performance and memory requirements on other phones have not been verified.
+The launcher's resolutions are the phone's own screen at half, two
+thirds (the default), five sixths and full size: 1912×880 of 2868×1320,
+say. Play it with a controller: the touch controls are laid out for the
+iPad's screen and come out too small on a phone.
 
 ### Apple TV (experimental)
 
@@ -375,8 +380,10 @@ keyboard lighting, graphics API choice and plugin loaders have nothing to do.
 
 ## Known issues
 
-- Mac, iPad and (experimental) Apple TV for now. Linux and the Steam Deck are planned.
+- Mac, iPad and (experimental) iPhone and Apple TV for now. Linux and the Steam Deck are planned.
 - iPad: busy streets need the game's view and detail distances lowered for a steady 60 fps.
+- iPhone: needs a controller (the touch controls are the iPad's, too small
+  on a phone); which models have enough memory is not known yet.
 - Apple TV: no settings screen yet; high texture quality does not
   fit its memory (DXT decoded on upload).
 - MetalFX temporal upscaling costs about 5 ms a frame at 3440×1440 output,
@@ -405,7 +412,7 @@ For the iPad, after that: `tools/apple_deps.sh`, `cmake --preset iphoneos &&
 cmake --build --preset iphoneos`, then `tools/ios_profile.sh`,
 `tools/make_ios_icon.py`, `tools/ios_bundle.sh <device>` and
 `tools/ios_push_game.py` (each script says what it takes; `install-ios.sh`
-runs them in order).
+runs them in order). The iPhone takes the same build and the same steps.
 
 For the Apple TV, the same with `PLATFORMS=tvos tools/apple_deps.sh`, the
 preset `appletvos` and `PLATFORM=tvos` for `tools/ios_profile.sh` and

@@ -43,6 +43,10 @@ def plan(src, rel):
         yield rel, os.path.getsize(full)
         return
     size = size_of(full)
+    # devicectl cannot copy a directory with no files. Preserve zero-byte
+    # files, but leave empty directory trees out of the transfer plan.
+    if size == 0 and not any(files for _, _, files in os.walk(full, followlinks=True)):
+        return
     if size < CHUNK:
         yield rel, size
         return

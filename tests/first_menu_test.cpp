@@ -69,6 +69,15 @@ void TestSaveNames() {
   EXPECT(!IsSaveName("SGTA300"));
 }
 
+// An empty file with a save's name (a copy cut short) is no save.
+void TestSaveFiles() {
+  using first_menu::IsSave;
+  EXPECT(IsSave("SGTA400", 1977934));
+  EXPECT(IsSave("SGTA401", 1));
+  EXPECT(!IsSave("SGTA400", 0));
+  EXPECT(!IsSave("ControlMap.dat", 756));
+}
+
 static_assert(first_menu::State(true, false, false, false) == 6, "constexpr");
 
 }  // namespace
@@ -80,6 +89,7 @@ int main() {
   TestContinueWithTheChooser();
   TestAfterThePick();
   TestSaveNames();
+  TestSaveFiles();
   if (g_failures) {
     std::fprintf(stderr, "first_menu_test: %d failed\n", g_failures);
     return 1;

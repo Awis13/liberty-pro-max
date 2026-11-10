@@ -54,4 +54,14 @@ constexpr bool IsSaveName(std::string_view name) {
   return name[5] >= '0' && name[5] <= '9' && name[6] >= '0' && name[6] <= '9';
 }
 
+// A file that counts as a save: a save's name and something in it. The
+// game's scan (0085A100) takes any file it can open with a time
+// (0061F1A0), reading its first 110h bytes for the slot's name (0061E870)
+// without a check of what it read, so there is no test of its own to
+// follow; but an empty file, as a copy cut short leaves, is no save the
+// game can load.
+constexpr bool IsSave(std::string_view name, std::uintmax_t size) {
+  return IsSaveName(name) && size > 0;
+}
+
 }  // namespace first_menu

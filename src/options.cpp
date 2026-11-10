@@ -209,21 +209,28 @@ void hook_00C8DBF5(Ctx& c) {  // opponentIsReadyToBeExecuted
 // time round.
 void hook_004A18E3(Ctx& c) { x87::LoadF32(c.fpu, FastLoading() ? 0 : Rd32(0x00EDFB24)); }
 
-// Whether the player's profile holds a save: a file SGTA4nn in the game's
-// save folder, savegames/user_<the profile's XUID> (xlive.cpp's fixed one).
-// The game's own scan runs only after the first menu (first_menu.h).
+// Whether the player's profile holds a save: a file SGTA4nn, not empty, in
+// the game's save folder, savegames/user_<the profile's XUID> (xlive.cpp's
+// fixed one). The game's own scan runs only after the first menu
+// (first_menu.h). An error reading the folders ends the search (no
+// exception out of the hook): what was found so far counts.
 bool HasSave() {
   namespace fs = std::filesystem;
   const fs::path saves = fs::path(recomp::DataDir()) /
                          "drive_c/Documents and Settings/Player/Local Settings/Application Data/"
                          "Rockstar Games/GTA IV/savegames";
   std::error_code ec;
-  for (const fs::directory_entry& user : fs::directory_iterator(saves, ec)) {
-    std::string name = user.path().filename().string();
+  for (fs::directory_iterator user(saves, ec), end; !ec && user != end; user.increment(ec)) {
+    std::string name = user->path().filename().string();
     for (char& ch : name) ch = char(std::tolower(static_cast<unsigned char>(ch)));
-    if (name != "user_ee000000deadc0de" || !user.is_directory(ec)) continue;
-    for (const fs::directory_entry& f : fs::directory_iterator(user.path(), ec))
-      if (first_menu::IsSaveName(f.path().filename().string()) && f.is_regular_file(ec)) return true;
+    std::error_code fec;
+    if (name != "user_ee000000deadc0de" || !user->is_directory(fec)) continue;
+    for (fs::directory_iterator f(user->path(), fec); !fec && f != end; f.increment(fec)) {
+      std::error_code sec;
+      if (!f->is_regular_file(sec)) continue;
+      const std::uintmax_t size = f->file_size(sec);
+      if (!sec && first_menu::IsSave(f->path().filename().string(), size)) return true;
+    }
   }
   return false;
 }

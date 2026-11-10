@@ -82,7 +82,7 @@ bool g_play = false;
 }
 
 // (kShaders is not shown: FixShown.)
-typedef NS_ENUM(NSInteger, LpmSection) { kGame, kGraphics, kFixesSection, kSectionCount, kShaders };
+typedef NS_ENUM(NSInteger, LpmSection) { kGame, kExtrasSection, kGraphics, kFixesSection, kSectionCount, kShaders };
 
 - (instancetype)init {
   if ((self = [super init])) _d = NSUserDefaults.standardUserDefaults;
@@ -158,6 +158,7 @@ typedef NS_ENUM(NSInteger, LpmSection) { kGame, kGraphics, kFixesSection, kSecti
 - (NSString*)tableView:(UITableView*)t titleForHeaderInSection:(NSInteger)s {
   switch (s) {
     case kGame: return @"Game";
+    case kExtrasSection: return @"Extras";
     case kGraphics: return @"Graphics";
     case kFixesSection: return @"Fixes";
     default: return @"FusionFix shaders";
@@ -198,6 +199,7 @@ static NSArray* GraphicsRows() {
 - (NSInteger)tableView:(UITableView*)t numberOfRowsInSection:(NSInteger)s {
   switch (s) {
     case kGame: return GameRows().count;
+    case kExtrasSection: return ExtraCount();
     case kGraphics: return GraphicsRows().count;
     case kFixesSection: return ShownFixCount();
     default: return std::size(kShaderChoices);
@@ -215,13 +217,13 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
   cell.backgroundColor = [UIColor colorWithWhite:0.11 alpha:1];
   cell.textLabel.numberOfLines = 0;
   NSString* key;
-  if (ip.section == kGame || ip.section == kFixesSection) {
+  if (ip.section == kGame || ip.section == kExtrasSection || ip.section == kFixesSection) {
     if (ip.section == kGame) {
       NSArray* row = GameRows()[ip.row];
       cell.textLabel.text = row[0];
       key = row[1];
     } else {
-      const Fix& f = ShownFix(ip.row);
+      const Fix& f = ip.section == kExtrasSection ? ExtraAt(ip.row) : ShownFix(ip.row);
       // (On the iPad the saves go through iCloud Drive: save_cloud.mm.)
       cell.textLabel.text = [f.key isEqualToString:@"SaveSync"] ? @"Saves synced with your Mac through iCloud Drive" : f.title;
       key = f.key;

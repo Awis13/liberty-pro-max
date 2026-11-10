@@ -122,6 +122,13 @@ if(GTAIV_TESTS AND NOT RECOMP_IOS)
   add_executable(gtaiv_first_menu_test tests/first_menu_test.cpp)
   target_include_directories(gtaiv_first_menu_test PRIVATE src)
   add_test(NAME first_menu COMMAND gtaiv_first_menu_test)
+  if(APPLE)
+    add_executable(gtaiv_launcher_options_test tests/launcher_options_test.mm)
+    target_include_directories(gtaiv_launcher_options_test PRIVATE src)
+    target_compile_options(gtaiv_launcher_options_test PRIVATE -fobjc-arc)
+    target_link_libraries(gtaiv_launcher_options_test PRIVATE "-framework Foundation")
+    add_test(NAME launcher_options COMMAND gtaiv_launcher_options_test)
+  endif()
 endif()
 
 # Opt-in native application-loop regression tests.

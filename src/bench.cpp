@@ -5,6 +5,8 @@
 // same route every run, whatever way the camera faced after loading.
 //
 //   GTAIV_BENCH=x,y,z,heading[,hour,weather]: the scene;
+//   GTAIV_BENCH_GAMEPLAY=1: skip startup cutscenes and wait for player control
+//     before placing the scene on foot (automated gameplay captures only).
 //   GTAIV_BENCH=log: only the player's position and heading every 2 s
 //   (logged after placing too).
 //
@@ -51,6 +53,13 @@ enum : uint32_t {
   FORCE_WEATHER_NOW = 0x63737D31,
   IS_CHAR_IN_ANY_CAR = 0x71184DA3,
   IS_PAUSE_MENU_ACTIVE = 0x6C4568A7,
+  // iv-sdk/include/Scripting/NativeHashes.h (GTA IV).
+  IS_PLAYER_CONTROL_ON = 0x30CD2F1F,
+  HAS_CUTSCENE_FINISHED = 0x4ECE1AD2,
+  STOP_CUTSCENE = 0x50FF1428,
+  IS_CHAR_ON_FOOT = 0x10A86CF4,
+  WARP_CHAR_FROM_CAR_TO_COORD = 0x6A77506A,
+  CLEAR_CHAR_TASKS_IMMEDIATELY = 0x3C116620,
 };
 
 // The scripts' call context (iv-sdk IVNativeCallContext) and what follows
@@ -148,6 +157,10 @@ void f_008A1860(Ctx& c) {
   // world has settled after loading.
   static uint32_t frames = 0;
   static bool placed = false;
+  static const bool gameplay = [] {
+    const char* e = std::getenv("GTAIV_BENCH_GAMEPLAY");
+    return e && *e == '1';
+  }();
   const uint32_t eax = c.eax, ebx = c.ebx, esi = c.esi, edi = c.edi, ebp = c.ebp;
   const uint32_t esp = c.esp;
   if (!CallGuest(c, kFindPlayerPed, {})) {
@@ -160,17 +173,36 @@ void f_008A1860(Ctx& c) {
         Native(c, base, CONVERT_INT_TO_PLAYERINDEX, {Native(c, base, GET_PLAYER_ID, {})});
     Native(c, base, GET_PLAYER_CHAR, {player, base + kOut});
     const uint32_t ped = Rd32(base + kOut);
-    if (!s.log && !placed) {
-      placed = true;
+    if (placed && gameplay && Native(c, base, IS_CHAR_IN_ANY_CAR, {ped}))
+      WarnF("gtaiv: bench: player vehicle=1\n");
+    if (!s.log && !placed && gameplay && !Native(c, base, IS_PLAYER_CONTROL_ON, {player})) {
+      if (frames % 120 == 0) {
+        if (!Native(c, base, HAS_CUTSCENE_FINISHED, {})) Native(c, base, STOP_CUTSCENE, {});
+        WarnF("gtaiv: bench: waiting for player control\n");
+      }
+    } else if (!s.log && !placed) {
+      // Shader-loading latency can leave the opening mission in different
+      // vehicle states. Normalize it before starting either measured path.
+      if (gameplay) {
+        if (Native(c, base, IS_CHAR_IN_ANY_CAR, {ped}))
+          Native(c, base, WARP_CHAR_FROM_CAR_TO_COORD, {ped, Bits(s.x), Bits(s.y), Bits(s.z)});
+        Native(c, base, CLEAR_CHAR_TASKS_IMMEDIATELY, {ped});
+      }
       if (s.hour >= 0) Native(c, base, FORCE_TIME_OF_DAY, {uint32_t(s.hour), 0});
       if (s.weather >= 0) Native(c, base, FORCE_WEATHER_NOW, {uint32_t(s.weather)});
       Native(c, base, LOAD_SCENE, {Bits(s.x), Bits(s.y), Bits(s.z)});
       Native(c, base, SET_CHAR_COORDINATES, {ped, Bits(s.x), Bits(s.y), Bits(s.z)});
       Native(c, base, SET_CHAR_HEADING, {ped, Bits(s.heading)});
       Native(c, base, SET_CAM_BEHIND_PED, {ped});
-      WarnF("gtaiv: bench: player placed at %.2f,%.2f,%.2f heading %.1f\n", s.x, s.y, s.z,
-            s.heading);
+      if (!gameplay || Native(c, base, IS_CHAR_ON_FOOT, {ped})) {
+        placed = true;
+        if (gameplay) WarnF("gtaiv: bench: player vehicle=0\n");
+        WarnF("gtaiv: bench: %s at %.2f,%.2f,%.2f heading %.1f\n",
+              gameplay ? "gameplay ready" : "player placed", s.x, s.y, s.z, s.heading);
+      }
     } else if (frames % 240 == 0) {
+      if (gameplay)
+        WarnF("gtaiv: bench: player vehicle=%u\n", Native(c, base, IS_CHAR_IN_ANY_CAR, {ped}) != 0);
       Native(c, base, GET_CHAR_COORDINATES, {ped, base + kOut, base + kOut + 4, base + kOut + 8});
       Native(c, base, GET_CHAR_HEADING, {ped, base + kOut + 12});
       WarnF("gtaiv: bench: player at %.2f,%.2f,%.2f heading %.1f\n", Float(Rd32(base + kOut)),

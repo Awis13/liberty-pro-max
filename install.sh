@@ -31,11 +31,12 @@ command -v brew >/dev/null 2>&1 || die "install Homebrew first: https://brew.sh"
 brew install cmake ninja sdl3 ffmpeg llvm@22 glslang spirv-cross python
 
 say "x86recomp"
-pin=$(cut -d' ' -f2 X86RECOMP)
+read -r ref pin repository < X86RECOMP
+repository=${repository:-https://github.com/Awis13/x86recomp}
 if [ ! -d vendor/x86recomp/.git ]; then
-  git clone --branch liberty https://github.com/Awis13/x86recomp vendor/x86recomp
+  git clone --branch "$ref" "$repository" vendor/x86recomp
 fi
-git -C vendor/x86recomp fetch --quiet origin liberty
+git -C vendor/x86recomp fetch --quiet "$repository" "$ref"
 git -C vendor/x86recomp checkout --quiet "$pin"
 
 say "Lifter and runtime (first build)"

@@ -575,6 +575,7 @@ hook 009AD73B 009AD740   # water buffers: the flip held until the render wait
 hook 008A187C 008A1883   # CMainLoop::Synchronise after its wait: the held flip
 hook 00B4F179 00B4F180   # SET_MINIGAME_IN_PROGRESS: which script
 hook 00855651 00855656   # once a frame: 30 fps in those minigames
+hook 008556E9 008556ED   # host FPS_LIMIT owns pacing; bypass the redundant guest yield loop
 hook 004B2C45 004B2C48   # radar: every frame, not every 30 ms
 hook 004B2CAA 004B2CB2   # radar zoom in: per time
 hook 004B2CB7 004B2CBF   # radar zoom out: per time

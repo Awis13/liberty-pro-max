@@ -54,21 +54,21 @@ std::string ErrorText(const std::string& code) {
 
 }  // namespace
 
-// The game's fatal error (cdecl: code, a, b): a message box with the
-// code's text and, when not zero, a and b; then a write to address 0 and
-// exit. With GTAIV_ERRORS_TO_LOG the box, the write and the exit are
-// skipped: logged, and back to the caller.
+// The game's fatal error (cdecl: code, a, b): log the code and caller
+// before its message box, deliberate null write and exit. With
+// GTAIV_ERRORS_TO_LOG the fatal path is skipped and the caller resumes.
 void f_00456680(Ctx& c) {
   static const bool on = OptionOn("GTAIV_ERRORS_TO_LOG", false);
+  const uint32_t code_va = Rd32(c.esp + 4);
+  const int32_t a = int32_t(Rd32(c.esp + 8)), b = int32_t(Rd32(c.esp + 12));
+  const std::string code = code_va ? GStr(code_va) : std::string("?");
+  WarnF("gtaiv: game error %s (%d, %d) from %08X: %s%s\n",
+        code.c_str(), a, b, Rd32(c.esp), ErrorText(code).c_str(),
+        on ? "; skipped (GTAIV_ERRORS_TO_LOG)" : "");
   if (!on) {
     f_00456680_lifted(c);
     return;
   }
-  const uint32_t code_va = Rd32(c.esp + 4);
-  const int32_t a = int32_t(Rd32(c.esp + 8)), b = int32_t(Rd32(c.esp + 12));
-  const std::string code = code_va ? GStr(code_va) : std::string("?");
-  WarnF("gtaiv: game error %s (%d, %d) from %08X: %s; skipped (GTAIV_ERRORS_TO_LOG)\n",
-        code.c_str(), a, b, Rd32(c.esp), ErrorText(code).c_str());
   c.esp += 4;  // cdecl: the return address only
 }
 

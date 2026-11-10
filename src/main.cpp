@@ -48,6 +48,8 @@ void GtaivModsInit();
 std::string GtaivModsRedirect(const std::string& guest_path);
 
 #if defined(__APPLE__) && !defined(GTAIV_IOS)
+#include "shader_profile_mac.h"
+#include "metal_archiver_mac.h"
 // launcher_mac.mm: the app's launcher window, when run from the bundle.
 void RunLauncherIfWanted(int argc, char** argv);
 #endif
@@ -94,6 +96,8 @@ static void WriteProfile() { __llvm_profile_write_file(); }
 
 int main(int argc, char** argv) {
 #if defined(__APPLE__) && !defined(GTAIV_IOS)
+  if (int result = GtaivMetalArchiverSession(argc, argv); result >= 0) return result;
+  if (int result = recomp::gfx::MetalPreparationCommand(argc, argv, GtaivMetalPreparationProfile()); result >= 0) return result;
   RunLauncherIfWanted(argc, argv);
   // GTAIV_LOG=path (the launcher sets it): stderr, the game's log, there.
   if (const char* log = std::getenv("GTAIV_LOG"); log && *log) std::freopen(log, "w", stderr);
@@ -167,6 +171,10 @@ int main(int argc, char** argv) {
   while (game_dir.size() > 1 && game_dir.back() == '/') game_dir.pop_back();
   if (const char* t = std::getenv("GTAIV_TRACE")) recomp::g_trace = *t && *t != '0';
 
+#if defined(__APPLE__) && !defined(GTAIV_IOS)
+  const char* cache_root = std::getenv("RECOMP_METAL_CACHE_ROOT");
+  recomp::gfx::ConfigureMetalPreparation(game_dir, cache_root ? cache_root : "", GtaivMetalPreparationProfile());
+#endif
   std::string exe = game_dir + "/GTAIV.exe";
   struct stat st;
   if (stat(exe.c_str(), &st) != 0) {

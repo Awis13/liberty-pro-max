@@ -6,7 +6,7 @@ ghidra/
 *.rep/
 out/
 run/
-# x86recomp (vendor/x86recomp, its `liberty` branch; see X86RECOMP).
+# x86recomp (vendor/x86recomp; repository, branch and commit in X86RECOMP).
 vendor/
 # Local machine settings.
 tools/local.env

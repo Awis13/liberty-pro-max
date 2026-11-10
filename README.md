@@ -41,6 +41,21 @@ For the iPad and the Apple TV, see [Install](#install).
 | **Extras** | the episodes, stun punch and executions on anyone, fast loading, a mods folder, saves shared through iCloud Drive | the same |
 | **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
 
+## Shader preparation (Mac)
+
+The startup window's **Shaders** tab can prepare shaders and baseline Metal
+pipelines before your first playthrough. Choose **Precompile shaders** to start;
+progress, cancellation, cache location/size, cleaning, and error logs are available
+there. Completed entries survive restarts and cancellation. Relevant changes show
+**Needs preparation**; rebuilding is manual. Play remains available whenever
+preparation is stopped, including after a failure.
+
+Preparation is optional and does not guarantee stutter-free gameplay. The game
+preloads baseline states on first play, selects observed states on later starts,
+and automatically saves encountered shader libraries and pipeline archives in the
+background when the Metal Toolchain is available. Full preparation stays manual. See
+[storage, compatibility, testing, and gameplay capture](docs/shader-preparation.md).
+
 ## What you need
 
 - **Your own GTA IV for PC, version 1.0.8.0**: the folder with `GTAIV.exe`
@@ -368,8 +383,9 @@ keyboard lighting, graphics API choice and plugin loaders have nothing to do.
 
 ```bash
 brew install cmake ninja sdl3 ffmpeg llvm@22 glslang spirv-cross python
-git clone --branch liberty https://github.com/Awis13/x86recomp vendor/x86recomp
-git -C vendor/x86recomp checkout "$(cut -d' ' -f2 X86RECOMP)"
+read -r ref pin repository < X86RECOMP
+git clone --branch "$ref" "$repository" vendor/x86recomp
+git -C vendor/x86recomp checkout "$pin"
 export GTAIV_GAME_DIR="/path/to/Grand Theft Auto IV"
 
 cmake --preset release && cmake --build --preset release   # the lifter and runtime
@@ -405,9 +421,9 @@ preset `appletvos` and `PLATFORM=tvos` for `tools/ios_profile.sh` and
   priorities, and the FusionFix and ZolikaPatch fixes.
 - `src/launcher_mac.mm` and `src/launcher_ios.mm` are the two launchers;
   `src/launcher_options.h` the options they share.
-- The Metal renderer, audio and Windows layer live in x86recomp, on the
-  [`liberty`](https://github.com/Awis13/x86recomp/tree/liberty) branch pinned
-  in `X86RECOMP`.
+- The Metal renderer, audio and Windows layer live in x86recomp, at the repository,
+  branch and commit pinned in `X86RECOMP`. CMake consumes that source directly without applying patches.
+  GTA shader discovery and preparation recipes live in `src/shader_profile_mac.mm`.
 
 ### Speed
 

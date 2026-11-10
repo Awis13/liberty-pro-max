@@ -224,11 +224,11 @@ void RegisterDefaults(NSUserDefaults* d) {
 }
 
 // The options as the game reads them: environment variables of this process.
-void ApplyOptions(NSUserDefaults* d) {
-  setenv("GTAIV_FULLSCREEN", [d boolForKey:kWindowKey] ? "window" : "desktop", 1);
-  setenv("GTAIV_TOUCH", [d boolForKey:kTouchKey] ? "1" : "0", 1);
-  setenv("GTAIV_OVER_NOTCH", [d boolForKey:kOverNotchKey] ? "1" : "0", 1);
-  switch ([d integerForKey:kVsyncKey]) {
+void ApplyOptionValues(NSDictionary* values) {
+  setenv("GTAIV_FULLSCREEN", [values[kWindowKey] boolValue] ? "window" : "desktop", 1);
+  setenv("GTAIV_TOUCH", [values[kTouchKey] boolValue] ? "1" : "0", 1);
+  setenv("GTAIV_OVER_NOTCH", [values[kOverNotchKey] boolValue] ? "1" : "0", 1);
+  switch ([values[kVsyncKey] integerValue]) {
     case 1: setenv("GTAIV_VSYNC", "1", 1); break;
     case 2: setenv("GTAIV_VSYNC", "0", 1); break;
     default: unsetenv("GTAIV_VSYNC"); break;
@@ -236,45 +236,50 @@ void ApplyOptions(NSUserDefaults* d) {
   // The Metal renderer (its anti-aliasing, upscalers and fixes): without
   // GTAIV_GFX the runtime takes its generic SDL GPU path, much slower.
   setenv("GTAIV_GFX", "metal", 0);
-  switch ([d integerForKey:kAntiAliasingKey]) {
+  // Shader status and preparation reapply options as the selection changes.
+  unsetenv("RECOMP_RENDER_SCALE");
+  switch ([values[kAntiAliasingKey] integerValue]) {
     case 1: setenv("RECOMP_UPSCALER", "smaa", 1); break;
     case 2:
     case 4: {
       // MetalFX upscales: the scene drawn at this share of the screen.
       static const char* const kScales[] = {"1.0", "0.67", "0.58", "0.5"};
-      setenv("RECOMP_UPSCALER", [d integerForKey:kAntiAliasingKey] == 4 ? "metalfx-spatial" : "metalfx", 1);
-      setenv("RECOMP_RENDER_SCALE", kScales[std::clamp<NSInteger>([d integerForKey:kMetalFXScaleKey], 0, 3)], 1);
+      setenv("RECOMP_UPSCALER", [values[kAntiAliasingKey] integerValue] == 4 ? "metalfx-spatial" : "metalfx", 1);
+      setenv("RECOMP_RENDER_SCALE", kScales[std::clamp<NSInteger>([values[kMetalFXScaleKey] integerValue], 0, 3)], 1);
       break;
     }
     case 3: setenv("RECOMP_UPSCALER", "taa", 1); break;
     default: unsetenv("RECOMP_UPSCALER"); break;
   }
   static const char* const kSharpness[] = {"0", "0.3", "0.5", "0.8"};
-  setenv("RECOMP_TAA_SHARPNESS", kSharpness[std::clamp<NSInteger>([d integerForKey:kTaaSharpeningKey], 0, 3)], 1);
-  setenv("MTL_HUD_ENABLED", [d boolForKey:kHudKey] ? "1" : "0", 1);
-  setenv("GTAIV_SKIP_INTRO", [d boolForKey:kSkipIntroKey] ? "1" : "0", 1);
+  setenv("RECOMP_TAA_SHARPNESS", kSharpness[std::clamp<NSInteger>([values[kTaaSharpeningKey] integerValue], 0, 3)], 1);
+  setenv("MTL_HUD_ENABLED", [values[kHudKey] boolValue] ? "1" : "0", 1);
+  setenv("GTAIV_SKIP_INTRO", [values[kSkipIntroKey] boolValue] ? "1" : "0", 1);
   // Render targets made larger (RECOMP_RT_BOOST): the shadow maps (the
   // cascades' atlas 8192x2048, 2048 and 1024 maps), the reflections (512
   // and 256).
   std::string boost;
-  if ([d integerForKey:kShadowsKey] == 1) boost += "8192x2048:2,2048x2048:2,1024x1024:2,";
-  if ([d integerForKey:kReflectionsKey] == 1) boost += "512x512:2,256x256:2,";
-  setenv("GTAIV_FAST_LOADING", [d boolForKey:kFastLoadingKey] ? "1" : "0", 1);
-  const NSInteger fov = std::clamp<NSInteger>([d integerForKey:kFovKey], 0, 4);
+  if ([values[kShadowsKey] integerValue] == 1) boost += "8192x2048:2,2048x2048:2,1024x1024:2,";
+  if ([values[kReflectionsKey] integerValue] == 1) boost += "512x512:2,256x256:2,";
+  setenv("GTAIV_FAST_LOADING", [values[kFastLoadingKey] boolValue] ? "1" : "0", 1);
+  const NSInteger fov = std::clamp<NSInteger>([values[kFovKey] integerValue], 0, 4);
   if (fov) setenv("GTAIV_FOV", std::to_string(fov * 5).c_str(), 1);
   else unsetenv("GTAIV_FOV");
   if (boost.empty()) unsetenv("RECOMP_RT_BOOST");
   else setenv("RECOMP_RT_BOOST", boost.substr(0, boost.size() - 1).c_str(), 1);
-  setenv("GTAIV_CONTINUE", [d boolForKey:kContinueKey] ? "1" : "0", 1);
-  setenv("GTAIV_MODS", [d boolForKey:kModsKey] ? "1" : "0", 1);
-  setenv("GTAIV_STUN_PUNCH", [d boolForKey:kStunPunchKey] ? "1" : "0", 1);
-  setenv("GTAIV_EXECUTIONS", [d boolForKey:kExecutionsKey] ? "1" : "0", 1);
-  for (const Fix& f : kFixes) setenv(f.env, [d boolForKey:f.key] ? "1" : "0", 1);
+  setenv("GTAIV_CONTINUE", [values[kContinueKey] boolValue] ? "1" : "0", 1);
+  setenv("GTAIV_MODS", [values[kModsKey] boolValue] ? "1" : "0", 1);
+  setenv("GTAIV_STUN_PUNCH", [values[kStunPunchKey] boolValue] ? "1" : "0", 1);
+  setenv("GTAIV_EXECUTIONS", [values[kExecutionsKey] boolValue] ? "1" : "0", 1);
+  for (const Fix& f : kFixes) setenv(f.env, [values[f.key] boolValue] ? "1" : "0", 1);
   for (const ShaderChoice& sc : kShaderChoices) {
-    const NSInteger v = std::clamp<NSInteger>([d integerForKey:sc.key], 0, NSInteger(sc.items.count) - 1);
+    const NSInteger v = std::clamp<NSInteger>([values[sc.key] integerValue], 0, NSInteger(sc.items.count) - 1);
     setenv(sc.env, std::to_string(v).c_str(), 1);
   }
 
+}
+void ApplyOptions(NSUserDefaults* d) {
+  ApplyOptionValues(d.dictionaryRepresentation);
 }
 
 }  // namespace

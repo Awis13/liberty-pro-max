@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "launcher_options.h"
+#import "shader_preparation_mac.h"
 
 namespace {
 
@@ -66,6 +67,7 @@ extern "C" void GtaivSyncSaves(const char* when);  // save_sync_mac.mm
 // environment. Returns only if that failed.
 void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
   ApplyOptions(d);
+  setenv("RECOMP_METAL_CACHE_ROOT", [GtaivShaderPreparation cacheRoot].fileSystemRepresentation, 1);
   // The newest saves from the player's iPad and Apple TV first.
   GtaivSyncSaves("before the game");
 
@@ -102,7 +104,43 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 
 }  // namespace
 
-@interface GtaivLauncher : NSObject <NSApplicationDelegate, NSWindowDelegate>
+// NSTabView detaches unselected pages, which repeatedly rebuilds the Advanced
+// grid's constraint tree. Retain the pages as siblings of its empty item views.
+@interface GtaivEmptyTabPage : NSView
+@end
+@implementation GtaivEmptyTabPage
+// NSTabView puts this placeholder above the retained page's controls.
+- (NSView*)hitTest:(NSPoint)point { return nil; }
+@end
+
+@interface GtaivLauncherTabs : NSTabView
+@property(strong) NSMutableDictionary<NSString*, NSView*>* pages;
+- (void)addPage:(NSView*)page title:(NSString*)title;
+@end
+
+@implementation GtaivLauncherTabs
+- (void)addPage:(NSView*)page title:(NSString*)title {
+  if (!self.pages) self.pages = [NSMutableDictionary new];
+  NSTabViewItem* item = [[NSTabViewItem alloc] initWithIdentifier:title];
+  item.label = title;
+  item.view = [GtaivEmptyTabPage new];
+  self.pages[title] = page;
+  [self addSubview:page];
+  [self addTabViewItem:item];
+  page.hidden = ![self.selectedTabViewItem.identifier isEqual:title];
+}
+- (void)selectTabViewItem:(NSTabViewItem*)item {
+  [super selectTabViewItem:item];
+  for (NSString* title in self.pages)
+    self.pages[title].hidden = ![self.selectedTabViewItem.identifier isEqual:title];
+}
+- (void)layout {
+  [super layout];
+  for (NSView* page in self.pages.allValues) page.frame = self.contentRect;
+}
+@end
+
+@interface GtaivLauncher : NSObject <NSApplicationDelegate, NSWindowDelegate, NSTabViewDelegate>
 @property(strong) NSWindow* window;
 @property(strong) NSTextField* folderField;
 @property(strong) NSTextField* problem;
@@ -117,7 +155,7 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 @property(strong) NSButton* overNotch;
 @property(strong) NSButton* mods;
 @property(strong) NSTextField* modsNote;
-@property(strong) NSTabView* tabs;
+@property(strong) GtaivLauncherTabs* tabs;
 @property(strong) NSPopUpButton* shadows;
 @property(strong) NSPopUpButton* reflections;
 @property(strong) NSPopUpButton* fov;
@@ -128,6 +166,8 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 @property(strong) NSMutableArray<NSPopUpButton*>* shaderChoices;
 @property(strong) NSButton* skip;
 @property(strong) NSButton* play;
+@property(strong) NSButton* chooseFolder;
+@property(strong) GtaivShaderPreparation* preparation;
 @property(copy) NSString* folder;
 @property NSModalResponse response;
 @end
@@ -178,6 +218,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [self.folderField setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow
                                              forOrientation:NSLayoutConstraintOrientationHorizontal];
   NSButton* choose = [NSButton buttonWithTitle:@"Choose…" target:self action:@selector(choose:)];
+  self.chooseFolder = choose;
   NSStackView* folderRow = [NSStackView stackViewWithViews:@[ self.folderField, choose ]];
 
   self.display = [self popup:@[ @"Full screen", @"Window" ] selected:[d boolForKey:kWindowKey] ? 1 : 0];
@@ -321,10 +362,24 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     [advDoc.widthAnchor constraintEqualToAnchor:advScroll.contentView.widthAnchor],
   ]];
 
-  self.tabs = [NSTabView new];
-  for (NSArray* tab in @[ @[ @"General", grid ], @[ @"Advanced", advScroll ] ]) {
-    NSTabViewItem* item = [[NSTabViewItem alloc] initWithIdentifier:tab[0]];
-    item.label = tab[0];
+  __weak GtaivLauncher* weakSelf = self;
+  self.preparation = [[GtaivShaderPreparation alloc] initWithGameFolder:^{ return weakSelf.folder; }
+    environment:^{
+      // Status queries need current settings, without writing every preference
+      // to disk during a tab switch. Persist the options when Play is pressed.
+      NSMutableDictionary* options = [NSUserDefaults.standardUserDefaults.dictionaryRepresentation mutableCopy];
+      [options addEntriesFromDictionary:[weakSelf optionValues]];
+      ApplyOptionValues(options);
+      return NSProcessInfo.processInfo.environment;
+    }];
+  self.preparation.runningChanged = ^(BOOL running) {
+    GtaivLauncher* launcher = weakSelf;
+    launcher.play.enabled = !running && HasGame(launcher.folder);
+    launcher.chooseFolder.enabled = !running;
+  };
+  self.tabs = [GtaivLauncherTabs new];
+  self.tabs.delegate = self;
+  for (NSArray* tab in @[ @[ @"General", grid ], @[ @"Advanced", advScroll ], @[ @"Shaders", self.preparation.view ] ]) {
     NSView* page = [NSView new];
     NSView* g = tab[1];
     g.translatesAutoresizingMaskIntoConstraints = NO;
@@ -338,13 +393,17 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
         [g.trailingAnchor constraintEqualToAnchor:page.trailingAnchor constant:-4],
         [g.bottomAnchor constraintEqualToAnchor:page.bottomAnchor constant:-4],
       ]];
+    else if (g == self.preparation.view)
+      [NSLayoutConstraint activateConstraints:@[
+        [g.trailingAnchor constraintEqualToAnchor:page.trailingAnchor constant:-14],
+        [g.bottomAnchor constraintLessThanOrEqualToAnchor:page.bottomAnchor constant:-14],
+      ]];
     else  // the page grows to the whole grid
       [NSLayoutConstraint activateConstraints:@[
         [g.trailingAnchor constraintLessThanOrEqualToAnchor:page.trailingAnchor constant:-14],
         [g.bottomAnchor constraintLessThanOrEqualToAnchor:page.bottomAnchor constant:-14],
       ]];
-    item.view = page;
-    [self.tabs addTabViewItem:item];
+    [self.tabs addPage:page title:tab[0]];
   }
 
   self.problem = [NSTextField labelWithString:@""];
@@ -385,9 +444,14 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     [self.folderField.widthAnchor constraintGreaterThanOrEqualToConstant:300],
   ]];
   [self showFolder];
-  // As tall as its content (the General tab's grid sets the minimum).
+  // Empty native item views no longer contribute their pages' minimum sizes.
+  CGFloat pageHeight = MAX(360, self.tabs.pages[@"General"].fittingSize.height);
+  pageHeight = MAX(pageHeight, self.tabs.pages[@"Shaders"].fittingSize.height);
+  [self.tabs.heightAnchor constraintGreaterThanOrEqualToConstant:
+      pageHeight + self.tabs.frame.size.height - self.tabs.contentRect.size.height].active = YES;
   [self.window layoutIfNeeded];
   [self.window setContentSize:all.fittingSize];
+  [self.window layoutIfNeeded];
   [self.window center];
 }
 
@@ -396,7 +460,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   const bool ok = HasGame(self.folder);
   self.problem.stringValue = ok ? @"" : @"Choose the folder of your Grand Theft Auto IV (PC) install: the one with GTAIV.exe.";
   self.problem.hidden = ok;
-  self.play.enabled = ok;
+  self.play.enabled = ok && !self.preparation.preparing;
 }
 
 - (void)choose:(id)sender {
@@ -408,35 +472,51 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   if ([panel runModal] == NSModalResponseOK) {
     self.folder = panel.URL.path;
     [self showFolder];
+    [self.preparation refresh];
   }
 }
 
-- (void)play:(id)sender {
-  NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
-  [d setObject:self.folder forKey:kFolderKey];
-  Store(d, kWindowKey, @(self.display.indexOfSelectedItem == 1));
-  Store(d, kOverNotchKey, @(self.overNotch.state == NSControlStateValueOn));
-  Store(d, kVsyncKey, @(self.vsync.indexOfSelectedItem));
-  Store(d, kAntiAliasingKey, @(self.antialiasing.indexOfSelectedItem));
-  Store(d, kMetalFXScaleKey, @(self.metalfxScale.indexOfSelectedItem));
-  Store(d, kTaaSharpeningKey, @(self.taaSharpening.indexOfSelectedItem));
-  Store(d, kHudKey, @(self.hud.state == NSControlStateValueOn));
-  Store(d, kSkipIntroKey, @(self.skipIntro.state == NSControlStateValueOn));
-  Store(d, kContinueKey, @(self.continueSave.state == NSControlStateValueOn));
-  Store(d, kModsKey, @(self.mods.state == NSControlStateValueOn));
-  Store(d, kShadowsKey, @(self.shadows.indexOfSelectedItem));
-  Store(d, kReflectionsKey, @(self.reflections.indexOfSelectedItem));
-  Store(d, kFovKey, @(self.fov.indexOfSelectedItem));
-  Store(d, kFastLoadingKey, @(self.fastLoading.state == NSControlStateValueOn));
-  Store(d, kStunPunchKey, @(self.stunPunch.state == NSControlStateValueOn));
-  Store(d, kExecutionsKey, @(self.executions.state == NSControlStateValueOn));
+- (NSDictionary*)optionValues {
+  NSMutableDictionary* values = [@{
+    kFolderKey: self.folder ?: @"",
+    kWindowKey: @(self.display.indexOfSelectedItem == 1),
+    kOverNotchKey: @(self.overNotch.state == NSControlStateValueOn),
+    kVsyncKey: @(self.vsync.indexOfSelectedItem),
+    kAntiAliasingKey: @(self.antialiasing.indexOfSelectedItem),
+    kMetalFXScaleKey: @(self.metalfxScale.indexOfSelectedItem),
+    kTaaSharpeningKey: @(self.taaSharpening.indexOfSelectedItem),
+    kHudKey: @(self.hud.state == NSControlStateValueOn),
+    kSkipIntroKey: @(self.skipIntro.state == NSControlStateValueOn),
+    kContinueKey: @(self.continueSave.state == NSControlStateValueOn),
+    kModsKey: @(self.mods.state == NSControlStateValueOn),
+    kShadowsKey: @(self.shadows.indexOfSelectedItem),
+    kReflectionsKey: @(self.reflections.indexOfSelectedItem),
+    kFovKey: @(self.fov.indexOfSelectedItem),
+    kFastLoadingKey: @(self.fastLoading.state == NSControlStateValueOn),
+    kStunPunchKey: @(self.stunPunch.state == NSControlStateValueOn),
+    kExecutionsKey: @(self.executions.state == NSControlStateValueOn),
+    kSkipKey: @(self.skip.state == NSControlStateValueOn),
+  } mutableCopy];
   for (NSUInteger i = 0; i < self.fixes.count; i++)
-    Store(d, kFixes[i].key, @(self.fixes[i].state == NSControlStateValueOn));
+    values[kFixes[i].key] = @(self.fixes[i].state == NSControlStateValueOn);
   for (NSUInteger i = 0; i < self.shaderChoices.count; i++)
-    Store(d, kShaderChoices[i].key, @(self.shaderChoices[i].indexOfSelectedItem));
-  Store(d, kSkipKey, @(self.skip.state == NSControlStateValueOn));
+    values[kShaderChoices[i].key] = @(self.shaderChoices[i].indexOfSelectedItem);
+  return values;
+}
+
+- (void)saveOptions {
+  NSDictionary* values = [self optionValues];
+  NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
+  [d setObject:values[kFolderKey] forKey:kFolderKey];
+  for (NSString* key in values)
+    if (![key isEqualToString:kFolderKey]) Store(d, key, values[key]);
   [d synchronize];
-  [self finishWithResponse:NSModalResponseOK];
+}
+
+- (void)play:(id)sender {
+  if (self.preparation.preparing) return;
+  [self saveOptions];
+  [self.preparation stopWithCompletion:^{ [self finishWithResponse:NSModalResponseOK]; }];
 }
 
 - (void)openMods:(id)sender {
@@ -455,18 +535,25 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
 
 - (void)quit:(id)sender {
   [self.window orderOut:nil];
-  [self finishWithResponse:NSModalResponseCancel];
+  [self.preparation stopWithCompletion:^{ [self finishWithResponse:NSModalResponseCancel]; }];
 }
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender {
   // Accept system quit so logout and shutdown receive a successful reply.
   [self.window orderOut:nil];
-  return NSTerminateNow;
+  dispatch_async(dispatch_get_main_queue(), ^{
+    [self.preparation stopWithCompletion:^{ [sender replyToApplicationShouldTerminate:YES]; }];
+  });
+  return NSTerminateLater;
 }
 
 - (BOOL)windowShouldClose:(NSWindow*)window {
   [self quit:nil];
   return YES;
+}
+
+- (void)tabView:(NSTabView*)tabView didSelectTabViewItem:(NSTabViewItem*)item {
+  if ([item.label isEqualToString:@"Shaders"]) [self.preparation refresh];
 }
 
 @end
@@ -534,6 +621,10 @@ void RunLauncherIfWanted(int argc, char** argv) {
     // Dev aids: GTAIV_LAUNCHER_SNAPSHOT=file.png draws the window there
     // (unshown) and exits; GTAIV_LAUNCHER_AUTOPLAY=1 presses Play.
     if (const char* snap = std::getenv("GTAIV_LAUNCHER_SNAPSHOT")) {
+      if (const char* tab = std::getenv("GTAIV_LAUNCHER_SNAPSHOT_TAB")) {
+        l.tabs.delegate = nil;  // a static snapshot must not start a worker
+        [l.tabs selectTabViewItemWithIdentifier:@(tab)];
+      }
       NSView* v = l.window.contentView;
       [l.window layoutIfNeeded];
       v.appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];

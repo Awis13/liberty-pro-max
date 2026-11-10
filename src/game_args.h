@@ -55,7 +55,10 @@ namespace gtaiv {
 
 // The arguments of a response file's text, split as the game splits
 // commandline.txt (above). An unquoted argument "@name" is replaced by
-// the arguments of read(name)'s text, 8 deep at most; read reads at most
+// the arguments of read(name)'s text, 8 deep at most (two includes in one
+// file deliberately differ from the game: it reads every include of a file
+// into the same place, so the second overwrites the first; here both are
+// kept); read reads at most
 // max_bytes (what is left of the game's buffer) and returns false for a
 // file it cannot read (it is not called if empty). A UTF-8 byte order mark
 // at the start of a text is skipped (the game would take it as part of the
@@ -65,8 +68,9 @@ std::vector<std::string> SplitResponseText(std::string_view text, const ReadFile
 
 // A file in the game folder by its path there ('/' or '\' between the
 // parts), each part matched without regard to case as the game's own file
-// lookups are: the path with the names on disk, or empty if there is no
-// such file, or the path is absolute, has a drive or a ".." part.
+// lookups are: the path as given where the volume finds it so, else with
+// the names on disk; empty if there is no such file, or the path is
+// absolute, has a drive or a ".." part.
 std::string FindGamePath(const std::string& game_dir, const std::string& name);
 
 // <game_dir>/commandline.txt's arguments; none if there is no such file.

@@ -40,7 +40,9 @@ Args ParseArgs(int argc, char** argv) {
   Args a;
   for (int i = 1; i < argc; i++) {
     if (!std::strcmp(argv[i], "--game-dir") && i + 1 < argc) {
-      a.game_dir = @(argv[++i]);
+      // nil if the path is not valid UTF-8: the saved folder is used.
+      a.game_dir = [NSString stringWithUTF8String:argv[++i]];
+      if (!a.game_dir) std::fprintf(stderr, "gtaiv: --game-dir is not valid UTF-8, ignored\n");
     } else if (!std::strcmp(argv[i], "--")) {
       for (i++; i < argc; i++) a.game_args.push_back(argv[i]);
     }
@@ -83,7 +85,11 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
   // encoding), then those given here after "--", passed on.
   if (!args.game_args.empty()) {
     [arguments addObject:@"--"];
-    for (const std::string& a : args.game_args) [arguments addObject:@(a.c_str())];
+    for (const std::string& a : args.game_args) {
+      // An argument that is not valid UTF-8 has no NSString to pass on.
+      if (NSString* s = [NSString stringWithUTF8String:a.c_str()]) [arguments addObject:s];
+      else std::fprintf(stderr, "gtaiv: a game argument is not valid UTF-8, left out\n");
+    }
   }
   NSWorkspaceOpenConfiguration* config = [NSWorkspaceOpenConfiguration configuration];
   config.createsNewApplicationInstance = YES;

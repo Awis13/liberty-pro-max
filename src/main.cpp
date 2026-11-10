@@ -168,12 +168,18 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[i], "--game-dir") && i + 1 < argc) {
       game_dir = argv[++i];
     } else if (!std::strcmp(argv[i], "--no-launcher")) {
-      // (The Mac launcher's own: started from it, launcher_mac.mm.)
+      // (The Mac launcher's own: started from it, launcher_mac.mm.) It
+      // also puts the game's arguments together as behind any launcher:
+      // the port's defaults and the player's commandline.txt come first.
       from_launcher = true;
     } else if (!std::strcmp(argv[i], "--")) {
       for (i++; i < argc; i++) game_args.push_back(argv[i]);
     } else {
-      std::fprintf(stderr, "usage: %s [--game-dir DIR] [-- GAME ARGS...]\n", argv[0]);
+      std::fprintf(stderr,
+                   "usage: %s [--game-dir DIR] [--no-launcher] [-- GAME ARGS...]\n"
+                   "  --no-launcher  started by the launcher: the game gets the port's defaults,\n"
+                   "                 then the game folder's commandline.txt, then GAME ARGS\n",
+                   argv[0]);
       return 2;
     }
   }

@@ -9,6 +9,7 @@
 
 #include <cctype>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -93,7 +94,12 @@ struct Scratch {
   std::filesystem::path dir;
   Scratch() {
     char name[] = "game_args_test.XXXXXX";
-    dir = std::filesystem::absolute(mkdtemp(name));
+    const char* made = mkdtemp(name);
+    if (!made) {
+      std::perror("game_args_test: mkdtemp");
+      std::exit(1);
+    }
+    dir = std::filesystem::absolute(made);
   }
   ~Scratch() { std::filesystem::remove_all(dir); }
   void Write(const std::string& name, const std::string& text) const {
@@ -101,6 +107,13 @@ struct Scratch {
   }
   Args Read() const { return gtaiv::ReadCommandLineFile(dir.string()); }
 };
+
+// FindGamePath's answer is that file (on a volume that ignores case it
+// keeps the spelling it was given, which finds the same file).
+bool SameFile(const std::string& found, const std::filesystem::path& want) {
+  std::error_code ec;
+  return !found.empty() && std::filesystem::equivalent(found, want, ec);
+}
 
 void TestNoFile() {
   Scratch s;
@@ -242,16 +255,52 @@ void TestCase() {
   s.Write("Cfg/more.Txt", "-c");
   EXPECT_ARGS(s.Read(), {"-a", "-b", "-c"});
   // The names on disk, found by their spelling in any case.
-  EXPECT(gtaiv::FindGamePath(s.dir.string(), "EXTRA.txt") == (s.dir / "extra.TXT").string());
-  EXPECT(gtaiv::FindGamePath(s.dir.string(), "cfg\\more.TXT") == (s.dir / "Cfg/more.Txt").string());
-  EXPECT(gtaiv::FindGamePath(s.dir.string(), "./cfg//more.txt") == (s.dir / "Cfg/more.Txt").string());
+  EXPECT(SameFile(gtaiv::FindGamePath(s.dir.string(), "EXTRA.txt"), s.dir / "extra.TXT"));
+  EXPECT(SameFile(gtaiv::FindGamePath(s.dir.string(), "cfg\\more.TXT"), s.dir / "Cfg/more.Txt"));
+  EXPECT(SameFile(gtaiv::FindGamePath(s.dir.string(), "./cfg//more.txt"), s.dir / "Cfg/more.Txt"));
+  // The exact spelling is taken as it is, without a listing.
+  EXPECT(gtaiv::FindGamePath(s.dir.string(), "extra.TXT") == (s.dir / "extra.TXT").string());
   EXPECT(gtaiv::FindGamePath(s.dir.string(), "missing.txt").empty());
   EXPECT(gtaiv::FindGamePath(s.dir.string(), "cfg/missing/more.txt").empty());
-  // The same name in two spellings: the exact one.
+  // The same name in two spellings: the exact one wins (only where the
+  // volume tells case apart and can hold both).
   s.Write("Twin.txt", "1");
   s.Write("twin.txt", "2");
-  const std::string twin = gtaiv::FindGamePath(s.dir.string(), "twin.txt");
-  EXPECT(twin == (s.dir / "twin.txt").string() || twin == (s.dir / "Twin.txt").string());
+  size_t twins = 0;
+  for (const auto& e : std::filesystem::directory_iterator(s.dir)) twins += e.path().filename() == "Twin.txt" ||
+                                                                             e.path().filename() == "twin.txt";
+  if (twins == 2) {
+    EXPECT(gtaiv::FindGamePath(s.dir.string(), "twin.txt") == (s.dir / "twin.txt").string());
+    EXPECT(gtaiv::FindGamePath(s.dir.string(), "Twin.txt") == (s.dir / "Twin.txt").string());
+    s.Write("commandline.txt", "@Twin.txt @twin.txt");
+    EXPECT_ARGS(s.Read(), {"1", "2"});
+  } else {
+    std::printf("game_args_test: this volume ignores case; the two-spellings check is skipped\n");
+  }
+}
+
+// The dev game folder is made of symlinks: commandline.txt, a folder on
+// an include's path and the file at its end may each be one.
+void TestSymlinks() {
+  Scratch s;
+  const std::filesystem::path game = s.dir / "game";
+  std::filesystem::create_directory(game);
+  std::filesystem::create_directory(s.dir / "elsewhere");
+  std::filesystem::create_directory(s.dir / "elsewhere/Settings");
+  s.Write("real_commandline.txt", "-a @settings\\Extra.txt @cfg/linked.txt");
+  s.Write("elsewhere/Settings/extra.txt", "-b");
+  s.Write("linked_target.txt", "-c");
+  std::filesystem::create_symlink(s.dir / "real_commandline.txt", game / "commandline.txt");
+  std::filesystem::create_directory_symlink(s.dir / "elsewhere/Settings", game / "Settings");
+  std::filesystem::create_directory(game / "cfg");
+  std::filesystem::create_symlink(s.dir / "linked_target.txt", game / "cfg/linked.txt");
+  EXPECT_ARGS(gtaiv::ReadCommandLineFile(game.string()), {"-a", "-b", "-c"});
+  // Found through the folder link, in any case.
+  EXPECT(SameFile(gtaiv::FindGamePath(game.string(), "SETTINGS/EXTRA.TXT"), s.dir / "elsewhere/Settings/extra.txt"));
+  // A link that leads nowhere gives nothing to read.
+  std::filesystem::create_symlink(s.dir / "gone.txt", game / "dangling.txt");
+  s.Write("real_commandline.txt", "@dangling.txt -d");
+  EXPECT_ARGS(gtaiv::ReadCommandLineFile(game.string()), {"-d"});
 }
 
 void TestOutsideTheGameFolder() {
@@ -354,6 +403,7 @@ int main() {
   TestIncludes();
   TestEncodings();
   TestCase();
+  TestSymlinks();
   TestOutsideTheGameFolder();
   TestReadsStopAtTheBuffer();
   TestOrder();

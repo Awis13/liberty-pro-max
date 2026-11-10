@@ -102,8 +102,13 @@ launcher gives the game `-norestrictions -availablevidmem 2047` itself. A
 `commandline.txt` in the game folder is still read, on every device, after
 those two, so its own values win (another `-availablevidmem`, say); only
 the resolution chosen in the iPad and iPhone launcher, and the Apple TV's
-fixed 1920x1080, win over its `-width` and `-height`. The log's first lines
-show the arguments the game was given.
+fixed 1920x1080, win over its `-width` and `-height`. Only the game
+folder's own `commandline.txt` is read, not one inside a mod or the
+`update` folder. Files it takes in with `@name` are read from the game
+folder too; the installer copies only `commandline.txt` itself to the iPad,
+iPhone and Apple TV, so copy such files there by hand. An `@name` given
+after `--` is not read behind a launcher. The log's first lines show the
+arguments the game was given.
 
 ### iPad
 

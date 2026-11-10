@@ -94,17 +94,22 @@ std::string FindGamePath(const std::string& game_dir, const std::string& name) {
     start = end + 1;
     if (part.empty() || part == ".") continue;
     if (part == "..") return {};
-    // The name on disk: the same one if there, else one that differs only
-    // in case.
+    // The name on disk: the same one if there (tried first: no listing,
+    // and a folder that can be searched but not listed still works), else
+    // one that differs only in case.
+    struct stat st;
+    if (lstat((path + "/" + part).c_str(), &st) == 0) {
+      path += "/" + part;
+      continue;
+    }
     DIR* dir = opendir(path.c_str());
     if (!dir) return {};
     std::string found;
     while (const dirent* e = readdir(dir)) {
-      if (!std::strcmp(e->d_name, part.c_str())) {
-        found = part;
+      if (!strcasecmp(e->d_name, part.c_str())) {
+        found = e->d_name;
         break;
       }
-      if (found.empty() && !strcasecmp(e->d_name, part.c_str())) found = e->d_name;
     }
     closedir(dir);
     if (found.empty()) return {};

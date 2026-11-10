@@ -111,9 +111,12 @@ const Scene& Config() {
 
 }  // namespace
 
+void GtaivPadIconsFrame();  // pad_icons.cpp
+
 // The main loop's wait for the render thread (thiscall, no arguments).
 void f_008A1860(Ctx& c) {
   MainLoopWaitRender(c);
+  GtaivPadIconsFrame();
 #if defined(TARGET_OS_IOS) && TARGET_OS_IOS && !TARGET_OS_TV
   // The touch controls' layout, a few times a second.
   static uint32_t touch_frames = 0;

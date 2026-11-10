@@ -36,7 +36,7 @@ add_subdirectory("${X86RECOMP_DIR}" x86recomp)
 recomp_add_lifted(gtaiv_lifted "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 if(TARGET gtaiv_lifted)
   add_executable(gtaiv src/main.cpp src/paul.cpp src/integrity.cpp src/diagnostics.cpp src/widescreen.cpp src/crt_math.cpp
-    src/bench.cpp src/fixes.cpp src/jobs.cpp src/options.cpp src/perf.cpp src/episodes.cpp src/mods.cpp src/threads.cpp src/native.cpp
+    src/bench.cpp src/fixes.cpp src/jobs.cpp src/options.cpp src/perf.cpp src/episodes.cpp src/mods.cpp src/threads.cpp src/native.cpp src/pad_icons.cpp
     src/community_fixes.cpp
     src/high_fps_fixes.cpp
     src/update_folder.cpp

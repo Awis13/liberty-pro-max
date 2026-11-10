@@ -823,3 +823,8 @@ hook 00AAE16E 00AAE178   # CTaskSimplePlayerAimProjectile process: no-pad ped's 
 replace 0088F080 Episodes_InstallDir   # the episodes' folders, from next to the game's
 replace 0085A5F0 Episodes_NewEpisode   # no question about a downloaded episode
 replace 008AE060 RegisterNatives   # the Complete Edition scripts' multiplayer native, answered 0 (SCRT70 without it)
+replace 008905E0 ExtraContent_Load   # an episode's radio only in that episode (GTAIV_EPISODE_RADIO_OWN)
+replace 008906B0 ExtraContent_LoadAudio   #   the same, the audio lists alone
+# The icons of the pad in use (src/pad_icons.cpp).
+hook 0088798D 0088798E
+replace 00887E80 MenuManager_ReleaseButtonTextures   # the other pad sets released, the game's own given back

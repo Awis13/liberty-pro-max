@@ -18,6 +18,9 @@ NSString* const kWindowKey = @"Windowed";
 NSString* const kTouchKey = @"TouchControls";
 NSString* const kOverNotchKey = @"FullScreenOverNotch";
 NSString* const kVsyncKey = @"VerticalSync";  // 0 the game's setting, 1 on, 2 off
+// The Mac's frame limit (the iPad has its own, launcher_ios.mm): 0 off, 1-3 an entry of kMacFrameLimits.
+NSString* const kFrameLimitKey = @"FrameLimit";
+const int kMacFrameLimits[] = {0, 30, 60, 120};
 NSString* const kMetalFXKey = @"MetalFX";      // earlier versions: on/off
 NSString* const kAntiAliasingKey = @"AntiAliasing";  // 0 off, 1 SMAA, 2 MetalFX, 3 TAA, 4 SMAA + MetalFX spatial
 NSString* const kMetalFXScaleKey = @"MetalFXScale";  // 0 native, 1 quality, 2 balanced, 3 performance
@@ -129,6 +132,7 @@ const Fix kFixes[] = {
     {@"GlassShardColours", "GTAIV_GLASS_SHARD_COLOURS", @"Red and amber glass from broken tail lights and indicators"},
     {@"BulletTracers", "GTAIV_BULLET_TRACERS", @"Tracer on every shot", false},
     {@"Episodes", "GTAIV_EPISODES", @"The episodes, when their folders are in the game's"},
+    {@"EpisodeRadioOwn", "GTAIV_EPISODE_RADIO_OWN", @"Episodes' radio songs only in their own episode, not in IV"},
     {@"TBoGTTracerFx", "GTAIV_TBOGT_TRACER_FX", @"TBoGT: tracers drawn in the right place"},
     {@"PauseInfoSpacing", "GTAIV_PAUSE_INFO_SPACING", @"Pause menu time and money spaced as on consoles"},
     {@"CompareStringFix", "GTAIV_COMPARE_STRING_FIX", @"No crash on phone calls in The Lost and Damned"},
@@ -140,6 +144,7 @@ const Fix kFixes[] = {
     {@"TurnIndicators", "GTAIV_TURN_INDICATORS", @"Turn indicators when steering, hazard lights after a crash", false},
     {@"TurnIndicatorsManual", "GTAIV_TURN_INDICATORS_MANUAL", @"Turn indicators by hand: [ and ] or bumpers, both for hazards", false},
     {@"RouteIndicators", "GTAIV_TURN_INDICATORS_ROUTE", @"Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand)", false},
+    {@"PadIcons", "GTAIV_PAD_ICONS", @"Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder)", false},
     {@"KeepWheelsTurned", "GTAIV_KEEP_WHEELS_TURNED", @"Parked vehicles keep their wheels turned", false},
     {@"FFToneMapping", "GTAIV_FF_TONE_MAPPING", @"FusionFix shaders: tone mapping (highlights not clipped)", false, true},
     {@"FFNoBloomColorShift", "GTAIV_FF_NO_BLOOM_COLOR_SHIFT", @"FusionFix shaders: bloom keeps its colour with tone mapping", true, true},
@@ -233,6 +238,10 @@ void ApplyOptions(NSUserDefaults* d) {
     case 2: setenv("GTAIV_VSYNC", "0", 1); break;
     default: unsetenv("GTAIV_VSYNC"); break;
   }
+  // At most this many frames a second (the runtime's limiter); off, the
+  // variable is left as it is.
+  if (const int limit = kMacFrameLimits[std::clamp<NSInteger>([d integerForKey:kFrameLimitKey], 0, 3)])
+    setenv("GTAIV_FPS_LIMIT", std::to_string(limit).c_str(), 1);
   // The Metal renderer (its anti-aliasing, upscalers and fixes): without
   // GTAIV_GFX the runtime takes its generic SDL GPU path, much slower.
   setenv("GTAIV_GFX", "metal", 0);

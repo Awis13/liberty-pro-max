@@ -33,7 +33,7 @@ For the iPad, the iPhone and the Apple TV, see [Install](#install).
 | | Mac | iPad |
 |---|---|---|
 | **Renderer** | Metal, written for this port: drawing encoded on its own thread, geometry read in place from the game's memory, several frames in flight | the same |
-| **Frame rate** | about 125 fps indoors, 60–100 fps outdoors at 3440×1440, maximum settings, M3 Pro; no 30/60 fps cap | 60 fps indoors, 45–60 outdoors at 1792×1344, iPad Air (M4) |
+| **Frame rate** | about 125 fps indoors, 60–100 fps outdoors at 3440×1440, maximum settings, M3 Pro; no frame rate cap unless you set the launcher's frame limit (30, 60 or 120 fps) | 60 fps indoors, 45–60 outdoors at 1792×1344, iPad Air (M4) |
 | **Anti-aliasing** | TAA (default, sharpened), SMAA, MetalFX temporal and SMAA + MetalFX spatial upscaling | SMAA (default), TAA |
 | **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048, field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play** |
@@ -176,6 +176,11 @@ The Ballad of Gay Tony work: the game opens with its own screen to choose what
 to play. Their saves sit with IV's, in the same slots. A launcher checkbox turns
 them off.
 
+The episodes also bring radio songs, which the game would add to the same
+stations in IV and in the other episode. They play only in their own episode,
+so IV's stations keep IV's songs; the option "Episodes' radio songs only in
+their own episode, not in IV" turns that off.
+
 In an episode, the `update` folder gives its archives for that episode, such as
 `TLAD/...img`, and those named for all of them (`EFLC`). IV's archives and data
 files, and the mods folder's archives, stay out of the episodes, as they stop
@@ -201,7 +206,8 @@ before `install-ios.sh` to have them on the iPad too.
 
 ## Fixes and options
 
-On the launcher's **General** tab: resolution and display, anti-aliasing
+On the launcher's **General** tab: resolution and display, vertical sync, a
+frame limit (off, 30, 60 or 120 fps), anti-aliasing
 (TAA, SMAA, MetalFX), shadow and reflection resolution, field of view, fast
 loading, skipping the logo screens, continuing the last save, mods, the
 performance overlay, and on a display with a notch the whole screen. On the
@@ -213,7 +219,7 @@ port's own.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-102 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
+104 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
 
 #### High frame rates
 
@@ -273,6 +279,7 @@ The game was made for 30 fps; these keep it right at any frame rate.
 | Pause menu shows the game's version, the archives open and memory use | off |
 | Pause menu time and money spaced as on consoles | on |
 | Menu lists show 32 rows before scrolling | on |
+| Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder) | off |
 
 #### FusionFix
 
@@ -364,6 +371,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 | Option | Default |
 |---|---|
 | The episodes, when their folders are in the game's | on |
+| Episodes' radio songs only in their own episode, not in IV | on |
 | Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand) | off |
 
 <!-- fixes:end -->

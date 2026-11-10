@@ -108,6 +108,7 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 @property(strong) NSTextField* problem;
 @property(strong) NSPopUpButton* display;
 @property(strong) NSPopUpButton* vsync;
+@property(strong) NSPopUpButton* frameLimit;
 @property(strong) NSPopUpButton* antialiasing;
 @property(strong) NSPopUpButton* metalfxScale;
 @property(strong) NSPopUpButton* taaSharpening;
@@ -183,6 +184,8 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.display = [self popup:@[ @"Full screen", @"Window" ] selected:[d boolForKey:kWindowKey] ? 1 : 0];
   self.vsync = [self popup:@[ @"As set in the game", @"On", @"Off" ]
                   selected:std::clamp<NSInteger>([d integerForKey:kVsyncKey], 0, 2)];
+  self.frameLimit = [self popup:@[ @"Off", @"30 fps", @"60 fps", @"120 fps" ]
+                       selected:std::clamp<NSInteger>([d integerForKey:kFrameLimitKey], 0, 3)];
   self.antialiasing = [self popup:@[
     @"Off", @"SMAA (light)", @"MetalFX (temporal)", @"TAA (temporal, light)", @"SMAA + MetalFX spatial (fast)"
   ]
@@ -228,6 +231,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ [self label:@"Display:"], self.display ],
     @[ NSGridCell.emptyContentView, self.overNotch ],
     @[ [self label:@"Vertical sync:"], self.vsync ],
+    @[ [self label:@"Frame limit:"], self.frameLimit ],
     @[ [self label:@"Anti-aliasing:"], self.antialiasing ],
     @[ [self label:@"MetalFX resolution:"], self.metalfxScale ],
     @[ NSGridCell.emptyContentView, aaNote ],
@@ -417,6 +421,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   Store(d, kWindowKey, @(self.display.indexOfSelectedItem == 1));
   Store(d, kOverNotchKey, @(self.overNotch.state == NSControlStateValueOn));
   Store(d, kVsyncKey, @(self.vsync.indexOfSelectedItem));
+  Store(d, kFrameLimitKey, @(self.frameLimit.indexOfSelectedItem));
   Store(d, kAntiAliasingKey, @(self.antialiasing.indexOfSelectedItem));
   Store(d, kMetalFXScaleKey, @(self.metalfxScale.indexOfSelectedItem));
   Store(d, kTaaSharpeningKey, @(self.taaSharpening.indexOfSelectedItem));

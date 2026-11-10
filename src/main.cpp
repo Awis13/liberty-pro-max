@@ -152,8 +152,8 @@ int main(int argc, char** argv) {
   setenv("GTAIV_FPS_REPORT", "10", 0);
 #if TARGET_OS_TV
   // The shared vertex and index buffer heap is resident whole (the GPU maps
-  // it): 192 MB was never full in play, 512 would take 320 MB more of the
-  // Apple TV's 2.1 GB.
+  // it): 192 MB was never full in play, the runtime's default of 256 would
+  // take 64 MB more of the Apple TV's 2.1 GB.
   setenv("GTAIV_GPU_HEAP_MB", "192", 0);
 #endif
   // The launcher (the player's mods, if any, are in

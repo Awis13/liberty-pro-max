@@ -77,8 +77,15 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
   // again in this process (execv), it did not.
   NSMutableArray<NSString*>* arguments =
       [NSMutableArray arrayWithObjects:@"--no-launcher", @"--game-dir", folder, nil];
+  [arguments addObject:@"--"];
+  // No setting restrictions and video memory budget (matching the iOS launcher;
+  // without them the game clamps textures to low/medium and video memory to 512 MB).
+  const char* vm = std::getenv("GTAIV_VIDMEM");
+  [arguments addObject:@"-norestrictions"];
+  [arguments addObject:@"-nomemrestrict"];
+  [arguments addObject:@"-availablevidmem"];
+  [arguments addObject:@(vm && *vm ? vm : "2047")];
   if (!args.game_args.empty()) {
-    [arguments addObject:@"--"];
     for (const std::string& a : args.game_args) [arguments addObject:@(a.c_str())];
   }
   NSWorkspaceOpenConfiguration* config = [NSWorkspaceOpenConfiguration configuration];

@@ -94,7 +94,8 @@ replace 008936A0 RadioHud_LogoBw      # a logo dictionary without the logo: the 
 replace 00893680 RadioHud_LogoColour  # the same
 replace 00893870 RadioHud_Find       # a station without a radiohud.dat line: an empty record, not null (issue 15)
 replace 00893920 RadioHud_DrawLogo   # and no logo drawn for it
-replace 00896310 RadioHud_DrawWheelLogo  # the same, in the wheel
+replace 00896310 RadioHud_DrawWheelLogo  # the same, in the wheel (its fade still steps)
+replace 00B564A0 RadioHud_DrawMenuLogo   # the same, the menus' deferred logo
 hook 00895F59 00895F5E   # radio listening time: stations past the stats' 20 slots not counted (the save grew to hundreds of MB)
 # Millisecond clocks and script timers keep their fractions (src/fixes.cpp).
 hook 007CC06F 007CC075   # CTimer: the game's clock

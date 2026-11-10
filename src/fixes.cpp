@@ -26,6 +26,7 @@ void f_00893680_lifted(Ctx& c);
 void f_00893870_lifted(Ctx& c);
 void f_00893920_lifted(Ctx& c);
 void f_00896310_lifted(Ctx& c);
+void f_00B564A0_lifted(Ctx& c);
 
 // The sweep of a pool of objects (cdecl, keep-all flag) that ends it at
 // shutdown (008CCA80) reads each object's model's streaming flags
@@ -114,10 +115,11 @@ void f_00893680(Ctx& c) {
 // faults (guest 0000030D) when the player changes station. A station not
 // found gets an empty record, as the game's own constructor (00893630)
 // leaves one before a line is read: no logos, no width, no shift. The
-// two logo draws that take the hash first (cdecl) draw nothing for it, as
-// the wheel (00896890) stops drawing at a station it cannot find, instead
-// of a sprite without a texture (a white box). The third, a deferred draw
-// of the game's menus (00B564A0), keeps the empty record.
+// logo draws draw nothing for it, as the wheel (00896890) stops drawing at
+// a station it cannot find, instead of a sprite without a texture (a white
+// box): 00893920 (cdecl, the hash first), 00896310 (the same; it also
+// steps the wheel's fade, 00894010 or 008955D0, which still happens) and
+// the deferred draw 00B564A0 (the station's index at [esp+18h]).
 namespace {
 
 uint32_t RadioHudRecord(uint32_t key) {
@@ -144,24 +146,57 @@ uint32_t EmptyRadioHudRecord(Ctx& c) {
   return empty;
 }
 
-void SkipLogoWithoutRecord(Ctx& c, void (*lifted)(Ctx&)) {
+// 007D6E30: the station of an index, or 0.
+uint32_t Station(uint32_t index) {
+  return index < Rd8(0x0112DFD6) ? Rd32(Rd32(0x0112E068) + index * 4) : 0;
+}
+
+// A station's hash as the draws take it: 0 without its sound data.
+uint32_t StationHash(uint32_t station) {
+  const uint32_t data = Rd32(station + 0x17D0);
+  return data ? Rd32(data + 0xA) : 0;
+}
+
+}  // namespace
+
+// The wheel's logo of slot n (cdecl: hash, x, y, width, height, kind, n).
+// Before drawing it steps the wheel's fade with the logo's alpha: while
+// the wheel scrolls ([011F8140] 4), 008955D0(x, n), else 00894010(n); they
+// end the fade (state 2, or 3 and the timer reset), so a wheel of logos
+// without records still closes.
+void f_00896310(Ctx& c) {
+  if (RadioHudRecord(Rd32(c.esp + 4))) {
+    f_00896310_lifted(c);
+    return;
+  }
+  const uint32_t slot = Rd32(c.esp + 0x1C);
+  if (Rd32(0x011F8140) == 4)
+    CallGuest(c, 0x008955D0, {Rd32(c.esp + 8), slot});
+  else
+    CallGuest(c, 0x00894010, {slot});
+  c.esp += 4;  // ret
+}
+
+void f_00893920(Ctx& c) {
   if (!RadioHudRecord(Rd32(c.esp + 4))) {
     c.esp += 4;  // ret
     return;
   }
-  lifted(c);
+  f_00893920_lifted(c);
 }
 
-}  // namespace
+void f_00B564A0(Ctx& c) {
+  if (const uint32_t st = Station(Rd8(c.esp + 0x18)); st && !RadioHudRecord(StationHash(st))) {
+    c.esp += 4;  // ret
+    return;
+  }
+  f_00B564A0_lifted(c);
+}
 
 void f_00893870(Ctx& c) {
   f_00893870_lifted(c);
   if (!c.eax) c.eax = EmptyRadioHudRecord(c);
 }
-
-void f_00893920(Ctx& c) { SkipLogoWithoutRecord(c, f_00893920_lifted); }
-
-void f_00896310(Ctx& c) { SkipLogoWithoutRecord(c, f_00896310_lifted); }
 
 // The time listened to each radio station (00895E50) is added to a table
 // of 20 floats at 011F8150 for the stats, at the current station's index

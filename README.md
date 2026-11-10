@@ -159,7 +159,9 @@ screen: it starts the game at 1920×1080 with SMAA at 60 fps. The A15 cannot
 sample the game's DXT textures, so they are decoded on upload and take
 several times their size: keep the game's texture quality at its default,
 or the Apple TV's 2.1 GB per app runs out. The log is `log.txt` in the
-app's Library/Caches (`devicectl`).
+app's Library/Caches (`devicectl`). The episodes are not available there
+yet: their folders are copied, but without a settings screen they cannot be
+turned on.
 
 The app's icon is made on your Mac from the logo in your own game files,
 as on the iPad.
@@ -228,8 +230,9 @@ frame limit (off, 30, 60 or 120 fps), anti-aliasing
 (TAA, SMAA, MetalFX), shadow and reflection resolution, field of view, fast
 loading, skipping the logo screens, continuing the last save, mods, the
 performance overlay, and on a display with a notch the whole screen. On the
-**Extras** tab, this port's own additions, each off until you turn it on: the
-episodes, turn indicators, pad icons, phone cheats and full damage. On the
+**Extras** tab, this port's own additions: the episodes, turn indicators, pad
+icons, phone cheats and full damage, each off until you turn it on, and the
+episodes' radio songs kept to their own episode, on. On the
 **Advanced** tab, every fix below, each a switch. Most follow FusionFix's and
 ZolikaPatch's (by what they do; their code is not used), some are this
 port's own.

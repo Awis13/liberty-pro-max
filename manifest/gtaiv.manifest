@@ -92,6 +92,9 @@ replace 008CC970 Pool_SweepAtShutdown   # quit before the world loaded: no strea
 replace 0094A6D0 PedIntelligence_DecreasePinnedDown   # above 30 fps it never decreased: cops stuck in cover
 replace 008936A0 RadioHud_LogoBw      # a logo dictionary without the logo: the logo found stays
 replace 00893680 RadioHud_LogoColour  # the same
+replace 00893870 RadioHud_Find       # a station without a radiohud.dat line: an empty record, not null (issue 15)
+replace 00893920 RadioHud_DrawLogo   # and no logo drawn for it
+replace 00896310 RadioHud_DrawWheelLogo  # the same, in the wheel
 hook 00895F59 00895F5E   # radio listening time: stations past the stats' 20 slots not counted (the save grew to hundreds of MB)
 # Millisecond clocks and script timers keep their fractions (src/fixes.cpp).
 hook 007CC06F 007CC075   # CTimer: the game's clock

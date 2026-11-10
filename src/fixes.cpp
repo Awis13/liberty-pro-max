@@ -8,6 +8,7 @@
 #include <mutex>
 #include <unordered_map>
 
+#include "hook_util.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
 #include "runtime/x87.h"
@@ -22,6 +23,9 @@ void f_009AE2C0_lifted(Ctx& c);
 void f_009AE360_lifted(Ctx& c);
 void f_008936A0_lifted(Ctx& c);
 void f_00893680_lifted(Ctx& c);
+void f_00893870_lifted(Ctx& c);
+void f_00893920_lifted(Ctx& c);
+void f_00896310_lifted(Ctx& c);
 
 // The sweep of a pool of objects (cdecl, keep-all flag) that ends it at
 // shutdown (008CCA80) reads each object's model's streaming flags
@@ -99,6 +103,65 @@ void f_008936A0(Ctx& c) {
 void f_00893680(Ctx& c) {
   if (!PassOverLogo(c, c.ecx + 0x10F)) f_00893680_lifted(c);
 }
+
+// The radio hud's records (one per line of radiohud.dat, read by 00893C00:
+// +4/+8 the logos, +C the station's name hash, +30D the logo's visible
+// width, +310 its vertical shift) are found by a station's hash
+// (00893870, cdecl): null for a station without a line. None of its 14
+// calls tests for that: the wheel's spacing (00894230) reads +30D, its layout
+// (00896890) +310, the logo draws (00893920, 00896310, 00B564A0) take +4
+// or +8. A station from a mod's radio data with no line of its own then
+// faults (guest 0000030D) when the player changes station. A station not
+// found gets an empty record, as the game's own constructor (00893630)
+// leaves one before a line is read: no logos, no width, no shift. The
+// two logo draws that take the hash first (cdecl) draw nothing for it, as
+// the wheel (00896890) stops drawing at a station it cannot find, instead
+// of a sprite without a texture (a white box). The third, a deferred draw
+// of the game's menus (00B564A0), keeps the empty record.
+namespace {
+
+uint32_t RadioHudRecord(uint32_t key) {
+  for (uint32_t r = Rd32(0x011F8110); r; r = Rd32(r))
+    if (Rd32(r + 0xC) == key) return r;
+  return 0;
+}
+
+// Made once, with the game's operator new (004011D0) and constructor, as
+// 00893C00 makes the others; never in the list.
+uint32_t EmptyRadioHudRecord(Ctx& c) {
+  static std::mutex mu;
+  static uint32_t empty;
+  std::lock_guard<std::mutex> l(mu);
+  if (!empty) {
+    hook::KeepRegs keep(c);
+    const uint32_t r = uint32_t(CallGuest(c, 0x004011D0, {0x314}));
+    if (r) {
+      c.ecx = r;
+      CallGuest(c, 0x00893630, {});
+    }
+    empty = r;
+  }
+  return empty;
+}
+
+void SkipLogoWithoutRecord(Ctx& c, void (*lifted)(Ctx&)) {
+  if (!RadioHudRecord(Rd32(c.esp + 4))) {
+    c.esp += 4;  // ret
+    return;
+  }
+  lifted(c);
+}
+
+}  // namespace
+
+void f_00893870(Ctx& c) {
+  f_00893870_lifted(c);
+  if (!c.eax) c.eax = EmptyRadioHudRecord(c);
+}
+
+void f_00893920(Ctx& c) { SkipLogoWithoutRecord(c, f_00893920_lifted); }
+
+void f_00896310(Ctx& c) { SkipLogoWithoutRecord(c, f_00896310_lifted); }
 
 // The time listened to each radio station (00895E50) is added to a table
 // of 20 floats at 011F8150 for the stats, at the current station's index

@@ -1,9 +1,9 @@
 // Conveniences, each an option (the launcher sets them):
 //   GTAIV_SKIP_INTRO=1: the logo and legal screens before the first menu
 //     are not shown;
-//   GTAIV_CONTINUE=1: the game starts in the last save instead of the
-//     main menu (with the episodes found, their chooser comes first and
-//     then the chosen game's menu);
+//   GTAIV_CONTINUE=1: the game starts in the newest save, in the game it
+//     was made in, instead of the main menu (with the episodes found and
+//     no save yet, their chooser comes first);
 //   GTAIV_FOV=degrees: added to the game camera's field of view (wide
 //     screens);
 //   GTAIV_FAST_LOADING=0 turns off the loading speed-ups (on by default):
@@ -23,11 +23,14 @@
 //     per physics step (2-5, default 3 as the game takes on any machine
 //     with 4+ CPUs; 4 and 5 measured no faster with main's physics help).
 
+#include <cctype>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <string>
 #include <thread>
 
 #include "first_menu.h"
@@ -206,17 +209,41 @@ void hook_00C8DBF5(Ctx& c) {  // opponentIsReadyToBeExecuted
 // time round.
 void hook_004A18E3(Ctx& c) { x87::LoadF32(c.fpu, FastLoading() ? 0 : Rd32(0x00EDFB24)); }
 
+// Whether the player's profile holds a save: a file SGTA4nn in the game's
+// save folder, savegames/user_<the profile's XUID> (xlive.cpp's fixed one).
+// The game's own scan runs only after the first menu (first_menu.h).
+bool HasSave() {
+  namespace fs = std::filesystem;
+  const fs::path saves = fs::path(recomp::DataDir()) /
+                         "drive_c/Documents and Settings/Player/Local Settings/Application Data/"
+                         "Rockstar Games/GTA IV/savegames";
+  std::error_code ec;
+  for (const fs::directory_entry& user : fs::directory_iterator(saves, ec)) {
+    std::string name = user.path().filename().string();
+    for (char& ch : name) ch = char(std::tolower(static_cast<unsigned char>(ch)));
+    if (name != "user_ee000000deadc0de" || !user.is_directory(ec)) continue;
+    for (const fs::directory_entry& f : fs::directory_iterator(user.path(), ec))
+      if (first_menu::IsSaveName(f.path().filename().string()) && f.is_regular_file(ec)) return true;
+  }
+  return false;
+}
+
 // The first menu after the start screens (push 0: the menu up stays, to the
 // frontend's state setter 007BDD80). With GTAIV_CONTINUE, state 6: the
-// last save loads; but not when that menu is the episode chooser
+// newest save loads, in the game it was made in; but when that menu is the
+// episode chooser and there is no save yet, the chooser stays
 // (first_menu.h).
 void hook_0047D255(Ctx& c) {
   constexpr uint32_t kChooserUp = 0x010FBBB1;  // the episode chooser is up
   static const bool cont = Option("GTAIV_CONTINUE");
   const bool chooser = Rd8(kChooserUp) != 0;
-  if (cont && !g_menu_reached && chooser)
-    WarnF("gtaiv: episodes: the chooser first, no continue from the last save\n");
-  const uint32_t state = first_menu::State(cont, g_menu_reached, chooser);
+  bool has_save = false;
+  if (cont && !g_menu_reached && chooser) {
+    has_save = HasSave();
+    WarnF(has_save ? "gtaiv: episodes: continue from the newest save, in its own game\n"
+                   : "gtaiv: episodes: no save yet: the chooser first\n");
+  }
+  const uint32_t state = first_menu::State(cont, g_menu_reached, chooser, has_save);
   g_menu_reached = true;
   c.esp -= 4;
   Wr32(c.esp, state);

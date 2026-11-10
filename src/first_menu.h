@@ -6,18 +6,30 @@
 // 0047D255, push 0 to its state setter 007BDD80: 0 keeps the menu that is
 // up on screen. GTAIV_CONTINUE gives 6 there the first time instead, what
 // the title menu's Start gives (008D42D0): the frontend loop (00494350)
-// stops and the last save loads.
+// stops and 004944E0 runs (from 004904BE): it scans the saves (0085C390,
+// 0085A100 per slot), loads the newest and starts the game it was made in
+// (0085A2E0 puts that save's game in [011D5E34], which 00494140 starts:
+// 004946A1). With no save at all the scan ends with none (0085C390 case
+// 2) and a new game starts in [011D5E34], the game being started
+// ([0112D788], IV before any pick).
 //
 // With the episodes the first menu is the game's chooser (IV or the
-// episodes), built at 0047C888 with [010FBBB1] set. 6 there starts IV at
-// once, the chooser never seen. So the chooser always stays, and Continue
-// does not apply after the pick either: the pick (00D45AD0) builds the
-// chosen game's title menu and comes back here, but only that menu's Start
-// sets the game to start ([0112D788], from the pick) before its 6; a 6 from
-// here would start IV whichever game was picked.
+// episodes), built at 0047C888 with [010FBBB1] set. A 6 there goes past it:
+// with a save, that is Continue (the newest save, in its own game, IV's
+// or an episode's); with none, a new IV game would start and the episodes
+// would never be offered. So the chooser stays only when there is no save
+// yet. The scan has not run when the first menu comes up (it runs after
+// the frontend loop), so whether a save is there is read from the save
+// folder (options.cpp). A player who wants another game than the newest
+// save's turns Continue off.
+//
+// Continue does not apply after the chooser either: the pick (00D45AD0)
+// builds the chosen game's title menu and comes back here, and its own
+// Start goes on from there; a 6 from here would not wait for it.
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 namespace first_menu {
 
@@ -25,9 +37,21 @@ constexpr uint32_t kStayInMenu = 0;  // the menu up stays
 constexpr uint32_t kLoadLastSave = 6;  // as the title menu's Start
 
 // cont: GTAIV_CONTINUE; reached: a menu has come up before; chooser: the
-// menu up is the episode chooser.
-constexpr uint32_t State(bool cont, bool reached, bool chooser) {
-  return cont && !reached && !chooser ? kLoadLastSave : kStayInMenu;
+// menu up is the episode chooser; has_save: the player has a save.
+constexpr uint32_t State(bool cont, bool reached, bool chooser, bool has_save) {
+  return cont && !reached && (!chooser || has_save) ? kLoadLastSave : kStayInMenu;
+}
+
+// A save file's name: SGTA4 and two digits (the slot), in any case.
+constexpr bool IsSaveName(std::string_view name) {
+  if (name.size() != 7) return false;
+  constexpr std::string_view kPrefix = "sgta4";
+  for (size_t i = 0; i < kPrefix.size(); i++) {
+    char ch = name[i];
+    if (ch >= 'A' && ch <= 'Z') ch = char(ch + 0x20);
+    if (ch != kPrefix[i]) return false;
+  }
+  return name[5] >= '0' && name[5] <= '9' && name[6] >= '0' && name[6] <= '9';
 }
 
 }  // namespace first_menu

@@ -25,29 +25,51 @@ void TestValues() {
   EXPECT(kLoad == 6);
 }
 
-// Without Continue every menu stays.
+// Without Continue every menu stays, save or not.
 void TestNoContinue() {
-  EXPECT(State(false, false, false) == kMenu);
-  EXPECT(State(false, false, true) == kMenu);
-  EXPECT(State(false, true, false) == kMenu);
-  EXPECT(State(false, true, true) == kMenu);
+  for (bool reached : {false, true})
+    for (bool chooser : {false, true})
+      for (bool save : {false, true}) EXPECT(State(false, reached, chooser, save) == kMenu);
 }
 
-// IV alone: Continue loads the last save at the first menu, only there.
+// IV alone: Continue goes on at the first menu, only there, as it always
+// did (with no save the game starts a new one, as Start does).
 void TestContinueWithoutEpisodes() {
-  EXPECT(State(true, false, false) == kLoad);
-  EXPECT(State(true, true, false) == kMenu);
+  EXPECT(State(true, false, false, true) == kLoad);
+  EXPECT(State(true, false, false, false) == kLoad);
+  EXPECT(State(true, true, false, true) == kMenu);
+  EXPECT(State(true, true, false, false) == kMenu);
 }
 
-// The episodes found: the chooser stays, and the menu of the game picked
-// after it too (the first menu was the chooser).
+// The episodes found: with a save, Continue goes past the chooser (the
+// newest save, in its own game); with none, the chooser stays.
 void TestContinueWithTheChooser() {
-  EXPECT(State(true, false, true) == kMenu);
-  EXPECT(State(true, true, false) == kMenu);
-  EXPECT(State(true, true, true) == kMenu);
+  EXPECT(State(true, false, true, true) == kLoad);
+  EXPECT(State(true, false, true, false) == kMenu);
 }
 
-static_assert(first_menu::State(true, false, false) == 6, "constexpr");
+// After the chooser (the picked game's own menu), Continue never applies.
+void TestAfterThePick() {
+  EXPECT(State(true, true, false, true) == kMenu);
+  EXPECT(State(true, true, false, false) == kMenu);
+  EXPECT(State(true, true, true, true) == kMenu);
+  EXPECT(State(true, true, true, false) == kMenu);
+}
+
+void TestSaveNames() {
+  using first_menu::IsSaveName;
+  EXPECT(IsSaveName("SGTA400"));
+  EXPECT(IsSaveName("SGTA412"));
+  EXPECT(IsSaveName("sgta405"));
+  EXPECT(!IsSaveName("SGTA4"));
+  EXPECT(!IsSaveName("SGTA4001"));
+  EXPECT(!IsSaveName("SGTA40a"));
+  EXPECT(!IsSaveName("SGTA411.json"));
+  EXPECT(!IsSaveName("ControlMap.dat"));
+  EXPECT(!IsSaveName("SGTA300"));
+}
+
+static_assert(first_menu::State(true, false, false, false) == 6, "constexpr");
 
 }  // namespace
 
@@ -56,6 +78,8 @@ int main() {
   TestNoContinue();
   TestContinueWithoutEpisodes();
   TestContinueWithTheChooser();
+  TestAfterThePick();
+  TestSaveNames();
   if (g_failures) {
     std::fprintf(stderr, "first_menu_test: %d failed\n", g_failures);
     return 1;

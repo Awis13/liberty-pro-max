@@ -1,6 +1,6 @@
-// The iPad app's launcher: a settings screen with the port's options (the
-// Mac launcher's, launcher_options.h, plus the iPad's resolution and frame
-// limit) and a Play button. Shown on the main thread before the game
+// The iPad and iPhone app's launcher: a settings screen with the port's
+// options (the Mac launcher's, launcher_options.h, plus the device's
+// resolution and frame limit) and a Play button. Shown on the main thread before the game
 // starts (main.cpp, in SDL's main); the run loop turns until Play, then the
 // options go into the environment and the game starts in this process.
 
@@ -9,26 +9,63 @@
 #include <TargetConditionals.h>
 
 #include <algorithm>
+#include <array>
 #include <string>
 
 #include "launcher_options.h"
 
 namespace {
 
-// iPad only: the game's resolution (its -width/-height), the frame limit.
-NSString* const kIosResolutionKey = @"IosResolution";  // index into kResolutions
-NSString* const kIosFrameLimitKey = @"IosFrameLimit";  // 0: 60 (the display's), 1: 40, 2: 30
+// The game's resolution (its -width/-height) and frame limit.
+NSString* const kIosResolutionKey = @"IosResolution";  // index into Resolutions()
+// 0: 60 (the display's own pace where it shows no more), 1: 40, 2: 30,
+// 3: off (no limiter; the display still paces).
+NSString* const kIosFrameLimitKey = @"IosFrameLimit";
 struct Resolution {
   int w, h;
   NSString* title;
 };
-const Resolution kResolutions[] = {
+const std::array<Resolution, 4> kIpadResolutions = {{
     {1536, 1152, @"1536×1152"},
     {1792, 1344, @"1792×1344"},
     {2048, 1536, @"2048×1536"},
     {2732, 2048, @"2732×2048"},
-};
-const int kFrameLimits[] = {0, 40, 30};
+}};
+
+bool IsPhone() { return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPhone; }
+
+// The resolutions the launcher offers. On an iPhone they are also the
+// display modes the game is given besides the usual ones (IosPhoneDisplay).
+const std::array<Resolution, 4>& Resolutions() {
+  if (!IsPhone()) return kIpadResolutions;
+  // Use the phone's landscape aspect at every quality level. The renderer
+  // preserves the back buffer's aspect, so the iPad's 4:3 presets leave bars.
+  static const auto phone = [] {
+    const CGSize size = UIScreen.mainScreen.nativeBounds.size;
+    const double width = std::max(size.width, size.height);
+    const double height = std::min(size.width, size.height);
+    const double scales[] = {0.5, 2.0 / 3.0, 5.0 / 6.0, 1.0};
+    std::array<Resolution, 4> result;
+    for (size_t i = 0; i < result.size(); ++i) {
+      const int w = std::max(2, int(width * scales[i]) / 2 * 2);
+      const int h = std::max(2, int(height * scales[i]) / 2 * 2);
+      result[i] = {w, h, [NSString stringWithFormat:@"%d×%d", w, h]};
+    }
+    return result;
+  }();
+  return phone;
+}
+// GTAIV_FPS_LIMIT for a stored frame limit (0: none). The first choice is
+// 60: no limiter on a 60 Hz screen, which paces the frames itself (as
+// before there were faster screens here), a limiter of 60 on a faster one.
+int FrameLimit(NSInteger choice) {
+  switch (choice) {
+    case 1: return 40;
+    case 2: return 30;
+    case 3: return 0;
+    default: return UIScreen.mainScreen.maximumFramesPerSecond > 60 ? 60 : 0;
+  }
+}
 
 bool g_play = false;
 
@@ -145,11 +182,11 @@ static NSArray* GameRows() {
 // Graphics: segmented choices (title, key, items).
 static NSArray* GraphicsRows() {
   NSMutableArray* res = [NSMutableArray array];
-  for (const Resolution& r : kResolutions) [res addObject:r.title];
+  for (const Resolution& r : Resolutions()) [res addObject:r.title];
   return @[
     @[ @"Resolution", kIosResolutionKey, res ],
     @[ @"Anti-aliasing", kAntiAliasingKey, @[ @"Off", @"SMAA", @"TAA" ] ],
-    @[ @"Frame limit", kIosFrameLimitKey, @[ @"60", @"40", @"30" ] ],
+    @[ @"Frame limit", kIosFrameLimitKey, @[ @"60", @"40", @"30", @"Off" ] ],
     @[ @"Shadows", kShadowsKey, @[ @"Game's", @"High" ] ],
     @[ @"Reflections", kReflectionsKey, @[ @"Game's", @"High" ] ],
     @[ @"Field of view", kFovKey, @[ @"+0", @"+5", @"+10", @"+15", @"+20" ] ],
@@ -239,7 +276,19 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
 
 #endif  // !TARGET_OS_TV
 
-// main.cpp (iPad): the launcher until Play, then the options into the
+// main.cpp: whether this is an iPhone, and then its resolutions as a
+// display mode list ("WxH,WxH,...").
+bool IosPhoneDisplay(std::string* modes) {
+  if (!IsPhone()) return false;
+  modes->clear();
+  for (const Resolution& r : Resolutions()) {
+    if (!modes->empty()) *modes += ',';
+    *modes += std::to_string(r.w) + 'x' + std::to_string(r.h);
+  }
+  return true;
+}
+
+// main.cpp (iPad, iPhone): the launcher until Play, then the options into the
 // environment; the game's resolution goes on its command line (game_args).
 void RunIosLauncher(std::string* game_args) {
   @autoreleasepool {
@@ -257,7 +306,8 @@ void RunIosLauncher(std::string* game_args) {
                       " -width 1920 -height 1080";
     *game_args = game_args->empty() ? res : *game_args + " " + res;
 #else
-    // The iPad's own defaults: 1792x1344 at 60, SMAA (TAA costs the GPU
+    // The defaults here: the second resolution (the iPad's 1792x1344, two
+    // thirds of an iPhone's screen) at 60, SMAA (TAA costs the GPU
     // time a 60 fps frame lacks here), the rest as on the Mac.
     [d registerDefaults:@{kIosResolutionKey : @1, kIosFrameLimitKey : @0}];
     if (![d objectForKey:@"IosDefaultsV1"]) {
@@ -300,14 +350,17 @@ void RunIosLauncher(std::string* game_args) {
     window.rootViewController = nil;
 
     ApplyOptions(d);
-    // The Mac's vsync choice does not apply: the iPad paces at its display.
+    // The Mac's vsync choice does not apply: here the flag only makes a
+    // frame wait for the display's next refresh (there is no tearing to
+    // turn on), also with the frame limit off.
     setenv("GTAIV_VSYNC", "1", 1);
-    // Nor its keeping running behind other windows (not shown here; iOS
-    // suspends an app that is not in front), even if saved on before.
+    // Nor does its keeping running behind other windows (not shown here;
+    // iOS suspends an app that is not in front), even if saved on before.
     setenv("GTAIV_RUN_IN_BACKGROUND", "0", 1);
-    const int limit = kFrameLimits[std::clamp<NSInteger>([d integerForKey:kIosFrameLimitKey], 0, 2)];
+    const int limit = FrameLimit([d integerForKey:kIosFrameLimitKey]);
     if (limit) setenv("GTAIV_FPS_LIMIT", std::to_string(limit).c_str(), 1);
-    const Resolution& r = kResolutions[std::clamp<NSInteger>([d integerForKey:kIosResolutionKey], 0, NSInteger(std::size(kResolutions)) - 1)];
+    const auto& resolutions = Resolutions();
+    const Resolution& r = resolutions[std::clamp<NSInteger>([d integerForKey:kIosResolutionKey], 0, NSInteger(resolutions.size()) - 1)];
     // Given a command line the game no longer reads commandline.txt: its
     // options go here too (no setting restrictions, and the video memory
     // its budget counts; without them it fits everything into 512 MB, all

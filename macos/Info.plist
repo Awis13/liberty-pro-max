@@ -8,6 +8,10 @@
 	<string>Liberty Pro Max</string>
 	<key>CFBundleExecutable</key>
 	<string>gtaiv</string>
+	<!-- Contents/Resources/AppIcon.icns, made from the player's own game
+	     files (tools/make_ios_icon.py); without it, the standard icon. -->
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>io.github.awis13.liberty-pro-max</string>
 	<key>CFBundleInfoDictionaryVersion</key>

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """The iPad app's icon from the game's own logo: the IV of loadingscreens.wtd's
 gta.dds (tools/wtd_extract.py), its bevelled letters on black, 1024x1024.
-  make_ios_icon.py GAME_DIR OUT_DIR   (needs Pillow; writes OUT_DIR/icon1024.png)"""
+  make_ios_icon.py GAME_DIR OUT_DIR [--mac]   (needs Pillow; writes OUT_DIR/icon1024.png)
+--mac: the Mac app's icon too, OUT_DIR/AppIcon.icns (iconutil): the same on a
+rounded plate with macOS's margins, 16 to 512 points at 1x and 2x."""
 import os, subprocess, sys
 from collections import deque
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 game, out = sys.argv[1], sys.argv[2]
 tex = os.path.join(out, 'loadingscreens')
@@ -42,3 +44,18 @@ S = 1024; icon = Image.new('RGB', (S, S))
 w = int(S * 0.68); h = int(glyph.height * w / glyph.width)
 icon.paste(glyph.resize((w, h), Image.LANCZOS), ((S - w) // 2, (S - h) // 2))
 icon.save(os.path.join(out, 'icon1024.png'))
+
+if '--mac' in sys.argv[3:]:
+    # macOS's icon grid: an 824x824 plate in the 1024x1024 canvas, corners of
+    # radius 185, clear around it (the mask drawn 4x for a smooth edge).
+    P, R, K = 824, 185, 4
+    mask = Image.new('L', (P * K, P * K), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, P * K - 1, P * K - 1), R * K, fill=255)
+    mac = Image.new('RGBA', (S, S))
+    mac.paste(icon.resize((P, P), Image.LANCZOS), ((S - P) // 2, (S - P) // 2), mask.resize((P, P), Image.LANCZOS))
+    iconset = os.path.join(out, 'AppIcon.iconset'); os.makedirs(iconset, exist_ok=True)
+    for points in (16, 32, 128, 256, 512):
+        for scale in (1, 2):
+            name = f'icon_{points}x{points}' + ('@2x' if scale == 2 else '') + '.png'
+            mac.resize((points * scale,) * 2, Image.LANCZOS).save(os.path.join(iconset, name))
+    subprocess.run(['iconutil', '-c', 'icns', iconset, '-o', os.path.join(out, 'AppIcon.icns')], check=True)

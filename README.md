@@ -26,7 +26,7 @@ Expect rough edges, and please report what you find in the
 3. Press **Build Liberty Pro Max**. About 5 to 20 minutes later it is in
    Applications: open it, check the options, press **Play**.
 
-For the iPad and the Apple TV, see [Install](#install).
+For the iPad, the iPhone and the Apple TV, see [Install](#install).
 
 ## What you get
 
@@ -40,6 +40,9 @@ For the iPad and the Apple TV, see [Install](#install).
 | **Fixes built in** | about 100 fixes (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
 | **Extras** | the episodes, stun punch and executions on anyone, fast loading, a mods folder, saves shared through iCloud Drive | the same |
 | **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
+
+The iPad's build also runs on an iPhone (experimental): the same, at the
+phone's own wide resolutions, played with a controller.
 
 ## What you need
 
@@ -60,6 +63,10 @@ For the iPad and the Apple TV, see [Install](#install).
     Addressing* and *Increased Memory Limit* capabilities, which free
     accounts do not have;
   - a controller or a keyboard.
+- **For the iPhone** (experimental): an iPhone with iOS 17 or newer, in
+  Developer Mode and connected to the Mac by cable, with about 16 GB free;
+  the same Xcode and paid account; a controller. Which iPhones have the
+  memory for the game is not known yet.
 - **For the Apple TV** (experimental): an Apple TV 4K (3rd generation,
   A15) with tvOS 17 or newer, paired with Xcode (Window › Devices and
   Simulators) and in Developer Mode, on Ethernet (the game's 15 GB go over
@@ -84,7 +91,8 @@ cd liberty-pro-max
 
 `install.sh` installs the build tools from Homebrew, fetches the pinned
 x86recomp, checks your `GTAIV.exe`, translates the game's code, builds, and
-puts **Liberty Pro Max** in `/Applications`. The first run takes about 15
+puts **Liberty Pro Max** in `/Applications`, with an icon made from the logo
+in your game files (the Builder's app has the standard icon for now). The first run takes about 15
 minutes on an M-series Mac. Run it again after `git pull` to update.
 
 Saves and settings are kept in `~/Library/Application Support/gtaiv`; the
@@ -110,8 +118,23 @@ The first run takes about 40 minutes.
 Then open **Liberty Pro Max** on the iPad, check the settings, press
 **Play**. The defaults are 1792×1344 with SMAA at 60 fps; the game's own
 graphics menu decides the rest: lower its view and detail distance if busy
-streets drop below 60. The game's log is `log.txt` in the app's Documents
-(Files › On My iPad, or `devicectl`).
+streets drop below 60. **Frame limit** is 60, 40, 30 or Off; Off leaves the
+pace to the screen, up to 120 fps on a 120 Hz one. The game's log is
+`log.txt` in the app's Documents (Files › On My iPad, or `devicectl`).
+
+### iPhone (experimental)
+
+The same, with the iPhone connected instead (with both connected,
+`--iphone` picks the phone):
+
+```bash
+./install-ios.sh --iphone YOUR_TEAM_ID
+```
+
+The launcher's resolutions are the phone's own screen at half, two
+thirds (the default), five sixths and full size: 1912×880 of 2868×1320,
+say. Play it with a controller: the touch controls are laid out for the
+iPad's screen and come out too small on a phone.
 
 ### Apple TV (experimental)
 
@@ -127,6 +150,9 @@ sample the game's DXT textures, so they are decoded on upload and take
 several times their size: keep the game's texture quality at its default,
 or the Apple TV's 2.1 GB per app runs out. The log is `log.txt` in the
 app's Library/Caches (`devicectl`).
+
+The app's icon is made on your Mac from the logo in your own game files,
+as on the iPad.
 
 ## Using it
 
@@ -355,9 +381,11 @@ keyboard lighting, graphics API choice and plugin loaders have nothing to do.
 
 ## Known issues
 
-- Mac, iPad and (experimental) Apple TV for now. Linux and the Steam Deck are planned.
+- Mac, iPad and (experimental) iPhone and Apple TV for now. Linux and the Steam Deck are planned.
 - iPad: busy streets need the game's view and detail distances lowered for a steady 60 fps.
-- Apple TV: no settings screen and no icon yet; high texture quality does not
+- iPhone: needs a controller (the touch controls are the iPad's, too small
+  on a phone); which models have enough memory is not known yet.
+- Apple TV: no settings screen yet; high texture quality does not
   fit its memory (DXT decoded on upload).
 - MetalFX temporal upscaling costs about 5 ms a frame at 3440×1440 output,
   more than it saves in this game; TAA at native resolution is the default.
@@ -379,17 +407,25 @@ cmake --preset release && cmake --build --preset release   # the game
 
 The app is `out/build/release/Liberty Pro Max.app`; the plain executable,
 `out/build/release/gtaiv --game-dir "$GTAIV_GAME_DIR"`, starts without the
-launcher.
+launcher. For the app's icon, before the last build (with Pillow):
+`python3 tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons --mac`.
 
 For the iPad, after that: `tools/apple_deps.sh`, `cmake --preset iphoneos &&
 cmake --build --preset iphoneos`, then `tools/ios_profile.sh`,
 `tools/make_ios_icon.py`, `tools/ios_bundle.sh <device>` and
 `tools/ios_push_game.py` (each script says what it takes; `install-ios.sh`
-runs them in order).
+runs them in order). The iPhone takes the same build and the same steps.
 
 For the Apple TV, the same with `PLATFORMS=tvos tools/apple_deps.sh`, the
 preset `appletvos` and `PLATFORM=tvos` for `tools/ios_profile.sh` and
-`tools/ios_bundle.sh`.
+`tools/ios_bundle.sh`. Its icon is layered: after `tools/make_ios_icon.py`,
+`tools/make_tvos_icon.py out/icons` (with Pillow) writes an asset catalog
+to `out/icons/tvos` with the mark and the black background as separate
+parallax layers (400×240 at 1× and 2×, 1280×768), the Top Shelf images
+(1920×720 and 2320×720, at 1× and 2×), and a flat preview,
+`out/icons/icon-tvos.png`; `tools/ios_bundle.sh` compiles the catalog into
+the app. A second argument uses other artwork than `out/icons/icon1024.png`.
+Like everything in `out/`, none of it is in the repository.
 
 ## How it works
 

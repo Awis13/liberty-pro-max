@@ -1,8 +1,9 @@
 #!/bin/zsh
-# install-ios.sh [--tv] TEAM_ID [BUNDLE_ID]
-# Builds Liberty Pro Max for the iPad connected by cable (--tv: the Apple TV
-# paired with Xcode), installs it and copies the game's files (15 GB) into
-# it. Run ./install.sh first: this build uses the game's code it translated
+# install-ios.sh [--ipad | --iphone | --tv] TEAM_ID [BUNDLE_ID]
+# Builds Liberty Pro Max for the iPad or iPhone connected by cable (the iPad
+# when both are; --ipad or --iphone says which. --tv: the Apple TV paired
+# with Xcode), installs it and copies the game's files (15 GB) into it. Run
+# ./install.sh first: this build uses the game's code it translated
 # (generated/).
 #   TEAM_ID    your Apple developer team (Xcode > Settings > Accounts)
 #   BUNDLE_ID  the app's identifier (default io.github.<team>.libertypromax,
@@ -15,14 +16,19 @@ cd $here
 say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 die() { printf '\n\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
-tv=0
-[[ ${1:-} == --tv ]] && { tv=1; shift; }
-team=${1:-}; [[ -n $team ]] || die "give your Apple developer team id: ./install-ios.sh [--tv] TEAM_ID"
+tv=0 want=
+case ${1:-} in
+  --tv) tv=1; shift ;;
+  --ipad) want=iPad; shift ;;
+  --iphone) want=iPhone; shift ;;
+esac
+team=${1:-}; [[ -n $team ]] || die "give your Apple developer team id: ./install-ios.sh [--ipad | --iphone | --tv] TEAM_ID"
 if (( tv )); then
   p=tvos kind="Apple TV" preset=appletvos profile=libertypromax-tvos data=Library/Caches
   bundle=${2:-io.github.${(L)team}.libertypromax.tv}
 else
-  p=ios kind=iPad preset=iphoneos profile=libertypromax data=Documents
+  # (kind: which of the two is found below.)
+  p=ios kind=${want:-iPad or iPhone} preset=iphoneos profile=libertypromax data=Documents
   bundle=${2:-io.github.${(L)team}.libertypromax}
 fi
 [[ -f tools/local.env ]] && . tools/local.env
@@ -31,9 +37,32 @@ fi
 xcode-select -p | grep -q Xcode.app || die "the $kind build needs Xcode (not only the Command Line Tools)"
 
 say "$kind"
-device=$(xcrun devicectl list devices 2>/dev/null | awk -v k="$kind" 'index($0, k) && /available/ && /physical/ {for (i=1;i<=NF;i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) print $i}' | head -1)
-[[ -n $device ]] || die "no $kind found (iPad: cable, unlocked; Apple TV: paired in Xcode > Devices; Developer Mode on)"
-echo "device $device, app $bundle"
+state=out/apple/push-$p.state
+if (( tv )); then
+  device=$(xcrun devicectl list devices 2>/dev/null | awk -v k="$kind" 'index($0, k) && /available/ && /physical/ {for (i=1;i<=NF;i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) print $i}' | head -1)
+else
+  # The first connected physical device whose line in devicectl's list has
+  # $1: its identifier.
+  find_device() {
+    xcrun devicectl list devices 2>/dev/null | awk -v k="$1" '$0 ~ k && /available/ && !/unavailable/ && /physical/ {for (i=1;i<=NF;i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) print $i}' | head -1
+  }
+  # By the model's code ("iPad16,10", "iPhone18,1"), not the name its owner
+  # gave it.
+  ipad=$(find_device 'iPad[0-9]+,[0-9]+') iphone=$(find_device 'iPhone[0-9]+,[0-9]+')
+  [[ $want == iPhone ]] && ipad=
+  [[ $want == iPad ]] && iphone=
+  if [[ -n $ipad ]]; then
+    kind=iPad device=$ipad
+    [[ -n $iphone ]] && echo "An iPad and an iPhone are connected: installing on the iPad (--iphone for the iPhone)."
+  elif [[ -n $iphone ]]; then
+    # (Its own record of the files sent: the iPad's says nothing about it.)
+    kind=iPhone device=$iphone state=out/apple/push-iphone.state
+  else
+    device=
+  fi
+fi
+[[ -n $device ]] || die "no $kind found (iPad, iPhone: cable, unlocked; Apple TV: paired in Xcode > Devices; Developer Mode on)"
+echo "$kind $device, app $bundle"
 
 say "Build tools and the $kind's libraries"
 brew install xcodegen
@@ -41,11 +70,17 @@ python3 -m venv out/venv && out/venv/bin/pip -q install pillow
 [[ -d out/apple/prefix-$p ]] || PLATFORMS=$p tools/apple_deps.sh
 
 say "Signing profile"
-[[ -f out/apple/profiles/$profile.mobileprovision ]] || PLATFORM=$p tools/ios_profile.sh $team $bundle $device
+# (A profile made before this device was registered does not list it, and
+# the app would not install: made again then.)
+made=out/apple/profiles/$profile.mobileprovision
+if [[ ! -f $made ]] || { (( ! tv )) && ! security cms -D -i $made 2>/dev/null | grep -q "<string>$device</string>"; }; then
+  PLATFORM=$p tools/ios_profile.sh $team $bundle $device
+fi
 
-if (( ! tv )); then
-  say "Icon, from the game's own logo"
-  out/venv/bin/python -I tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons
+say "Icon, from the game's own logo"
+out/venv/bin/python -I tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons
+if (( tv )); then
+  out/venv/bin/python -I tools/make_tvos_icon.py out/icons
 fi
 
 say "The game for $kind"
@@ -56,7 +91,7 @@ say "Installing"
 PLATFORM=$p BUILD=out/apple/build-$p PREFIX=out/apple/prefix-$p ICONS=out/icons tools/ios_bundle.sh $device
 
 say "The game's files (15 GB; on the Apple TV over the network, use Ethernet)"
-DEST=$data/game STATE=out/apple/push-$p.state python3 tools/ios_push_game.py "$GTAIV_GAME_DIR" $device $bundle
+DEST=$data/game STATE=$state python3 tools/ios_push_game.py "$GTAIV_GAME_DIR" $device $bundle
 
 mods="$HOME/Library/Application Support/gtaiv/drive_c/mods"
 if [[ -d $mods ]]; then
@@ -72,5 +107,5 @@ say "Done"
 if (( tv )); then
   echo "Open Liberty Pro Max on the Apple TV (it starts the game directly). A controller plays it."
 else
-  echo "Open Liberty Pro Max on the iPad, press Play. A controller or a keyboard plays it."
+  echo "Open Liberty Pro Max on the $kind, press Play. A controller or a keyboard plays it."
 fi

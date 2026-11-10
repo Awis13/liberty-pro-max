@@ -23,7 +23,7 @@
 #include <TargetConditionals.h>
 #endif
 #if TARGET_OS_IOS || TARGET_OS_TV
-// iPad and Apple TV: SDL owns UIKit's startup and calls main (SDL_main) on
+// iPad, iPhone and Apple TV: SDL owns UIKit's startup and calls main (SDL_main) on
 // the main thread. The game's files are in <data>/game (copied there with
 // devicectl: too big for the bundle), what the game writes (the C: drive,
 // the saves, the settings) below <data>/gtaiv, the log to <data>/log.txt.
@@ -52,8 +52,10 @@ std::string GtaivModsRedirect(const std::string& guest_path);
 void RunLauncherIfWanted(int argc, char** argv);
 #endif
 #if GTAIV_IOS
-// launcher_ios.mm: the iPad's settings screen, until Play.
+// launcher_ios.mm: the settings screen, until Play; and whether this is
+// an iPhone, with its launcher's resolutions as a display mode list.
 void RunIosLauncher(std::string* game_args);
+bool IosPhoneDisplay(std::string* modes);
 #if !TARGET_OS_TV
 void GtaivTouchStart();  // touch_ios.mm
 #endif
@@ -124,6 +126,16 @@ int main(int argc, char** argv) {
   setenv("GTAIV_GFX", "metal", 0);
   setenv("RECOMP_UPSCALER", "smaa", 0);
   setenv("GTAIV_VSYNC", "1", 0);
+#if !TARGET_OS_TV
+  // An iPhone's display mode is portrait and the app runs in landscape:
+  // the game is given the screen that way round, and the launcher's
+  // resolutions as display modes (the game keeps only a resolution it
+  // finds among them when its graphics menu applies).
+  if (std::string modes; IosPhoneDisplay(&modes)) {
+    setenv("GTAIV_DISPLAY_LANDSCAPE", "1", 0);
+    setenv("GTAIV_DISPLAY_EXTRA_MODES", modes.c_str(), 0);
+  }
+#endif
   setenv("GTAIV_SKIP_INTRO", "1", 0);
   setenv("GTAIV_FPS_REPORT", "10", 0);
 #if TARGET_OS_TV

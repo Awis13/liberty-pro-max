@@ -5,7 +5,10 @@
 // DIR is the game install: the folder with GTAIV.exe, common/, pc/ and
 // the other data folders. Defaults to $GTAIV_GAME_DIR. Arguments after
 // `--` go on the game's own command line (the options commandline.txt
-// takes, e.g. -norestrictions). Set GTAIV_TRACE=1 to log every HLE call.
+// takes, e.g. -norestrictions; given any, the game itself skips that file).
+// Started by a launcher (--no-launcher; always on iOS) the game also gets
+// the port's defaults and the player's commandline.txt first (game_args.h).
+// Set GTAIV_TRACE=1 to log every HLE call.
 // Run from "Liberty Pro Max.app", a launcher window comes first
 // (launcher_mac.mm); --no-launcher skips it.
 
@@ -15,7 +18,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <vector>
 
+#include "game_args.h"
 #include "runtime/log.h"
 #include "runtime/runtime.h"
 
@@ -52,9 +57,10 @@ std::string GtaivModsRedirect(const std::string& guest_path);
 void RunLauncherIfWanted(int argc, char** argv);
 #endif
 #if GTAIV_IOS
-// launcher_ios.mm: the settings screen, until Play; and whether this is
-// an iPhone, with its launcher's resolutions as a display mode list.
-void RunIosLauncher(std::string* game_args);
+// launcher_ios.mm: the settings screen, until Play (its own arguments for
+// the game); and whether this is an iPhone, with its launcher's
+// resolutions as a display mode list.
+void RunIosLauncher(std::vector<std::string>* launcher_args);
 bool IosPhoneDisplay(std::string* modes);
 #if !TARGET_OS_TV
 void GtaivTouchStart();  // touch_ios.mm
@@ -100,8 +106,14 @@ int main(int argc, char** argv) {
   // GTAIV_LOG=path (the launcher sets it): stderr, the game's log, there.
   if (const char* log = std::getenv("GTAIV_LOG"); log && *log) std::freopen(log, "w", stderr);
 #endif
-  std::string game_dir, game_args;
+  std::string game_dir;
+  // The game's arguments (game_args.h): those after "--"; the iOS
+  // launcher's own (its resolution); and whether a launcher started the
+  // game (then the defaults and the player's commandline.txt come first).
+  std::vector<std::string> game_args, launcher_args;
+  bool from_launcher = false;
 #if GTAIV_IOS
+  from_launcher = true;
   if (const char* home = std::getenv("HOME")) {
 #if TARGET_OS_TV
     const std::string docs = std::string(home) + "/Library/Caches";
@@ -146,7 +158,7 @@ int main(int argc, char** argv) {
 #endif
   // The launcher (the player's mods, if any, are in
   // Documents/gtaiv/drive_c/mods).
-  RunIosLauncher(&game_args);
+  RunIosLauncher(&launcher_args);
 #if !TARGET_OS_TV
   GtaivTouchStart();
 #endif
@@ -156,17 +168,10 @@ int main(int argc, char** argv) {
     if (!std::strcmp(argv[i], "--game-dir") && i + 1 < argc) {
       game_dir = argv[++i];
     } else if (!std::strcmp(argv[i], "--no-launcher")) {
-      // (The launcher's own: started from it.)
+      // (The Mac launcher's own: started from it, launcher_mac.mm.)
+      from_launcher = true;
     } else if (!std::strcmp(argv[i], "--")) {
-      for (i++; i < argc; i++) {
-        if (!game_args.empty()) game_args += ' ';
-        // Quoted, as on a Windows command line, so an argument with spaces
-        // stays one.
-        bool quote = std::strpbrk(argv[i], " \t");
-        if (quote) game_args += '"';
-        game_args += argv[i];
-        if (quote) game_args += '"';
-      }
+      for (i++; i < argc; i++) game_args.push_back(argv[i]);
     } else {
       std::fprintf(stderr, "usage: %s [--game-dir DIR] [-- GAME ARGS...]\n", argv[0]);
       return 2;
@@ -177,6 +182,18 @@ int main(int argc, char** argv) {
     return 2;
   }
   while (game_dir.size() > 1 && game_dir.back() == '/') game_dir.pop_back();
+  // Behind a launcher: the defaults, the player's commandline.txt (read
+  // here, its bytes as the game would read them), the launcher's own, then
+  // anything after "--". Run by hand without --no-launcher, only those
+  // after "--" (with none, the game reads its commandline.txt itself).
+  if (from_launcher) {
+    launcher_args.insert(launcher_args.end(), game_args.begin(), game_args.end());
+    game_args = gtaiv::LauncherGameArgs(game_dir, launcher_args);
+  }
+  // Quoted as the game's CRT splits a Windows command line, so each one
+  // stays one argument.
+  const std::string command_line = gtaiv::JoinArgs(game_args);
+  if (!command_line.empty()) std::fprintf(stderr, "gtaiv: the game's arguments: %s\n", command_line.c_str());
   if (const char* t = std::getenv("GTAIV_TRACE")) recomp::g_trace = *t && *t != '0';
 
   std::string exe = game_dir + "/GTAIV.exe";
@@ -247,5 +264,5 @@ int main(int argc, char** argv) {
   // The newest saves from iCloud before the game reads any (save_cloud.mm).
   GtaivCloudSavesStart();
 #endif
-  return recomp::RunProcess(game, exe, game_dir, game_args);
+  return recomp::RunProcess(game, exe, game_dir, command_line);
 }

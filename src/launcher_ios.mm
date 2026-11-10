@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <string>
+#include <vector>
 
 #include "launcher_options.h"
 
@@ -288,9 +289,11 @@ bool IosPhoneDisplay(std::string* modes) {
   return true;
 }
 
-// main.cpp (iPad, iPhone): the launcher until Play, then the options into the
-// environment; the game's resolution goes on its command line (game_args).
-void RunIosLauncher(std::string* game_args) {
+// main.cpp (iPad, iPhone, Apple TV): the launcher until Play, then the
+// options into the environment; the game's resolution goes on its command
+// line (launcher_args: after the defaults and the player's commandline.txt,
+// so the resolution chosen here wins; game_args.h).
+void RunIosLauncher(std::vector<std::string>* launcher_args) {
   @autoreleasepool {
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
     RegisterDefaults(d);
@@ -300,11 +303,7 @@ void RunIosLauncher(std::string* game_args) {
     [d registerDefaults:@{kAntiAliasingKey : @1, kHudKey : @NO, @"FixDrawDistance" : @YES}];
     ApplyOptions(d);
     setenv("GTAIV_VSYNC", "1", 1);
-    // GTAIV_VIDMEM: the video memory the game is told it has (MB).
-    const char* vm = std::getenv("GTAIV_VIDMEM");
-    std::string res = std::string("-norestrictions -availablevidmem ") + (vm ? vm : "2047") +
-                      " -width 1920 -height 1080";
-    *game_args = game_args->empty() ? res : *game_args + " " + res;
+    *launcher_args = {"-width", "1920", "-height", "1080"};
 #else
     // The defaults here: the second resolution (the iPad's 1792x1344, two
     // thirds of an iPhone's screen) at 60, SMAA (TAA costs the GPU
@@ -361,13 +360,7 @@ void RunIosLauncher(std::string* game_args) {
     if (limit) setenv("GTAIV_FPS_LIMIT", std::to_string(limit).c_str(), 1);
     const auto& resolutions = Resolutions();
     const Resolution& r = resolutions[std::clamp<NSInteger>([d integerForKey:kIosResolutionKey], 0, NSInteger(resolutions.size()) - 1)];
-    // Given a command line the game no longer reads commandline.txt: its
-    // options go here too (no setting restrictions, and the video memory
-    // its budget counts; without them it fits everything into 512 MB, all
-    // at the lowest).
-    std::string res = "-norestrictions -availablevidmem 2047 -width " + std::to_string(r.w) +
-                      " -height " + std::to_string(r.h);
-    *game_args = game_args->empty() ? res : *game_args + " " + res;
+    *launcher_args = {"-width", std::to_string(r.w), "-height", std::to_string(r.h)};
 #endif
   }
 }

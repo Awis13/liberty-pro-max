@@ -96,9 +96,14 @@ in your game files (the Builder's app has the standard icon for now). The first 
 minutes on an M-series Mac. Run it again after `git pull` to update.
 
 Saves and settings are kept in `~/Library/Application Support/gtaiv`; the
-game's log is `~/Library/Logs/gtaiv.log`. For the highest graphics settings,
-put a `commandline.txt` with `-norestrictions -availablevidmem 2047` in the
-game folder (the iPad's launcher passes both itself).
+game's log is `~/Library/Logs/gtaiv.log`. Every graphics setting, high
+texture quality too, can be chosen without a `commandline.txt`: the
+launcher gives the game `-norestrictions -availablevidmem 2047` itself. A
+`commandline.txt` in the game folder is still read, on every device, after
+those two, so its own values win (another `-availablevidmem`, say); only
+the resolution chosen in the iPad and iPhone launcher, and the Apple TV's
+fixed 1920x1080, win over its `-width` and `-height`. The log's first lines
+show the arguments the game was given.
 
 ### iPad
 

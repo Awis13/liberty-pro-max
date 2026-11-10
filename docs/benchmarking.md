@@ -72,7 +72,12 @@ ctest --test-dir out/build/release -R '^wbem_report_' --output-on-failure
 
 A passing WMI test does not qualify the full stock benchmark. Require a native
 report and guest `ExitProcess(0)` before accepting that path; `open -W` returning
-success is insufficient. A known stock-benchmark startup fault reaches guest
-address `00000004` in lifted `f_007E8100`. The control renderer and startup code
-reproduce it. Normal gameplay and the synthetic renderer suites exercise separate
-paths and do not establish stock-benchmark completion.
+success is insufficient. The replay opens `C:.\pc\data\Benchmark.cli`, a path
+relative to drive C's current directory. Mapping it as an absolute path misses
+the replay data and causes a fault at guest address `00000004`, inside
+`f_007DDA40` called by `f_007E8100`. The shared runtime's drive-relative path
+resolver must handle this form; its `guest_file_path` test covers full paths,
+file reads, directory changes and the install overlay. Normal gameplay and the
+synthetic renderer suites exercise separate paths and do not establish
+stock-benchmark completion. A completed stock run alone does not establish a
+performance gain.

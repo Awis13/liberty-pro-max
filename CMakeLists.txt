@@ -119,6 +119,9 @@ if(GTAIV_TESTS AND NOT RECOMP_IOS)
   add_executable(gtaiv_game_args_test tests/game_args_test.cpp src/game_args.cpp)
   target_include_directories(gtaiv_game_args_test PRIVATE src)
   add_test(NAME game_args COMMAND gtaiv_game_args_test)
+  add_executable(gtaiv_first_menu_test tests/first_menu_test.cpp)
+  target_include_directories(gtaiv_first_menu_test PRIVATE src)
+  add_test(NAME first_menu COMMAND gtaiv_first_menu_test)
 endif()
 
 # Opt-in native application-loop regression tests.

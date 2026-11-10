@@ -2,7 +2,8 @@
 //   GTAIV_SKIP_INTRO=1: the logo and legal screens before the first menu
 //     are not shown;
 //   GTAIV_CONTINUE=1: the game starts in the last save instead of the
-//     main menu;
+//     main menu (with the episodes found, their chooser comes first and
+//     then the chosen game's menu);
 //   GTAIV_FOV=degrees: added to the game camera's field of view (wide
 //     screens);
 //   GTAIV_FAST_LOADING=0 turns off the loading speed-ups (on by default):
@@ -29,7 +30,9 @@
 #include <cstring>
 #include <thread>
 
+#include "first_menu.h"
 #include "runtime/lifted.h"
+#include "runtime/log.h"
 #include "runtime/platform.h"
 #include "runtime/runtime.h"
 
@@ -203,12 +206,17 @@ void hook_00C8DBF5(Ctx& c) {  // opponentIsReadyToBeExecuted
 // time round.
 void hook_004A18E3(Ctx& c) { x87::LoadF32(c.fpu, FastLoading() ? 0 : Rd32(0x00EDFB24)); }
 
-// The first menu after the start screens (push 0: the main menu, to the
+// The first menu after the start screens (push 0: the menu up stays, to the
 // frontend's state setter 007BDD80). With GTAIV_CONTINUE, state 6: the
-// last save loads.
+// last save loads; but not when that menu is the episode chooser
+// (first_menu.h).
 void hook_0047D255(Ctx& c) {
+  constexpr uint32_t kChooserUp = 0x010FBBB1;  // the episode chooser is up
   static const bool cont = Option("GTAIV_CONTINUE");
-  const uint32_t state = cont && !g_menu_reached ? 6 : 0;
+  const bool chooser = Rd8(kChooserUp) != 0;
+  if (cont && !g_menu_reached && chooser)
+    WarnF("gtaiv: episodes: the chooser first, no continue from the last save\n");
+  const uint32_t state = first_menu::State(cont, g_menu_reached, chooser);
   g_menu_reached = true;
   c.esp -= 4;
   Wr32(c.esp, state);

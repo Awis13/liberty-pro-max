@@ -181,6 +181,11 @@ The Ballad of Gay Tony work: the game opens with its own screen to choose what
 to play. Their saves sit with IV's, in the same slots. A launcher checkbox turns
 them off.
 
+With the episodes found, that screen comes first even when "Continue from the
+last save" is on, and after it the chosen game's own menu: Start there goes on
+in that game. Continue loads the last save straight away only when there are no
+episodes, since that save may be another game's.
+
 The episodes also bring radio songs, which the game would add to the same
 stations in IV and in the other episode. They play only in their own episode,
 so IV's stations keep IV's songs; the option "Episodes' radio songs only in

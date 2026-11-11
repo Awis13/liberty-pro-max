@@ -92,6 +92,10 @@ replace 008CC970 Pool_SweepAtShutdown   # quit before the world loaded: no strea
 replace 0094A6D0 PedIntelligence_DecreasePinnedDown   # above 30 fps it never decreased: cops stuck in cover
 replace 008936A0 RadioHud_LogoBw      # a logo dictionary without the logo: the logo found stays
 replace 00893680 RadioHud_LogoColour  # the same
+replace 00893870 RadioHud_Find       # a station without a radiohud.dat line: an empty record, not null (issue 15)
+replace 00893920 RadioHud_DrawLogo   # and no logo drawn for it
+replace 00896310 RadioHud_DrawWheelLogo  # the same, in the wheel (its fade still steps)
+replace 00B564A0 RadioHud_DrawMenuLogo   # the same, the menus' deferred logo
 hook 00895F59 00895F5E   # radio listening time: stations past the stats' 20 slots not counted (the save grew to hundreds of MB)
 # Millisecond clocks and script timers keep their fractions (src/fixes.cpp).
 hook 007CC06F 007CC075   # CTimer: the game's clock
@@ -117,7 +121,9 @@ replace 009AE360 Water_ModifyDynamicWaterSpeed  # per time
 hook 009CB59C 009CB5A4   # helicopter main rotor speed: per time
 hook 009CB5DA 009CB5E2   # helicopter tail rotor speed: per time
 # Conveniences (src/options.cpp).
-hook 0047D255 0047D257   # the first menu: GTAIV_CONTINUE starts in the last save
+hook 0047D255 0047D257   # the first menu: GTAIV_CONTINUE starts in the newest save (the chooser first with none)
+replace 0085A520 Saves_ReadEpisodeArg   # with the episodes off, a start is given -episode 0: IV's newest save
+replace 004944E0 Frontend_StartGame     # and that is taken back once the start is over
 hook 004A346B 004A3475   # start screens' times: GTAIV_SKIP_INTRO skips the short ones
 replace 00A777C0 CamGame_PostProcessHeightBasedFOV   # GTAIV_FOV: wider field of view
 hook 00401854 00401859   # startup sleep 5000 ms: none with GTAIV_FAST_LOADING (default)

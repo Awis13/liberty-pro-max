@@ -35,7 +35,7 @@ add_subdirectory("${X86RECOMP_DIR}" x86recomp)
 # recomp_lift from the user's own install; see README.md).
 recomp_add_lifted(gtaiv_lifted "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 if(TARGET gtaiv_lifted)
-  add_executable(gtaiv src/main.cpp src/paul.cpp src/integrity.cpp src/diagnostics.cpp src/widescreen.cpp src/crt_math.cpp
+  add_executable(gtaiv src/main.cpp src/game_args.cpp src/paul.cpp src/integrity.cpp src/diagnostics.cpp src/widescreen.cpp src/crt_math.cpp
     src/bench.cpp src/fixes.cpp src/jobs.cpp src/options.cpp src/perf.cpp src/episodes.cpp src/mods.cpp src/threads.cpp src/native.cpp src/pad_icons.cpp
     src/community_fixes.cpp
     src/high_fps_fixes.cpp
@@ -109,6 +109,25 @@ if(TARGET gtaiv_lifted)
       COMMAND sh -c "[ ! -f '${CMAKE_CURRENT_SOURCE_DIR}/out/icons/AppIcon.icns' ] || { mkdir -p '${app}/Contents/Resources' && cp -f '${CMAKE_CURRENT_SOURCE_DIR}/out/icons/AppIcon.icns' '${app}/Contents/Resources/'; }"
       COMMAND codesign --force --sign - "${app}"
       VERBATIM)
+  endif()
+endif()
+
+# Opt-in unit tests of the port's plain C++ (no game files needed):
+# cmake -DGTAIV_TESTS=ON, then ctest.
+option(GTAIV_TESTS "Build the port's unit tests" OFF)
+if(GTAIV_TESTS AND NOT RECOMP_IOS)
+  add_executable(gtaiv_game_args_test tests/game_args_test.cpp src/game_args.cpp)
+  target_include_directories(gtaiv_game_args_test PRIVATE src)
+  add_test(NAME game_args COMMAND gtaiv_game_args_test)
+  add_executable(gtaiv_first_menu_test tests/first_menu_test.cpp)
+  target_include_directories(gtaiv_first_menu_test PRIVATE src)
+  add_test(NAME first_menu COMMAND gtaiv_first_menu_test)
+  if(APPLE)
+    add_executable(gtaiv_launcher_options_test tests/launcher_options_test.mm)
+    target_include_directories(gtaiv_launcher_options_test PRIVATE src)
+    target_compile_options(gtaiv_launcher_options_test PRIVATE -fobjc-arc)
+    target_link_libraries(gtaiv_launcher_options_test PRIVATE "-framework Foundation")
+    add_test(NAME launcher_options COMMAND gtaiv_launcher_options_test)
   endif()
 endif()
 

@@ -38,7 +38,7 @@ For the iPad, the iPhone and the Apple TV, see [Install](#install).
 | **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048, field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play** |
 | **Fixes built in** | about 100 fixes (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
-| **Extras** | the episodes, stun punch and executions on anyone, fast loading, a mods folder, saves shared through iCloud Drive | the same |
+| **Extras** | on the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, phone cheats, full damage; also stun punch and executions on anyone, fast loading, a mods folder, saves shared through iCloud Drive | the same |
 | **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
 
 The iPad's build also runs on an iPhone (experimental): the same, at the
@@ -96,9 +96,19 @@ in your game files (the Builder's app has the standard icon for now). The first 
 minutes on an M-series Mac. Run it again after `git pull` to update.
 
 Saves and settings are kept in `~/Library/Application Support/gtaiv`; the
-game's log is `~/Library/Logs/gtaiv.log`. For the highest graphics settings,
-put a `commandline.txt` with `-norestrictions -availablevidmem 2047` in the
-game folder (the iPad's launcher passes both itself).
+game's log is `~/Library/Logs/gtaiv.log`. Every graphics setting, high
+texture quality too, can be chosen without a `commandline.txt`: the
+launcher gives the game `-norestrictions -availablevidmem 2047` itself. A
+`commandline.txt` in the game folder is still read, on every device, after
+those two, so its own values win (another `-availablevidmem`, say); only
+the resolution chosen in the iPad and iPhone launcher, and the Apple TV's
+fixed 1920x1080, win over its `-width` and `-height`. Only the game
+folder's own `commandline.txt` is read, not one inside a mod or the
+`update` folder. Files it takes in with `@name` are read from the game
+folder too; the installer copies only `commandline.txt` itself to the iPad,
+iPhone and Apple TV, so copy such files there by hand. An `@name` given
+after `--` is not read behind a launcher. The log's first lines show the
+arguments the game was given.
 
 ### iPad
 
@@ -149,7 +159,9 @@ screen: it starts the game at 1920×1080 with SMAA at 60 fps. The A15 cannot
 sample the game's DXT textures, so they are decoded on upload and take
 several times their size: keep the game's texture quality at its default,
 or the Apple TV's 2.1 GB per app runs out. The log is `log.txt` in the
-app's Library/Caches (`devicectl`).
+app's Library/Caches (`devicectl`). The episodes are not available there
+yet: their folders are copied, but without a settings screen they cannot be
+turned on.
 
 The app's icon is made on your Mac from the logo in your own game files,
 as on the iPad.
@@ -171,10 +183,20 @@ option turns both off.
 
 ### The episodes
 
-If your game folder has the `TLAD` and `TBoGT` folders, The Lost and Damned and
-The Ballad of Gay Tony work: the game opens with its own screen to choose what
-to play. Their saves sit with IV's, in the same slots. A launcher checkbox turns
-them off.
+The episodes are off until you turn them on: "The episodes" on the launcher's
+**Extras** tab (in its Extras section on the iPad and iPhone; the Apple TV, with
+no settings screen yet, has them off). Then, if your game folder has the `TLAD`
+and `TBoGT` folders, The Lost and Damned and The Ballad of Gay Tony work: the
+game opens with its own screen to choose what to play. Their saves sit with
+IV's, in the same slots. With the episodes off their saves are kept, and
+"Continue from the last save" goes on from your newest IV save instead, or
+starts a new IV game if you have none; turn the episodes on to continue an
+episode.
+
+With the episodes on and "Continue from the last save" on, the game goes on
+from your newest save, in the game it was made in (IV or an episode). With no
+save yet it opens on that screen. To play another game than your newest save's, untick "Continue from the
+last save".
 
 The episodes also bring radio songs, which the game would add to the same
 stations in IV and in the other episode. They play only in their own episode,
@@ -211,6 +233,9 @@ frame limit (off, 30, 60 or 120 fps), anti-aliasing
 (TAA, SMAA, MetalFX), shadow and reflection resolution, field of view, fast
 loading, skipping the logo screens, continuing the last save, mods, the
 performance overlay, and on a display with a notch the whole screen. On the
+**Extras** tab, this port's own additions: the episodes, turn indicators, pad
+icons, phone cheats and full damage, each off until you turn it on, and the
+episodes' radio songs kept to their own episode, on. On the
 **Advanced** tab, every fix below, each a switch. Most follow FusionFix's and
 ZolikaPatch's (by what they do; their code is not used), some are this
 port's own.
@@ -219,7 +244,7 @@ port's own.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-104 switches and choices in the launcher (Advanced tab; the iPad has them on its settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
+104 switches and choices in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
 
 #### High frame rates
 
@@ -279,7 +304,6 @@ The game was made for 30 fps; these keep it right at any frame rate.
 | Pause menu shows the game's version, the archives open and memory use | off |
 | Pause menu time and money spaced as on consoles | on |
 | Menu lists show 32 rows before scrolling | on |
-| Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder) | off |
 
 #### FusionFix
 
@@ -316,15 +340,12 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 | Red and amber glass from broken tail lights and indicators | on |
 | Tracer on every shot | off |
 | TBoGT: tracers drawn in the right place | on |
-| Turn indicators when steering, hazard lights after a crash | off |
-| Turn indicators by hand: [ and ] or bumpers, both for hazards | off |
 
 #### Gameplay
 
 | Option | Default |
 |---|---|
 | Weapon recoil with the mouse as with a gamepad | on |
-| Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5 | off |
 | Health from a save at most a full bar (trainer saves) | on |
 | Saving from the phone works in vehicles | on |
 | Radio keeps playing after cutscenes | on |
@@ -342,7 +363,6 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 | Always run (tap sprint: run or jog, hold: sprint) | off |
 | Sniper rifles aim over the shoulder; Jump toggles the scope | off |
 | Distant traffic on every road at any height | on |
-| Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100) | on |
 | Missions play the alternative car banter | off |
 
 #### Limits, streaming and stability
@@ -366,13 +386,20 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 | Saves synced with your iPad and Apple TV at start and quit (needs Xcode) | on |
 | Keep running when the window is not in front | off |
 
-#### Other
+#### Extras
+
+This port's own additions, on the launcher's Extras tab (a section of their own on the iPad and iPhone).
 
 | Option | Default |
 |---|---|
-| The episodes, when their folders are in the game's | on |
+| The episodes, when their folders are in the game's | off |
 | Episodes' radio songs only in their own episode, not in IV | on |
+| Turn indicators when steering, hazard lights after a crash | off |
+| Turn indicators by hand: [ and ] or bumpers, both for hazards (needs Turn indicators) | off |
 | Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand) | off |
+| Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder) | off |
+| Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100) | off |
+| Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5 | off |
 
 <!-- fixes:end -->
 

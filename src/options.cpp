@@ -1,8 +1,10 @@
 // Conveniences, each an option (the launcher sets them):
 //   GTAIV_SKIP_INTRO=1: the logo and legal screens before the first menu
 //     are not shown;
-//   GTAIV_CONTINUE=1: the game starts in the last save instead of the
-//     main menu;
+//   GTAIV_CONTINUE=1: the game starts in the newest save, in the game it
+//     was made in, instead of the main menu (with the episodes found and
+//     no save yet, their chooser comes first; with the episodes off, IV's
+//     newest save: see f_0085A520);
 //   GTAIV_FOV=degrees: added to the game camera's field of view (wide
 //     screens);
 //   GTAIV_FAST_LOADING=0 turns off the loading speed-ups (on by default):
@@ -22,20 +24,28 @@
 //     per physics step (2-5, default 3 as the game takes on any machine
 //     with 4+ CPUs; 4 and 5 measured no faster with main's physics help).
 
+#include <cctype>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
+#include <string>
 #include <thread>
 
+#include "first_menu.h"
+#include "option.h"
 #include "runtime/lifted.h"
+#include "runtime/log.h"
 #include "runtime/platform.h"
 #include "runtime/runtime.h"
 
 namespace recomp::gen {
 
 void f_00A777C0_lifted(Ctx& c);
+void f_0085A520_lifted(Ctx& c);
+void f_004944E0_lifted(Ctx& c);
 
 namespace {
 
@@ -203,15 +213,93 @@ void hook_00C8DBF5(Ctx& c) {  // opponentIsReadyToBeExecuted
 // time round.
 void hook_004A18E3(Ctx& c) { x87::LoadF32(c.fpu, FastLoading() ? 0 : Rd32(0x00EDFB24)); }
 
-// The first menu after the start screens (push 0: the main menu, to the
+// Whether the player's profile holds a save: a file SGTA4nn, not empty, in
+// the game's save folder, savegames/user_<the profile's XUID> (xlive.cpp's
+// fixed one). The game's own scan runs only after the first menu
+// (first_menu.h). An error reading the folders ends the search (no
+// exception out of the hook): what was found so far counts.
+bool HasSave() {
+  namespace fs = std::filesystem;
+  const fs::path saves = fs::path(recomp::DataDir()) /
+                         "drive_c/Documents and Settings/Player/Local Settings/Application Data/"
+                         "Rockstar Games/GTA IV/savegames";
+  std::error_code ec;
+  for (fs::directory_iterator user(saves, ec), end; !ec && user != end; user.increment(ec)) {
+    std::string name = user->path().filename().string();
+    for (char& ch : name) ch = char(std::tolower(static_cast<unsigned char>(ch)));
+    std::error_code fec;
+    if (name != "user_ee000000deadc0de" || !user->is_directory(fec)) continue;
+    for (fs::directory_iterator f(user->path(), fec); !fec && f != end; f.increment(fec)) {
+      std::error_code sec;
+      if (!f->is_regular_file(sec)) continue;
+      const std::uintmax_t size = f->file_size(sec);
+      if (!sec && first_menu::IsSave(f->path().filename().string(), size)) return true;
+    }
+  }
+  return false;
+}
+
+// The first menu after the start screens (push 0: the menu up stays, to the
 // frontend's state setter 007BDD80). With GTAIV_CONTINUE, state 6: the
-// last save loads.
+// newest save loads, in the game it was made in; but when that menu is the
+// episode chooser and there is no save yet, the chooser stays
+// (first_menu.h).
 void hook_0047D255(Ctx& c) {
+  constexpr uint32_t kChooserUp = 0x010FBBB1;  // the episode chooser is up
   static const bool cont = Option("GTAIV_CONTINUE");
-  const uint32_t state = cont && !g_menu_reached ? 6 : 0;
+  const bool chooser = Rd8(kChooserUp) != 0;
+  bool has_save = false;
+  if (cont && !g_menu_reached && chooser) {
+    has_save = HasSave();
+    WarnF(has_save ? "gtaiv: episodes: continue from the newest save, in its own game\n"
+                   : "gtaiv: episodes: no save yet: the chooser first\n");
+  }
+  const uint32_t state = first_menu::State(cont, g_menu_reached, chooser, has_save);
   g_menu_reached = true;
   c.esp -= 4;
   Wr32(c.esp, state);
+}
+
+// The start of a game from the title menu or Continue (004944E0, frontend
+// state 6) first reads the command line's -episode N (0085A520: then
+// [011D5E2A] set and N in [00F348F4]), scans the saves, and loads the
+// newest. Given -episode, the scan also keeps each game's newest save
+// (0085A2E5: IV's in [00F348E8]), the load takes that game's newest
+// (0085C5C8, 00859070) and that game starts (0049469A: [00F348F4], where
+// 004946A1 reads [011D5E34] without -episode); with none, a new
+// game of it (state 7, 00494643). Without it the newest save of any game
+// loads in its own game: an episode's, with the episodes off, ends on the
+// game's "The downloadable content required for this autoload is not
+// available" and a new IV game. So with the episodes off the port gives
+// -episode 0 for that start (IV's newest save, or a new IV game), unless
+// the player's command line has an -episode of its own, and takes it back
+// when the start is over: later, the Load Game menu's episode save still
+// meets the game's own answer (0085B4E0 and 00492E30 read it too).
+namespace {
+bool g_iv_forced;
+}
+
+void f_0085A520(Ctx& c) {
+  f_0085A520_lifted(c);
+  static const bool episodes = OptionOn("GTAIV_EPISODES", false);
+  if (episodes || Rd8(0x011D5E2A)) return;
+  Wr8(0x011D5E2A, 1);
+  Wr32(0x00F348F4, 0);
+  Wr32(0x011D5E34, 0);
+  g_iv_forced = true;
+  static bool said;
+  if (!said) {
+    said = true;
+    WarnF("gtaiv: continue: the episodes are off: IV's newest save, as with -episode 0\n");
+  }
+}
+
+void f_004944E0(Ctx& c) {
+  f_004944E0_lifted(c);
+  if (!g_iv_forced) return;
+  g_iv_forced = false;
+  Wr8(0x011D5E2A, 0);  // as 0085A520 leaves them without -episode
+  Wr32(0x00F348F4, 0xFFFFFFFFu);
 }
 
 // A start screen's time on screen in ms (edx), after its count (ecx): the

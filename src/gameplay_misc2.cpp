@@ -4,7 +4,7 @@
 //   GTAIV_OUT_OF_COMMISSION_FIX: the bike-to-helicopter climb in the last
 //     mission (finale2: "Out of Commission" and "A Revenger's Tragedy")
 //     does not get harder above 30 fps;
-//   GTAIV_PHONE_CHEATS: two phone cheats for Niko: 458-555-0100 the
+//   GTAIV_PHONE_CHEATS (off by default): two phone cheats for Niko: 458-555-0100 the
 //     beta's gloves, 288-555-0100 the beta's hair (dialled again: back);
 //   GTAIV_ALT_DIALOGUE (off by default): missions play the other variant
 //     of their car banter, the one a retry plays;
@@ -229,7 +229,7 @@ void ToggleComponent(Ctx& c, uint32_t comp) {
 }  // namespace
 
 void f_0084D2B0(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_PHONE_CHEATS", true);
+  static const bool on = OptionOn("GTAIV_PHONE_CHEATS", false);
   uint32_t number = 0;
   if (on && Rd32(kEpisode) == 0) number = DialledNumber(c);
   f_0084D2B0_lifted(c);

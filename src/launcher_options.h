@@ -41,12 +41,16 @@ NSString* const kStunPunchKey = @"StunPunchAnywhere";
 NSString* const kExecutionsKey = @"ExecutionsAnywhere";
 
 // Advanced, the community's fixes (community_fixes.cpp, widescreen.cpp):
-// each a checkbox, on unless the player turns it off.
+// each a checkbox, on unless the player turns it off. Extras, the port's
+// own additions: a tab (Mac) and a section (iPad, iPhone) of their own,
+// off until the player turns them on (but for the episodes' own radio
+// songs, which only matter with the episodes on).
 struct Fix {
   NSString* key;
   const char* env;
   NSString* title;
   bool on = true;  // by default
+  bool extra = false;  // one of the port's own additions: the Extras tab or section
   bool hidden = false;  // needs the extended shaders (GTAIV_FF_SHADERS, not finished): not shown
 };
 const Fix kFixes[] = {
@@ -67,7 +71,6 @@ const Fix kFixes[] = {
     {@"CursorSize", "GTAIV_CURSOR_SIZE", @"Mouse cursor scaled to the screen"},
     {@"HideCursorOnPad", "GTAIV_HIDE_CURSOR_ON_PAD", @"Menu cursor hidden while playing with a gamepad"},
     {@"ReticleHealth", "GTAIV_RETICLE_HEALTH", @"Target health on the reticle with the mouse"},
-    {@"PlayerFullDamage", "GTAIV_PLAYER_FULL_DAMAGE", @"Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5", false},
     {@"SaveHealthCap", "GTAIV_SAVE_HEALTH_CAP", @"Health from a save at most a full bar (trainer saves)"},
     {@"SaveSync", "GTAIV_SAVE_SYNC", @"Saves synced with your iPad and Apple TV at start and quit (needs Xcode)"},
     {@"RadarZoomDelay", "GTAIV_RADAR_ZOOM_DELAY", @"Radar stays zoomed out for 3 seconds"},
@@ -118,7 +121,7 @@ const Fix kFixes[] = {
     {@"HeliPadReticle", "GTAIV_HELI_PAD_RETICLE", @"First-person helicopter reticle with a gamepad", true},
     {@"AutoLadders", "GTAIV_AUTO_LADDERS", @"Climb ladders by walking into them", false},
     {@"WheelStuntCamera", "GTAIV_WHEEL_STUNT_CAMERA", @"Stunt jumps: mouse wheel sets the slow motion", true},
-    {@"VehicleNightShadows", "GTAIV_VEHICLE_NIGHT_SHADOWS", @"Vehicles cast shadows from street lights (needs FusionFix shaders)", true, true},
+    {@"VehicleNightShadows", "GTAIV_VEHICLE_NIGHT_SHADOWS", @"Vehicles cast shadows from street lights (needs FusionFix shaders)", true, false, true},
     {@"EmissiveNoDepthWrite", "GTAIV_EMISSIVE_NO_DEPTH_WRITE", @"The glow of lamps and signs does not cut into what is in front of it"},
     {@"SignGlowFix", "GTAIV_SIGN_GLOW_FIX", @"Neon signs glow from every angle"},
     {@"DynamicShadowsEverywhere", "GTAIV_DYNAMIC_SHADOWS_EVERYWHERE", @"Every light casts moving shadows (very slow)", false},
@@ -131,8 +134,6 @@ const Fix kFixes[] = {
     {@"MenuExtraInfo", "GTAIV_MENU_EXTRA_INFO", @"Pause menu shows the game's version, the archives open and memory use", false},
     {@"GlassShardColours", "GTAIV_GLASS_SHARD_COLOURS", @"Red and amber glass from broken tail lights and indicators"},
     {@"BulletTracers", "GTAIV_BULLET_TRACERS", @"Tracer on every shot", false},
-    {@"Episodes", "GTAIV_EPISODES", @"The episodes, when their folders are in the game's"},
-    {@"EpisodeRadioOwn", "GTAIV_EPISODE_RADIO_OWN", @"Episodes' radio songs only in their own episode, not in IV"},
     {@"TBoGTTracerFx", "GTAIV_TBOGT_TRACER_FX", @"TBoGT: tracers drawn in the right place"},
     {@"PauseInfoSpacing", "GTAIV_PAUSE_INFO_SPACING", @"Pause menu time and money spaced as on consoles"},
     {@"CompareStringFix", "GTAIV_COMPARE_STRING_FIX", @"No crash on phone calls in The Lost and Damned"},
@@ -141,30 +142,34 @@ const Fix kFixes[] = {
     {@"EditorFreeCamera", "GTAIV_EDITOR_FREE_CAMERA", @"Video editor: free camera without bounds"},
     {@"ErrorsToLog", "GTAIV_ERRORS_TO_LOG", @"Game errors only to the log, no error box (may crash later)", false},
     {@"NoPhysicsSleep", "GTAIV_NO_PHYSICS_SLEEP", @"Cars roll to a stop instead of freezing (costs CPU)", false},
-    {@"TurnIndicators", "GTAIV_TURN_INDICATORS", @"Turn indicators when steering, hazard lights after a crash", false},
-    {@"TurnIndicatorsManual", "GTAIV_TURN_INDICATORS_MANUAL", @"Turn indicators by hand: [ and ] or bumpers, both for hazards", false},
-    {@"RouteIndicators", "GTAIV_TURN_INDICATORS_ROUTE", @"Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand)", false},
-    {@"PadIcons", "GTAIV_PAD_ICONS", @"Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder)", false},
     {@"KeepWheelsTurned", "GTAIV_KEEP_WHEELS_TURNED", @"Parked vehicles keep their wheels turned", false},
-    {@"FFToneMapping", "GTAIV_FF_TONE_MAPPING", @"FusionFix shaders: tone mapping (highlights not clipped)", false, true},
-    {@"FFNoBloomColorShift", "GTAIV_FF_NO_BLOOM_COLOR_SHIFT", @"FusionFix shaders: bloom keeps its colour with tone mapping", true, true},
-    {@"FFAutoExposure", "GTAIV_FF_AUTO_EXPOSURE", @"FusionFix shaders: exposure adapts as on consoles", true, true},
-    {@"FFDefinition", "GTAIV_FF_DEFINITION", @"FusionFix shaders: definition (sharper image)", true, true},
-    {@"FFUnclampLighting", "GTAIV_FF_UNCLAMP_LIGHTING", @"FusionFix shaders: unclamped sunlight", false, true},
-    {@"FFSmoothShorelines", "GTAIV_FF_SMOOTH_SHORELINES", @"FusionFix shaders: smooth shorelines", true, true},
-    {@"FFSmoothLightVolumes", "GTAIV_FF_SMOOTH_LIGHT_VOLUMES", @"FusionFix shaders: smooth light volumes", true, true},
-    {@"FFCascadeShadows", "GTAIV_FF_CASCADE_SHADOWS", @"FusionFix shaders: cascaded shadow fixes (atlas, ranges)", true, true},
+    {@"FFToneMapping", "GTAIV_FF_TONE_MAPPING", @"FusionFix shaders: tone mapping (highlights not clipped)", false, false, true},
+    {@"FFNoBloomColorShift", "GTAIV_FF_NO_BLOOM_COLOR_SHIFT", @"FusionFix shaders: bloom keeps its colour with tone mapping", true, false, true},
+    {@"FFAutoExposure", "GTAIV_FF_AUTO_EXPOSURE", @"FusionFix shaders: exposure adapts as on consoles", true, false, true},
+    {@"FFDefinition", "GTAIV_FF_DEFINITION", @"FusionFix shaders: definition (sharper image)", true, false, true},
+    {@"FFUnclampLighting", "GTAIV_FF_UNCLAMP_LIGHTING", @"FusionFix shaders: unclamped sunlight", false, false, true},
+    {@"FFSmoothShorelines", "GTAIV_FF_SMOOTH_SHORELINES", @"FusionFix shaders: smooth shorelines", true, false, true},
+    {@"FFSmoothLightVolumes", "GTAIV_FF_SMOOTH_LIGHT_VOLUMES", @"FusionFix shaders: smooth light volumes", true, false, true},
+    {@"FFCascadeShadows", "GTAIV_FF_CASCADE_SHADOWS", @"FusionFix shaders: cascaded shadow fixes (atlas, ranges)", true, false, true},
     {@"DrivebyFovFix", "GTAIV_DRIVEBY_FOV_FIX", @"Drive-by shots land in the crosshair when high up"},
     {@"AlwaysRun", "GTAIV_ALWAYS_RUN", @"Always run (tap sprint: run or jog, hold: sprint)", false},
     {@"ExtendedSniper", "GTAIV_EXTENDED_SNIPER", @"Sniper rifles aim over the shoulder; Jump toggles the scope", false},
-    {@"TreeShadows", "GTAIV_TREE_SHADOWS", @"Trees and bushes cast real shadows (needs FusionFix shaders)", true, true},
+    {@"TreeShadows", "GTAIV_TREE_SHADOWS", @"Trees and bushes cast real shadows (needs FusionFix shaders)", true, false, true},
     {@"NoImpostorHeightCutoff", "GTAIV_NO_IMPOSTOR_HEIGHT_CUTOFF", @"Distant traffic on every road at any height"},
-    {@"FFHighResShadows", "GTAIV_FF_HIGH_RES_SHADOWS", @"FusionFix shaders: high resolution cascaded shadows (heavy)", false, true},
-    {@"FFVolumetricFog", "GTAIV_FF_VOLUMETRIC_FOG", @"FusionFix shaders: volumetric fog", false, true},
+    {@"FFHighResShadows", "GTAIV_FF_HIGH_RES_SHADOWS", @"FusionFix shaders: high resolution cascaded shadows (heavy)", false, false, true},
+    {@"FFVolumetricFog", "GTAIV_FF_VOLUMETRIC_FOG", @"FusionFix shaders: volumetric fog", false, false, true},
     {@"OutOfCommissionFix", "GTAIV_OUT_OF_COMMISSION_FIX", @"Final mission: helicopter climb not harder at high frame rates"},
-    {@"PhoneCheats", "GTAIV_PHONE_CHEATS", @"Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100)"},
     {@"AltDialogue", "GTAIV_ALT_DIALOGUE", @"Missions play the alternative car banter", false},
     {@"AimProjectileFix", "GTAIV_AIM_PROJECTILE_FIX", @"No crash when someone other than the player aims a thrown weapon"},
+    // Extras (Fix::extra), in the order shown.
+    {@"Episodes", "GTAIV_EPISODES", @"The episodes, when their folders are in the game's", false, true},
+    {@"EpisodeRadioOwn", "GTAIV_EPISODE_RADIO_OWN", @"Episodes' radio songs only in their own episode, not in IV", true, true},
+    {@"TurnIndicators", "GTAIV_TURN_INDICATORS", @"Turn indicators when steering, hazard lights after a crash", false, true},
+    {@"TurnIndicatorsManual", "GTAIV_TURN_INDICATORS_MANUAL", @"Turn indicators by hand: [ and ] or bumpers, both for hazards (needs Turn indicators)", false, true},
+    {@"RouteIndicators", "GTAIV_TURN_INDICATORS_ROUTE", @"Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand)", false, true},
+    {@"PadIcons", "GTAIV_PAD_ICONS", @"Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder)", false, true},
+    {@"PhoneCheats", "GTAIV_PHONE_CHEATS", @"Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100)", false, true},
+    {@"PlayerFullDamage", "GTAIV_PLAYER_FULL_DAMAGE", @"Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5", false, true},
 };
 
 // The options that need the extended shaders (Fix::hidden): not shown, as
@@ -173,11 +178,15 @@ const Fix kFixes[] = {
 inline bool FixShown(const Fix& f) {
   return !f.hidden;
 }
-// The iPad's Fixes list (launcher_ios.mm): the shown fixes but the Mac's
-// own, keeping running behind other windows (iOS suspends an app that is
-// not in front).
+// The Mac's Advanced tab: the shown fixes but the extras (their own tab).
+inline bool AdvancedFixShown(const Fix& f) {
+  return FixShown(f) && !f.extra;
+}
+// The iPad's Fixes list (launcher_ios.mm): the Advanced tab's but the
+// Mac's own, keeping running behind other windows (iOS suspends an app
+// that is not in front).
 inline bool IpadFixShown(const Fix& f) {
-  return FixShown(f) && ![f.key isEqualToString:@"RunInBackground"];
+  return AdvancedFixShown(f) && ![f.key isEqualToString:@"RunInBackground"];
 }
 inline NSInteger ShownFixCount() {
   NSInteger n = 0;
@@ -188,6 +197,37 @@ inline const Fix& ShownFix(NSInteger row) {
   for (const Fix& f : kFixes)
     if (IpadFixShown(f) && row-- == 0) return f;
   return kFixes[0];
+}
+// The Extras tab (Mac) and section (iPad, iPhone).
+inline NSInteger ExtraCount() {
+  NSInteger n = 0;
+  for (const Fix& f : kFixes) n += f.extra;
+  return n;
+}
+inline const Fix& ExtraAt(NSInteger row) {
+  for (const Fix& f : kFixes)
+    if (f.extra && row-- == 0) return f;
+  return kFixes[0];
+}
+
+// The options whose default went from on to off since the Mac launcher
+// stored every option on Play (the defaults too, so a stored "on" may be
+// the old default, not the player's choice): its one move to storing only
+// changes (launcher_mac.mm) clears them where on. The iPad and iPhone store
+// only what the player switches.
+inline NSArray<NSString*>* DefaultsTurnedOff() {
+  return @[ @"PlayerFullDamage", @"Episodes", @"PhoneCheats" ];
+}
+// What that move clears, from the values in effect (`values`, the stored
+// ones over the defaults) and the defaults: an option of DefaultsTurnedOff
+// that is on, and every value equal to its default.
+inline NSArray<NSString*>* ClearedOnce(NSDictionary* values, NSDictionary* defaults) {
+  NSMutableArray<NSString*>* out = [NSMutableArray array];
+  for (NSString* k in DefaultsTurnedOff())
+    if ([values[k] boolValue]) [out addObject:k];
+  for (NSString* k in defaults)
+    if ([values[k] isEqual:defaults[k]] && ![out containsObject:k]) [out addObject:k];
+  return out;
 }
 
 // Advanced, FusionFix's shader settings: a popup each, the item's index

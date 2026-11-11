@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <array>
 #include <string>
+#include <vector>
 
 #include "launcher_options.h"
 
@@ -81,7 +82,7 @@ bool g_play = false;
 }
 
 // (kShaders is not shown: FixShown.)
-typedef NS_ENUM(NSInteger, LpmSection) { kGame, kGraphics, kFixesSection, kSectionCount, kShaders };
+typedef NS_ENUM(NSInteger, LpmSection) { kGame, kExtrasSection, kGraphics, kFixesSection, kSectionCount, kShaders };
 
 - (instancetype)init {
   if ((self = [super init])) _d = NSUserDefaults.standardUserDefaults;
@@ -157,6 +158,7 @@ typedef NS_ENUM(NSInteger, LpmSection) { kGame, kGraphics, kFixesSection, kSecti
 - (NSString*)tableView:(UITableView*)t titleForHeaderInSection:(NSInteger)s {
   switch (s) {
     case kGame: return @"Game";
+    case kExtrasSection: return @"Extras";
     case kGraphics: return @"Graphics";
     case kFixesSection: return @"Fixes";
     default: return @"FusionFix shaders";
@@ -197,6 +199,7 @@ static NSArray* GraphicsRows() {
 - (NSInteger)tableView:(UITableView*)t numberOfRowsInSection:(NSInteger)s {
   switch (s) {
     case kGame: return GameRows().count;
+    case kExtrasSection: return ExtraCount();
     case kGraphics: return GraphicsRows().count;
     case kFixesSection: return ShownFixCount();
     default: return std::size(kShaderChoices);
@@ -214,13 +217,13 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
   cell.backgroundColor = [UIColor colorWithWhite:0.11 alpha:1];
   cell.textLabel.numberOfLines = 0;
   NSString* key;
-  if (ip.section == kGame || ip.section == kFixesSection) {
+  if (ip.section == kGame || ip.section == kExtrasSection || ip.section == kFixesSection) {
     if (ip.section == kGame) {
       NSArray* row = GameRows()[ip.row];
       cell.textLabel.text = row[0];
       key = row[1];
     } else {
-      const Fix& f = ShownFix(ip.row);
+      const Fix& f = ip.section == kExtrasSection ? ExtraAt(ip.row) : ShownFix(ip.row);
       // (On the iPad the saves go through iCloud Drive: save_cloud.mm.)
       cell.textLabel.text = [f.key isEqualToString:@"SaveSync"] ? @"Saves synced with your Mac through iCloud Drive" : f.title;
       key = f.key;
@@ -288,9 +291,11 @@ bool IosPhoneDisplay(std::string* modes) {
   return true;
 }
 
-// main.cpp (iPad, iPhone): the launcher until Play, then the options into the
-// environment; the game's resolution goes on its command line (game_args).
-void RunIosLauncher(std::string* game_args) {
+// main.cpp (iPad, iPhone, Apple TV): the launcher until Play, then the
+// options into the environment; the game's resolution goes on its command
+// line (launcher_args: after the defaults and the player's commandline.txt,
+// so the resolution chosen here wins; game_args.h).
+void RunIosLauncher(std::vector<std::string>* launcher_args) {
   @autoreleasepool {
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
     RegisterDefaults(d);
@@ -300,11 +305,7 @@ void RunIosLauncher(std::string* game_args) {
     [d registerDefaults:@{kAntiAliasingKey : @1, kHudKey : @NO, @"FixDrawDistance" : @YES}];
     ApplyOptions(d);
     setenv("GTAIV_VSYNC", "1", 1);
-    // GTAIV_VIDMEM: the video memory the game is told it has (MB).
-    const char* vm = std::getenv("GTAIV_VIDMEM");
-    std::string res = std::string("-norestrictions -availablevidmem ") + (vm ? vm : "2047") +
-                      " -width 1920 -height 1080";
-    *game_args = game_args->empty() ? res : *game_args + " " + res;
+    *launcher_args = {"-width", "1920", "-height", "1080"};
 #else
     // The defaults here: the second resolution (the iPad's 1792x1344, two
     // thirds of an iPhone's screen) at 60, SMAA (TAA costs the GPU
@@ -361,13 +362,7 @@ void RunIosLauncher(std::string* game_args) {
     if (limit) setenv("GTAIV_FPS_LIMIT", std::to_string(limit).c_str(), 1);
     const auto& resolutions = Resolutions();
     const Resolution& r = resolutions[std::clamp<NSInteger>([d integerForKey:kIosResolutionKey], 0, NSInteger(resolutions.size()) - 1)];
-    // Given a command line the game no longer reads commandline.txt: its
-    // options go here too (no setting restrictions, and the video memory
-    // its budget counts; without them it fits everything into 512 MB, all
-    // at the lowest).
-    std::string res = "-norestrictions -availablevidmem 2047 -width " + std::to_string(r.w) +
-                      " -height " + std::to_string(r.h);
-    *game_args = game_args->empty() ? res : *game_args + " " + res;
+    *launcher_args = {"-width", std::to_string(r.w), "-height", std::to_string(r.h)};
 #endif
   }
 }

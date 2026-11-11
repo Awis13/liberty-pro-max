@@ -3,7 +3,8 @@
 // registry (0088F080) after Live's list of downloaded content, and with one
 // found opens with its own screen to choose what to play.
 //
-//   GTAIV_EPISODES: the game finds the episodes it has the folders of.
+//   GTAIV_EPISODES (off by default): the game finds the episodes it has
+//     the folders of.
 //   GTAIV_EPISODE_RADIO_OWN: an episode's radio songs play only in that
 //     episode, not in IV or the other episode (on by default).
 //   Always on, IV too: native 2C89A1F9, which the Complete Edition scripts
@@ -31,7 +32,7 @@ void f_008906B0_lifted(Ctx& c);
 namespace {
 
 bool EpisodesOn() {
-  static const bool on = OptionOn("GTAIV_EPISODES", true);
+  static const bool on = OptionOn("GTAIV_EPISODES", false);
   return on;
 }
 

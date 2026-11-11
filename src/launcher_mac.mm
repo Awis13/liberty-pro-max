@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "launcher_options.h"
@@ -40,7 +41,9 @@ Args ParseArgs(int argc, char** argv) {
   Args a;
   for (int i = 1; i < argc; i++) {
     if (!std::strcmp(argv[i], "--game-dir") && i + 1 < argc) {
-      a.game_dir = @(argv[++i]);
+      // nil if the path is not valid UTF-8: the saved folder is used.
+      a.game_dir = [NSString stringWithUTF8String:argv[++i]];
+      if (!a.game_dir) std::fprintf(stderr, "gtaiv: --game-dir is not valid UTF-8, ignored\n");
     } else if (!std::strcmp(argv[i], "--")) {
       for (i++; i < argc; i++) a.game_args.push_back(argv[i]);
     }
@@ -77,16 +80,17 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
   // again in this process (execv), it did not.
   NSMutableArray<NSString*>* arguments =
       [NSMutableArray arrayWithObjects:@"--no-launcher", @"--game-dir", folder, nil];
-  [arguments addObject:@"--"];
-  // No setting restrictions and video memory budget (matching the iOS launcher;
-  // without them the game clamps textures to low/medium and video memory to 512 MB).
-  const char* vm = std::getenv("GTAIV_VIDMEM");
-  [arguments addObject:@"-norestrictions"];
-  [arguments addObject:@"-nomemrestrict"];
-  [arguments addObject:@"-availablevidmem"];
-  [arguments addObject:@(vm && *vm ? vm : "2047")];
+  // The game's own arguments are put together in the game's process
+  // (main.cpp, on --no-launcher): the port's defaults, the player's
+  // commandline.txt as the game reads it (its bytes, whatever their
+  // encoding), then those given here after "--", passed on.
   if (!args.game_args.empty()) {
-    for (const std::string& a : args.game_args) [arguments addObject:@(a.c_str())];
+    [arguments addObject:@"--"];
+    for (const std::string& a : args.game_args) {
+      // An argument that is not valid UTF-8 has no NSString to pass on.
+      if (NSString* s = [NSString stringWithUTF8String:a.c_str()]) [arguments addObject:s];
+      else std::fprintf(stderr, "gtaiv: a game argument is not valid UTF-8, left out\n");
+    }
   }
   NSWorkspaceOpenConfiguration* config = [NSWorkspaceOpenConfiguration configuration];
   config.createsNewApplicationInstance = YES;
@@ -301,14 +305,26 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
                           selected:std::clamp<NSInteger>([d integerForKey:sc.key], 0, NSInteger(sc.items.count) - 1)];
     [self.shaderChoices addObject:p];  // (not shown: FixShown)
   }
+  // The fixes on the Advanced tab, the port's own additions on Extras.
   self.fixes = [NSMutableArray new];
+  NSMutableArray<NSArray<NSView*>*>* extraRows = [NSMutableArray new];
+  BOOL fixesLabelled = NO;
   for (const Fix& f : kFixes) {
     NSButton* b = [NSButton checkboxWithTitle:f.title target:nil action:nil];
     b.state = [d boolForKey:f.key] ? NSControlStateValueOn : NSControlStateValueOff;
     [self.fixes addObject:b];
-    if (FixShown(f))
-      [rows addObject:@[ self.fixes.count == 1 ? [self label:@"Fixes:"] : NSGridCell.emptyContentView, b ]];
+    if (f.extra) {
+      // The tab's width: longer titles wrap rather than end in "...".
+      b.lineBreakMode = NSLineBreakByWordWrapping;
+      [b.widthAnchor constraintLessThanOrEqualToConstant:kWindowWidth - 100].active = YES;
+      [extraRows addObject:@[ b ]];
+    } else if (AdvancedFixShown(f)) {
+      [rows addObject:@[ fixesLabelled ? NSGridCell.emptyContentView : [self label:@"Fixes:"], b ]];
+      fixesLabelled = YES;
+    }
   }
+  NSGridView* extras = [NSGridView gridViewWithViews:extraRows];
+  extras.rowSpacing = 10;
   NSGridView* adv = [NSGridView gridViewWithViews:rows];
   adv.rowSpacing = 10;
   adv.columnSpacing = 10;
@@ -333,7 +349,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   ]];
 
   self.tabs = [NSTabView new];
-  for (NSArray* tab in @[ @[ @"General", grid ], @[ @"Advanced", advScroll ] ]) {
+  for (NSArray* tab in @[ @[ @"General", grid ], @[ @"Extras", extras ], @[ @"Advanced", advScroll ] ]) {
     NSTabViewItem* item = [[NSTabViewItem alloc] initWithIdentifier:tab[0]];
     item.label = tab[0];
     NSView* page = [NSView new];
@@ -501,14 +517,12 @@ void RunLauncherIfWanted(int argc, char** argv) {
     // Earlier versions stored every option on Play, the defaults too, so a
     // default changed later never reached them. Once: the options whose
     // default went from on to off are cleared if on, and every value equal
-    // to its default goes (the older MetalFX setting too, carried over
-    // above).
+    // to its default goes (ClearedOnce; the older MetalFX setting too,
+    // carried over above). Since then only changes are stored (Store): an
+    // option the player never changed follows its default.
     if (![d boolForKey:kChangesOnlyKey]) {
-      for (NSString* k in @[ @"PlayerFullDamage" ])
-        if ([d boolForKey:k]) [d removeObjectForKey:k];
-      NSDictionary* defaults = [d volatileDomainForName:NSRegistrationDomain];
-      for (NSString* k in defaults)
-        if ([[d objectForKey:k] isEqual:defaults[k]]) [d removeObjectForKey:k];
+      for (NSString* k in ClearedOnce(d.dictionaryRepresentation, [d volatileDomainForName:NSRegistrationDomain]))
+        [d removeObjectForKey:k];
       [d removeObjectForKey:kMetalFXKey];
       [d setBool:YES forKey:kChangesOnlyKey];
     }
@@ -544,32 +558,30 @@ void RunLauncherIfWanted(int argc, char** argv) {
     l.folder = folder;
     [l build:d];
     // Dev aids: GTAIV_LAUNCHER_SNAPSHOT=file.png draws the window there
-    // (unshown) and exits; GTAIV_LAUNCHER_AUTOPLAY=1 presses Play.
+    // (unshown) and exits, GTAIV_LAUNCHER_SNAPSHOT_EXTRAS and
+    // GTAIV_LAUNCHER_SNAPSHOT_ADVANCED its other tabs to their files;
+    // GTAIV_LAUNCHER_AUTOPLAY=1 presses Play.
     if (const char* snap = std::getenv("GTAIV_LAUNCHER_SNAPSHOT")) {
       NSView* v = l.window.contentView;
-      [l.window layoutIfNeeded];
       v.appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
-      NSBitmapImageRep* rep = [v bitmapImageRepForCachingDisplayInRect:v.bounds];
-      NSGraphicsContext* ctx = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
-      [NSGraphicsContext saveGraphicsState];
-      NSGraphicsContext.currentContext = ctx;
-      [NSColor.windowBackgroundColor setFill];
-      NSRectFill(v.bounds);
-      [NSGraphicsContext restoreGraphicsState];
-      [v displayRectIgnoringOpacity:v.bounds inContext:ctx];
-      [[rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:@(snap) atomically:YES];
-      if (const char* snap2 = std::getenv("GTAIV_LAUNCHER_SNAPSHOT_ADVANCED")) {
-        [l.tabs selectTabViewItemAtIndex:1];
+      const std::pair<int, const char*> shots[] = {
+          {0, snap},
+          {1, std::getenv("GTAIV_LAUNCHER_SNAPSHOT_EXTRAS")},
+          {2, std::getenv("GTAIV_LAUNCHER_SNAPSHOT_ADVANCED")},
+      };
+      for (const auto& [tab, file] : shots) {
+        if (!file) continue;
+        [l.tabs selectTabViewItemAtIndex:tab];
         [l.window layoutIfNeeded];
-        NSBitmapImageRep* rep2 = [v bitmapImageRepForCachingDisplayInRect:v.bounds];
-        NSGraphicsContext* ctx2 = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep2];
+        NSBitmapImageRep* rep = [v bitmapImageRepForCachingDisplayInRect:v.bounds];
+        NSGraphicsContext* ctx = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
         [NSGraphicsContext saveGraphicsState];
-        NSGraphicsContext.currentContext = ctx2;
+        NSGraphicsContext.currentContext = ctx;
         [NSColor.windowBackgroundColor setFill];
         NSRectFill(v.bounds);
         [NSGraphicsContext restoreGraphicsState];
-        [v displayRectIgnoringOpacity:v.bounds inContext:ctx2];
-        [[rep2 representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:@(snap2) atomically:YES];
+        [v displayRectIgnoringOpacity:v.bounds inContext:ctx];
+        [[rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}] writeToFile:@(file) atomically:YES];
       }
       std::exit(0);
     }

@@ -1,10 +1,13 @@
 // launcher_options (src/launcher_options.h): the Extras, their defaults,
-// the lists they stay out of, and what the Mac launcher clears once when it
-// moves to storing only changed options.
+// the lists they stay out of, what the Mac launcher clears once when it
+// moves to storing only changed options, and the sharpening as the
+// runtime gets it.
 
 #include "launcher_options.h"
 
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 namespace {
 
@@ -96,6 +99,36 @@ void TestTvDefaults() {
   EXPECT(TvDefaults()[@"EpisodeRadioOwn"] == nil);
 }
 
+// The sharpening: its key kept from when it was TAA's (the players'
+// choices stay), medium by default, each level's amount in
+// RECOMP_SHARPNESS whatever the anti-aliasing, and which anti-aliasing
+// choices it applies to (the option greyed for the others).
+void TestSharpening() {
+  EXPECT([kTaaSharpeningKey isEqualToString:@"TaaSharpening"]);
+  NSUserDefaults* d = [[NSUserDefaults alloc] initWithSuiteName:@"launcher_options_test.sharpening"];
+  [d removePersistentDomainForName:@"launcher_options_test.sharpening"];
+  RegisterDefaults(d);
+  EXPECT([d integerForKey:kTaaSharpeningKey] == 2);
+  const char* want[] = {"0", "0.5", "0.75", "0.9"};
+  for (NSInteger aa : {0, 1, 2, 3, 4})
+    for (NSInteger level = 0; level < 4; level++) {
+      [d setInteger:aa forKey:kAntiAliasingKey];
+      [d setInteger:level forKey:kTaaSharpeningKey];
+      unsetenv("RECOMP_SHARPNESS");
+      ApplyOptions(d);
+      const char* got = std::getenv("RECOMP_SHARPNESS");
+      EXPECT(got && std::strcmp(got, want[level]) == 0);
+    }
+  EXPECT(std::strcmp(SharpnessFor(-1), "0") == 0);
+  EXPECT(std::strcmp(SharpnessFor(9), "0.9") == 0);
+  EXPECT(!SharpeningApplies(0));  // off
+  EXPECT(!SharpeningApplies(1));  // SMAA
+  EXPECT(SharpeningApplies(2));   // MetalFX
+  EXPECT(SharpeningApplies(3));   // TAA
+  EXPECT(SharpeningApplies(4));   // SMAA + MetalFX spatial
+  [d removePersistentDomainForName:@"launcher_options_test.sharpening"];
+}
+
 bool Has(NSArray* a, NSString* k) { return [a containsObject:k]; }
 
 // The one move to storing only changes: what earlier versions stored on
@@ -132,6 +165,7 @@ int main() {
     TestListsApart();
     TestDefaults();
     TestClearedOnce();
+    TestSharpening();
     TestTvDefaults();
   }
   if (g_failures) return 1;

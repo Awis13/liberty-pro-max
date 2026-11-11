@@ -102,32 +102,45 @@ void TestRussianFiles() {
   using language::RussianFiles;
   using language::RussianOn;
   const char* missing = "unset";
+  auto lacks = [&missing](const RussianFiles& f, const char* file) {
+    return !RussianOn(0x0419, f, &missing) && missing && std::string(missing) == file;
+  };
   RussianFiles all;
-  all.text = all.font = true;
+  all.text = all.font = all.streamed_font = all.title = true;
   EXPECT(RussianOn(0x0419, all, &missing) && missing == nullptr);
   // Another language: never, nothing missing.
   EXPECT(!RussianOn(0x0409, all, &missing) && missing == nullptr);
   EXPECT(!RussianOn(0x040C, RussianFiles{}, &missing) && missing == nullptr);
+  // Each of IV's files.
   RussianFiles f = all;
   f.text = false;
-  EXPECT(!RussianOn(0x0419, f, &missing) && missing && std::string(missing) == "common/text/russian.gxt");
+  EXPECT(lacks(f, "common/text/russian.gxt"));
   f = all;
   f.font = false;
-  EXPECT(!RussianOn(0x0419, f, &missing) && missing && std::string(missing) == "pc/textures/fonts_r.wtd");
-  EXPECT(!RussianOn(0x0419, RussianFiles{}, &missing) && missing &&
-         std::string(missing) == "common/text/russian.gxt");
-  // An episode's folder there: its text too; without the folder, none needed.
+  EXPECT(lacks(f, "pc/textures/fonts_r.wtd"));
+  f = all;
+  f.streamed_font = false;
+  EXPECT(lacks(f, "pc/textures/fonts_r_streamed_1.wtd"));
+  f = all;
+  f.title = false;
+  EXPECT(lacks(f, "pc/textures/title_offline_ru.wtd"));
+  EXPECT(lacks(RussianFiles{}, "common/text/russian.gxt"));
+  // An episode's folder there (with the episodes on): its text and title
+  // screen too; without the folder, neither.
   f = all;
   f.tlad = true;
-  EXPECT(!RussianOn(0x0419, f, &missing) && missing && std::string(missing) == "TLAD/common/text/russian.gxt");
+  EXPECT(lacks(f, "TLAD/common/text/russian.gxt"));
   f.tlad_text = true;
+  EXPECT(lacks(f, "pc/textures/title_offline_e1_ru.wtd"));
+  f.tlad_title = true;
   EXPECT(RussianOn(0x0419, f, &missing));
   f.tbogt = true;
-  EXPECT(!RussianOn(0x0419, f, &missing) && missing && std::string(missing) == "TBoGT/common/text/russian.gxt");
+  EXPECT(lacks(f, "TBoGT/common/text/russian.gxt"));
   f.tbogt_text = true;
+  EXPECT(lacks(f, "pc/textures/title_offline_e2_ru.wtd"));
+  f.tbogt_title = true;
   EXPECT(RussianOn(0x0419, f, &missing));
-  f = all;
-  f.tlad_text = f.tbogt_text = false;  // no episode folders
+  f = all;  // no episode folders: none of theirs needed
   EXPECT(RussianOn(0x0419, f, &missing));
 }
 

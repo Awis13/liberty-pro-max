@@ -26,8 +26,9 @@
 // the Russian font, which has the Latin letters (Russian texts use them:
 // "Xbox LIVE", "GTA IV").
 //
-// Without the files (IV's text and font, and the episodes' texts when the
-// episodes are on) the game stays in English, with one line in the log.
+// Without the files (IV's text, fonts and title screen, and with the
+// episodes on their texts and title screens) the game stays in English,
+// with one line in the log.
 //
 // The game's own language menu and its settings: SETTINGS.CFG keeps the
 // lookup's answer and the language in use (010FC134, 010FC138), and the
@@ -103,11 +104,15 @@ bool Russian() {
     language::RussianFiles f;
     f.text = HasFile("common\\text\\russian.gxt");
     f.font = HasFile("pc\\textures\\fonts_r.wtd");
+    f.streamed_font = HasFile("pc\\textures\\fonts_r_streamed_1.wtd");
+    f.title = HasFile("pc\\textures\\title_offline_ru.wtd");
     if (OptionOn("GTAIV_EPISODES", false)) {
       f.tlad = HasFile("TLAD\\common\\text\\american.gxt");
       f.tlad_text = HasFile("TLAD\\common\\text\\russian.gxt");
+      f.tlad_title = HasFile("pc\\textures\\title_offline_e1_ru.wtd");
       f.tbogt = HasFile("TBoGT\\common\\text\\american.gxt");
       f.tbogt_text = HasFile("TBoGT\\common\\text\\russian.gxt");
+      f.tbogt_title = HasFile("pc\\textures\\title_offline_e2_ru.wtd");
     }
     const char* missing;
     const bool russian = language::RussianOn(id, f, &missing);

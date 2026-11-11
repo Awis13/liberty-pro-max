@@ -108,16 +108,20 @@ inline uint32_t StartLanguage(uint32_t stored_lookup, uint32_t stored, uint32_t 
 }
 
 // The files the game needs in Russian, found (through the mods and the
-// update folder, as the game reads them) or not: IV's text and font, and
-// each episode's text when the episodes are on and that episode's folder
-// is there.
+// update folder, as the game reads them) or not: IV's text, fonts and title
+// screen, and with the episodes on, for each episode whose folder is
+// there, its text and its title screen (in IV's folder).
 struct RussianFiles {
-  bool text = false;        // common/text/russian.gxt
-  bool font = false;        // pc/textures/fonts_r.wtd
-  bool tlad = false;        // TLAD/common/text/american.gxt (the episode is there)
-  bool tlad_text = false;   // TLAD/common/text/russian.gxt
-  bool tbogt = false;       // TBoGT/common/text/american.gxt
-  bool tbogt_text = false;  // TBoGT/common/text/russian.gxt
+  bool text = false;           // common/text/russian.gxt
+  bool font = false;           // pc/textures/fonts_r.wtd
+  bool streamed_font = false;  // pc/textures/fonts_r_streamed_1.wtd
+  bool title = false;          // pc/textures/title_offline_ru.wtd
+  bool tlad = false;           // TLAD/common/text/american.gxt (the episode is there)
+  bool tlad_text = false;      // TLAD/common/text/russian.gxt
+  bool tlad_title = false;     // pc/textures/title_offline_e1_ru.wtd
+  bool tbogt = false;          // TBoGT/common/text/american.gxt
+  bool tbogt_text = false;     // TBoGT/common/text/russian.gxt
+  bool tbogt_title = false;    // pc/textures/title_offline_e2_ru.wtd
 };
 
 // Whether the game goes Russian: a Russian language id and every file it
@@ -129,8 +133,12 @@ inline bool RussianOn(uint16_t lang_id, const RussianFiles& f, const char** miss
   if ((lang_id & 0x3FF) != 0x19) return false;
   if (!f.text) *missing = "common/text/russian.gxt";
   else if (!f.font) *missing = "pc/textures/fonts_r.wtd";
+  else if (!f.streamed_font) *missing = "pc/textures/fonts_r_streamed_1.wtd";
+  else if (!f.title) *missing = "pc/textures/title_offline_ru.wtd";
   else if (f.tlad && !f.tlad_text) *missing = "TLAD/common/text/russian.gxt";
+  else if (f.tlad && !f.tlad_title) *missing = "pc/textures/title_offline_e1_ru.wtd";
   else if (f.tbogt && !f.tbogt_text) *missing = "TBoGT/common/text/russian.gxt";
+  else if (f.tbogt && !f.tbogt_title) *missing = "pc/textures/title_offline_e2_ru.wtd";
   return !*missing;
 }
 

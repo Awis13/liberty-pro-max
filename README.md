@@ -234,12 +234,14 @@ system's language there again. Russian is in that menu only while the system
 (and the launcher) select it. In German the game hides a few statistics
 entries, as it does in German on Windows; nothing else changes.
 
-Russian needs the Russian files in your game folder: `common/text/russian.gxt`
-and `pc/textures/fonts_r.wtd` (with the episodes on, also their
-`common/text/russian.gxt`). Steam's install has them. Without them the game
+Russian needs the Russian files in your game folder: `common/text/russian.gxt`,
+and in `pc/textures` `fonts_r.wtd`, `fonts_r_streamed_1.wtd` and
+`title_offline_ru.wtd` (with the episodes on, also their
+`common/text/russian.gxt` and `title_offline_e1_ru.wtd`,
+`title_offline_e2_ru.wtd`). Steam's install has them. Without them the game
 stays in English. The Russian text is older than the English: the few lines it
-lacks (some radio song names, messages about downloadable content) show in
-English. Saves are the same in every language.
+lacks (some radio song names, messages about downloadable content, one
+mission's subtitles) show in English. Saves are the same in every language.
 
 ### Your own music
 

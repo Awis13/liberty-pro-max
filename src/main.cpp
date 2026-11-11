@@ -253,9 +253,9 @@ int main(int argc, char** argv) {
     game.mac_fullscreen_space = !(n && *n == '1');
   }
 #endif
-  // The game in the system's language, unless the launcher's choice is
-  // English (GTAIV_SYSTEM_LANGUAGE=0). GTAIV_LANG_ID=0x0419 (the runtime's
-  // switch, for test runs) overrides both.
+  // The game in the system's language unless disabled by the launcher.
+  // GTAIV_LANG_ID (the Mac launcher's explicit choice, or a diagnostic
+  // override such as 0x0419 for Russian) takes priority in the runtime.
   if (OptionOn("GTAIV_SYSTEM_LANGUAGE", true)) {
     std::string code;
     game.user_lang_id = SystemLangId(&code);

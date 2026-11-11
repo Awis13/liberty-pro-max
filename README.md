@@ -234,15 +234,17 @@ them from loading.
 The game speaks the language your Mac, iPad, iPhone or Apple TV is set to
 (the first of your preferred languages): English, French, German, Italian,
 Spanish or Russian. Any other language gives the game in English, as before.
-To keep the game in English on a system in another language, choose
-**Language: English** on the launcher's General tab (on the iPad and iPhone,
-turn off "Game in the device's language"); the Apple TV, with no settings
-screen yet, always follows the system. The game's own Language option, in its
-menus, is kept in its settings (`SETTINGS.CFG`): a language chosen there wins
-over the system's and the launcher's from then on, until you choose the
-system's language there again (or the game starts with the system set to the
-language you chose, which then counts as the system's again). Russian is in that menu only while the system
-(and the launcher) select it. In German the game hides a few statistics
+On the Mac, choose **Language** on the launcher's General tab: **Same as the
+system**, **English**, **French**, **German**, **Italian**, **Spanish**, or
+**Russian (Русский)**. An explicit language applies at startup, including
+when the game's settings or profile previously stored another language.
+It does not change your Mac's language. With **Same as the system**, a
+language previously chosen in the game's own menu stays in effect.
+
+On the iPad and iPhone, turn off "Game in the device's language" to use
+English; the Apple TV, with no settings screen yet, follows the system.
+Russian is in the game's language menu only while the system or launcher
+selects it. In German the game hides a few statistics
 entries, as it does in German on Windows; nothing else changes.
 
 Russian needs the Russian files in your game folder: `common/text/russian.gxt`,

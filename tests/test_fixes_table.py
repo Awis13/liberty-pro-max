@@ -96,6 +96,7 @@ class FallbackTests(unittest.TestCase):
         'GTAIV_TURN_LOG': 'a log of the turn indicators for development',
         'GTAIV_MODS': "the General tab's Load mods (kModsKey), on, not a kFixes row",
         'GTAIV_SYSTEM_LANGUAGE': "the General tab's Language (kSystemLanguageKey), on, not a kFixes row",
+        'GTAIV_LAUNCHER_LANGUAGE': "the General tab's explicit Mac language choice (kGameLanguageKey), not a kFixes row",
     }
 
     def test_fallbacks_match_the_table(self):

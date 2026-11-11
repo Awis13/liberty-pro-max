@@ -70,15 +70,19 @@ inline uint32_t GameLanguageFor(uint16_t lang_id, bool russian) {
   }
 }
 
-// The game's language menu (007C7A29): `chosen` the language it stepped
-// to ([010FC138]), `applied` the one in use ([010FC13C]). The game's own
-// rule keeps Russian and Japanese out of the cycle, assuming the one in use
-// is 0-4: Russian after Spanish wraps to American, Russian or Japanese
-// before American to Spanish. With Russian on (and the text object's
-// Japanese flag off) the cycle is 0-5 both ways: Japanese after Russian
-// wraps to American, Japanese before American is Russian.
+// The game's language menu (007C7A29): `chosen` the language it was set
+// to ([010FC138]), `applied` the one in use ([010FC13C]). Its arrows
+// (007C9D46-007C9E08, display kind 5) step over 0-5 and wrap (past 5 to 0,
+// below 0 to 5; with the text object's Japanese flag only 0, and the game
+// then sets 6); its mouse slider (007CA15C-007CA1A0) sets
+// round((count - 1) * x) of the menu row's count and can give 6. The
+// game's own rule then keeps Russian and Japanese out: Russian reached from
+// Spanish becomes American, from American Spanish; Japanese with American
+// in use Spanish. With Russian on (and the Japanese flag off) every value
+// the arrows give stays, so the cycle is 0-5 both ways, and the slider's 6,
+// its far right, is the last language, Russian.
 inline uint32_t MenuLanguage(uint32_t chosen, uint32_t applied, bool russian) {
-  if (russian) return chosen == kJapanese ? (applied == kAmerican ? kRussian : kAmerican) : chosen;
+  if (russian) return chosen == kJapanese ? kRussian : chosen;
   if (chosen == kRussian) {
     if (applied == kSpanish) return kAmerican;
     if (applied == kAmerican) return kSpanish;
@@ -89,11 +93,13 @@ inline uint32_t MenuLanguage(uint32_t chosen, uint32_t applied, bool russian) {
 }
 
 // A language the game stored and reads back (SETTINGS.CFG, the profile's
-// setting 0xCE), with `lookup` the language lookup's answer now: one the
-// game cannot use here (Russian without the Russian files, past Japanese)
-// is the lookup's.
-inline uint32_t StoredLanguage(uint32_t stored, uint32_t lookup, bool russian) {
-  if (stored > kJapanese || (stored == kRussian && !russian)) return lookup;
+// setting 0xCE), with `lookup` the language lookup's answer now and
+// `japanese` the text object's Japanese flag: one the game cannot use here
+// is the lookup's. That is Russian without the Russian files, Japanese
+// without the flag (its tables with American text and western fonts), and
+// anything past Japanese.
+inline uint32_t StoredLanguage(uint32_t stored, uint32_t lookup, bool russian, bool japanese) {
+  if (stored > kJapanese || (stored == kRussian && !russian) || (stored == kJapanese && !japanese)) return lookup;
   return stored;
 }
 
@@ -102,19 +108,21 @@ inline uint32_t StoredLanguage(uint32_t stored, uint32_t lookup, bool russian) {
 // ([010FC138]). The same: no choice was made in the game's menu, and the
 // lookup's answer now applies (the system's language, or the launcher's
 // English, may have changed since). Different: the menu's choice stays.
-inline uint32_t StartLanguage(uint32_t stored_lookup, uint32_t stored, uint32_t lookup, bool russian) {
+inline uint32_t StartLanguage(uint32_t stored_lookup, uint32_t stored, uint32_t lookup, bool russian, bool japanese) {
   if (stored == stored_lookup) return lookup;
-  return StoredLanguage(stored, lookup, russian);
+  return StoredLanguage(stored, lookup, russian, japanese);
 }
 
 // The files the game needs in Russian, found (through the mods and the
-// update folder, as the game reads them) or not: IV's text, fonts and title
-// screen, and with the episodes on, for each episode whose folder is
-// there, its text and its title screen (in IV's folder).
+// update folder, as the game reads them) or not: IV's text, fonts (the
+// textures and fonts_r.dat, its letters' widths) and title screen, and with
+// the episodes on, for each episode whose folder is there, its text and its
+// title screen (in IV's folder).
 struct RussianFiles {
   bool text = false;           // common/text/russian.gxt
   bool font = false;           // pc/textures/fonts_r.wtd
   bool streamed_font = false;  // pc/textures/fonts_r_streamed_1.wtd
+  bool font_data = false;      // common/data/fonts_r.dat
   bool title = false;          // pc/textures/title_offline_ru.wtd
   bool tlad = false;           // TLAD/common/text/american.gxt (the episode is there)
   bool tlad_text = false;      // TLAD/common/text/russian.gxt
@@ -134,6 +142,7 @@ inline bool RussianOn(uint16_t lang_id, const RussianFiles& f, const char** miss
   if (!f.text) *missing = "common/text/russian.gxt";
   else if (!f.font) *missing = "pc/textures/fonts_r.wtd";
   else if (!f.streamed_font) *missing = "pc/textures/fonts_r_streamed_1.wtd";
+  else if (!f.font_data) *missing = "common/data/fonts_r.dat";
   else if (!f.title) *missing = "pc/textures/title_offline_ru.wtd";
   else if (f.tlad && !f.tlad_text) *missing = "TLAD/common/text/russian.gxt";
   else if (f.tlad && !f.tlad_title) *missing = "pc/textures/title_offline_e1_ru.wtd";

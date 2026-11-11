@@ -106,7 +106,7 @@ void TestRussianFiles() {
     return !RussianOn(0x0419, f, &missing) && missing && std::string(missing) == file;
   };
   RussianFiles all;
-  all.text = all.font = all.streamed_font = all.title = true;
+  all.text = all.font = all.streamed_font = all.font_data = all.title = true;
   EXPECT(RussianOn(0x0419, all, &missing) && missing == nullptr);
   // Another language: never, nothing missing.
   EXPECT(!RussianOn(0x0409, all, &missing) && missing == nullptr);
@@ -121,6 +121,9 @@ void TestRussianFiles() {
   f = all;
   f.streamed_font = false;
   EXPECT(lacks(f, "pc/textures/fonts_r_streamed_1.wtd"));
+  f = all;
+  f.font_data = false;
+  EXPECT(lacks(f, "common/data/fonts_r.dat"));
   f = all;
   f.title = false;
   EXPECT(lacks(f, "pc/textures/title_offline_ru.wtd"));
@@ -144,73 +147,75 @@ void TestRussianFiles() {
   EXPECT(RussianOn(0x0419, f, &missing));
 }
 
-// The game's language menu: one step left or right from the language in
-// use, wrapping over 0-6, then the rule.
+// The game's language menu: its arrows step over 0-5 and wrap (007C9D46;
+// with the Japanese flag only 0, not modelled: the rule is the game's
+// then), its slider can also give 6 (007CA15C); then the rule.
 void TestMenu() {
   using language::MenuLanguage;
-  auto right = [](uint32_t from, bool russian) { return MenuLanguage(from == 6 ? 0 : from + 1, from, russian); };
-  auto left = [](uint32_t from, bool russian) { return MenuLanguage(from == 0 ? 6 : from - 1, from, russian); };
-  // Russian off (or the Japanese flag on): the game's own rule, 0-4 both ways.
+  auto right = [](uint32_t from, bool russian) { return MenuLanguage(from == 5 ? 0 : from + 1, from, russian); };
+  auto left = [](uint32_t from, bool russian) { return MenuLanguage(from == 0 ? 5 : from - 1, from, russian); };
+  // Russian off: the game's own rule, 0-4 both ways (Russian left out).
   for (uint32_t from = 0; from < 4; from++) EXPECT(right(from, false) == from + 1);
   EXPECT(right(4, false) == 0);
   for (uint32_t from = 1; from <= 4; from++) EXPECT(left(from, false) == from - 1);
   EXPECT(left(0, false) == 4);
-  EXPECT(MenuLanguage(5, 0, false) == 4);  // Russian before American: Spanish
-  EXPECT(MenuLanguage(5, 4, false) == 0);
-  EXPECT(MenuLanguage(6, 0, false) == 4);
-  // The game's rule with Russian in use: Japanese comes up (what went wrong).
-  EXPECT(MenuLanguage(6, 5, false) == 6);
-  // Russian on: 0-5 both ways, never Japanese.
+  // Russian on: 0-5 both ways.
   for (uint32_t from = 0; from < 5; from++) EXPECT(right(from, true) == from + 1);
   EXPECT(right(5, true) == 0);
   for (uint32_t from = 1; from <= 5; from++) EXPECT(left(from, true) == from - 1);
   EXPECT(left(0, true) == 5);
-  // The full cycle, from Russian, comes back to Russian each way.
-  for (bool forward : {true, false}) {
-    uint32_t at = 5;
-    int steps = 0;
-    do {
-      at = forward ? right(at, true) : left(at, true);
-      EXPECT(at <= 5);
-      steps++;
-    } while (at != 5 && steps < 10);
-    EXPECT(steps == 6);
+  // The full cycle comes back where it started: six languages with
+  // Russian on, five without.
+  for (bool russian : {true, false}) {
+    for (bool forward : {true, false}) {
+      uint32_t at = 0;
+      int steps = 0;
+      do {
+        at = forward ? right(at, russian) : left(at, russian);
+        EXPECT(at <= (russian ? 5u : 4u));
+        steps++;
+      } while (at != 0 && steps < 10);
+      EXPECT(steps == (russian ? 6 : 5));
+    }
   }
-  // Russian off, from American: five languages, back to American.
-  uint32_t at = 0;
-  int steps = 0;
-  do {
-    at = right(at, false);
-    steps++;
-  } while (at != 0 && steps < 10);
-  EXPECT(steps == 5);
+  // The slider: every value, its far right (6) Russian with Russian on, as
+  // the game's rule has it without (Spanish with American in use, else
+  // left as it is).
+  for (uint32_t v = 0; v <= 5; v++)
+    for (uint32_t applied = 0; applied <= 5; applied++) EXPECT(MenuLanguage(v, applied, true) == v);
+  for (uint32_t applied = 0; applied <= 5; applied++) EXPECT(MenuLanguage(6, applied, true) == 5);
+  EXPECT(MenuLanguage(6, 0, false) == 4);
 }
 
 // A stored language read back, and the language after SETTINGS.CFG.
 void TestStored() {
   using language::StartLanguage;
   using language::StoredLanguage;
-  for (uint32_t v = 0; v <= 4; v++) EXPECT(StoredLanguage(v, 0, false) == v && StoredLanguage(v, 5, true) == v);
-  EXPECT(StoredLanguage(5, 5, true) == 5);
-  EXPECT(StoredLanguage(5, 0, false) == 0);  // Russian without the files
-  EXPECT(StoredLanguage(6, 0, false) == 6);  // the game handles Japanese
-  EXPECT(StoredLanguage(7, 2, false) == 2);  // past Japanese: the lookup's
-  EXPECT(StoredLanguage(0xFFFFFFFFu, 5, true) == 5);
+  for (uint32_t v = 0; v <= 4; v++)
+    EXPECT(StoredLanguage(v, 0, false, false) == v && StoredLanguage(v, 5, true, false) == v);
+  EXPECT(StoredLanguage(5, 5, true, false) == 5);
+  EXPECT(StoredLanguage(5, 0, false, false) == 0);  // Russian without the files
+  EXPECT(StoredLanguage(6, 0, false, true) == 6);   // Japanese with its flag
+  EXPECT(StoredLanguage(6, 0, false, false) == 0);  // without: the lookup's
+  EXPECT(StoredLanguage(6, 5, true, false) == 5);
+  EXPECT(StoredLanguage(7, 2, false, false) == 2);  // past Japanese: the lookup's
+  EXPECT(StoredLanguage(0xFFFFFFFFu, 5, true, false) == 5);
   // No choice in the menu (the file's language was its lookup's answer):
   // the lookup's answer now, the system's language or the launcher's
   // English, as it is now.
-  EXPECT(StartLanguage(0, 0, 0, false) == 0);  // English all along: as before
-  EXPECT(StartLanguage(0, 0, 5, true) == 5);   // an English file, now Russian
-  EXPECT(StartLanguage(0, 0, 1, false) == 1);  // an English file, now French
-  EXPECT(StartLanguage(5, 5, 0, false) == 0);  // Russian, then the launcher's English
+  EXPECT(StartLanguage(0, 0, 0, false, false) == 0);  // English all along: as before
+  EXPECT(StartLanguage(0, 0, 5, true, false) == 5);   // an English file, now Russian
+  EXPECT(StartLanguage(0, 0, 1, false, false) == 1);  // an English file, now French
+  EXPECT(StartLanguage(5, 5, 0, false, false) == 0);  // Russian, then the launcher's English
   // A choice in the menu stays, over the system's and the launcher's.
-  EXPECT(StartLanguage(5, 1, 5, true) == 1);
-  EXPECT(StartLanguage(5, 1, 0, false) == 1);
-  EXPECT(StartLanguage(0, 2, 5, true) == 2);
+  EXPECT(StartLanguage(5, 1, 5, true, false) == 1);
+  EXPECT(StartLanguage(5, 1, 0, false, false) == 1);
+  EXPECT(StartLanguage(0, 2, 5, true, false) == 2);
   // A choice the game cannot use here: the lookup's.
-  EXPECT(StartLanguage(0, 5, 0, false) == 0);
-  EXPECT(StartLanguage(0, 9, 1, false) == 1);
-  EXPECT(StartLanguage(0, 5, 5, true) == 5);
+  EXPECT(StartLanguage(0, 5, 0, false, false) == 0);
+  EXPECT(StartLanguage(5, 6, 5, true, false) == 5);  // Japanese without the flag
+  EXPECT(StartLanguage(0, 9, 1, false, false) == 1);
+  EXPECT(StartLanguage(0, 5, 5, true, false) == 5);
 }
 
 // English drawn with the Russian font: Latin-1 letters made plain (its

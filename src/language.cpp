@@ -39,9 +39,15 @@
 // lookup's answer applies unless the file's language was chosen in the
 // menu (it differs from the lookup's answer then); a stored language the
 // game cannot use here (Russian without the files, past Japanese) is the
-// lookup's. The menu's own rule keeps Russian and Japanese out of its
-// cycle assuming a western language in use; with Russian on the cycle
+// lookup's. The menu's own rule keeps Russian out of its cycle (and
+// Japanese, which only its slider can give); with Russian on the cycle
 // goes through Russian (language.h, MenuLanguage). Saves hold no language.
+//
+// One text-scale tweak (004A20DE) asks the lookup and applies when it
+// answers Russian: with Russian on it takes the language in use instead,
+// so a western language chosen in the menu gets the western scale. The
+// lookup itself keeps answering Russian: 00494384 compares it with the
+// language in use to load a menu choice's text at start.
 
 #include <sys/stat.h>
 
@@ -105,6 +111,7 @@ bool Russian() {
     f.text = HasFile("common\\text\\russian.gxt");
     f.font = HasFile("pc\\textures\\fonts_r.wtd");
     f.streamed_font = HasFile("pc\\textures\\fonts_r_streamed_1.wtd");
+    f.font_data = HasFile("common\\data\\fonts_r.dat");
     f.title = HasFile("pc\\textures\\title_offline_ru.wtd");
     if (OptionOn("GTAIV_EPISODES", false)) {
       f.tlad = HasFile("TLAD\\common\\text\\american.gxt");
@@ -240,7 +247,8 @@ void hook_008A3E02(Ctx& c) { Wr8(c.esi + kTextRegion, Russian() ? 'r' : 'e'); }
 // the language was chosen in the game's menu (language::StartLanguage).
 void hook_007C72E7(Ctx& c) {
   const uint32_t stored = Rd32(kLanguage), lookup = LookupAnswer();
-  const uint32_t lang = language::StartLanguage(Rd32(kLookupLanguage), stored, lookup, Russian());
+  const uint32_t lang =
+      language::StartLanguage(Rd32(kLookupLanguage), stored, lookup, Russian(), Rd8(kJapaneseFlag) != 0);
   Wr32(kLookupLanguage, lookup);
   if (lang != stored) {
     Wr32(kLanguage, lang);
@@ -252,12 +260,14 @@ void hook_007C72E7(Ctx& c) {
 // The profile's language (setting 0xCE, kept by the game when it differs
 // from the lookup's answer) read back: mov [010FC138], eax. One the game
 // cannot use here is the lookup's (language::StoredLanguage).
-void hook_007C9685(Ctx& c) { Wr32(kLanguage, language::StoredLanguage(c.eax, LookupAnswer(), Russian())); }
+void hook_007C9685(Ctx& c) {
+  Wr32(kLanguage, language::StoredLanguage(c.eax, LookupAnswer(), Russian(), Rd8(kJapaneseFlag) != 0));
+}
 
-// The game's language menu, after a step left or right ([010FC138] the new
-// one, [010FC13C] the one in use): the game's rule that keeps Russian and
-// Japanese out, or with Russian on the cycle through Russian
-// (language::MenuLanguage). The block 007C7A29-007C7A5A it replaces only
+// The game's language menu, after its arrows or its slider set a language
+// ([010FC138] the new one, [010FC13C] the one in use): the game's rule that
+// keeps Russian and Japanese out, or with Russian on every language through
+// Russian (language::MenuLanguage). The block 007C7A29-007C7A5A it replaces only
 // sets [010FC138] (eax is not used after it).
 void hook_007C7A29(Ctx& c) {
   const uint32_t chosen = Rd32(kLanguage);
@@ -265,6 +275,11 @@ void hook_007C7A29(Ctx& c) {
   if (lang != chosen) Wr32(kLanguage, lang);
   c.eax = lang;
 }
+
+// The text-scale tweak's test of the lookup's answer: cmp eax, 5. With
+// Russian on, the language in use (as the lookup answers 5 or 6 then, it
+// differs only for a language chosen in the menu).
+void hook_004A20E3(Ctx& c) { CmpFlags<4>(c, Russian() ? Rd32(kLanguage) : c.eax, language::kRussian); }
 
 // The streamed font at start: mov dword [esp+9C], 2B (the western one's
 // kind); 31, fonts_r's, with the region letter 'r' (as 008872EF does).

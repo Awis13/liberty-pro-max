@@ -61,10 +61,12 @@ class TableTests(unittest.TestCase):
         self.assertEqual(self.group('High frame rates'), ['| Ladders: no stalls | on |'])
         self.assertIn('| Death music "cut" | off |', self.group('Gameplay'))
         self.assertEqual(self.group('Other'), ['| Not in a group | on |'])
-        self.assertIn('| Motion blur: Off, Full | Full |', self.group('Lights, shadows and effects'))
+
+    def test_choices_no_launcher_shows_are_left_out(self):
+        self.assertFalse(any('Motion blur' in l for l in self.lines if l.startswith('| ')))
 
     def test_count_includes_the_extras(self):
-        self.assertTrue(self.lines[0].startswith('6 switches and choices'), self.lines[0])
+        self.assertTrue(self.lines[0].startswith('5 switches'), self.lines[0])
 
     def test_extras_group_comes_last(self):
         heads = [l for l in self.lines if l.startswith('#### ')]

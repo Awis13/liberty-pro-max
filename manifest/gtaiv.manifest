@@ -92,7 +92,7 @@ replace 008CC970 Pool_SweepAtShutdown   # quit before the world loaded: no strea
 replace 0094A6D0 PedIntelligence_DecreasePinnedDown   # above 30 fps it never decreased: cops stuck in cover
 replace 008936A0 RadioHud_LogoBw      # a logo dictionary without the logo: the logo found stays
 replace 00893680 RadioHud_LogoColour  # the same
-replace 00893870 RadioHud_Find       # a station without a radiohud.dat line: an empty record, not null (issue 15)
+replace 00893870 RadioHud_Find       # a station without a radiohud.dat line: an empty record, not null
 replace 00893920 RadioHud_DrawLogo   # and no logo drawn for it
 replace 00896310 RadioHud_DrawWheelLogo  # the same, in the wheel (its fade still steps)
 replace 00B564A0 RadioHud_DrawMenuLogo   # the same, the menus' deferred logo
@@ -833,5 +833,5 @@ replace 008AE060 RegisterNatives   # the Complete Edition scripts' multiplayer n
 replace 008905E0 ExtraContent_Load   # an episode's radio only in that episode (GTAIV_EPISODE_RADIO_OWN)
 replace 008906B0 ExtraContent_LoadAudio   #   the same, the audio lists alone
 # The icons of the pad in use (src/pad_icons.cpp).
-hook 0088798D 0088798E
+hook 0088798D 0088798E   # the game's button textures loaded (push ebp): the other pads' sets beside them (GTAIV_PAD_ICONS)
 replace 00887E80 MenuManager_ReleaseButtonTextures   # the other pad sets released, the game's own given back

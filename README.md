@@ -1,6 +1,6 @@
 # Liberty Pro Max
 
-**Grand Theft Auto IV (PC 1.0.8.0) running natively on Apple silicon Macs and iPads, and experimentally on Apple TV.**
+**Grand Theft Auto IV (PC 1.0.8.0) running natively on Apple silicon Macs and iPads, and experimentally on the iPhone and Apple TV.**
 
 The game's own x86 code is statically recompiled with
 [x86recomp](https://github.com/JTM-rootstorm/x86recomp) to C++ and built for
@@ -9,9 +9,11 @@ underneath is new: a Metal renderer, a real-time audio mixer, a launcher with
 all of the port's options, Game Mode and ultrawide screens on the Mac.
 
 > **This repository contains no part of the game.** You build it on your own
-> Mac from your own copy of GTA IV, for the Mac and, if you like, your iPad.
+> Mac from your own copy of GTA IV, for the Mac and, if you like, your iPad,
+> iPhone or Apple TV.
 
-**Beta.** The story can be played from a save and around the city on both.
+**Beta.** The story can be played from a save and around the city on the Mac
+and the iPad; the iPhone and the Apple TV are experimental.
 Expect rough edges, and please report what you find in the
 [issues](https://github.com/Awis13/liberty-pro-max/issues).
 
@@ -30,15 +32,16 @@ For the iPad, the iPhone and the Apple TV, see [Install](#install).
 
 ## What you get
 
-| | Mac | iPad |
+| | Mac | iPad and iPhone |
 |---|---|---|
 | **Renderer** | Metal, written for this port: drawing encoded on its own thread, geometry read in place from the game's memory, several frames in flight | the same |
 | **Frame rate** | about 125 fps indoors, 60–100 fps outdoors at 3440×1440, maximum settings, M3 Pro; no frame rate cap unless you set the launcher's frame limit (30, 60 or 120 fps) | 60 fps indoors, 45–60 outdoors at 1792×1344, iPad Air (M4) |
 | **Anti-aliasing** | TAA (default, sharpened), SMAA, MetalFX temporal and SMAA + MetalFX spatial upscaling | SMAA (default), TAA |
-| **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048, field of view |
+| **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048 (iPhone: half to all of its own screen), field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play** |
 | **Fixes built in** | about 100 fixes (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
-| **Extras** | on the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, phone cheats, full damage; also stun punch and executions on anyone, fast loading, a mods folder, saves shared through iCloud Drive | the same |
+| **Extras** | the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, phone cheats, full damage | the same, in the settings screen's Extras section |
+| **More options** | stun punch and executions on anyone, fast loading, continuing the last save, a mods folder, saves shared through iCloud Drive | the same |
 | **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
 
 The iPad's build also runs on an iPhone (experimental): the same, at the
@@ -55,7 +58,7 @@ iPad's touch controls are there too, but small on a phone).
 - **A Mac with Apple silicon** (M1 or newer), macOS 15 or newer, with the
   **Xcode Command Line Tools** (`xcode-select --install`) and
   [Homebrew](https://brew.sh); about 6 GB free for the build. The Mac builds
-  both versions.
+  every version.
 - **For the iPad**, also:
   - an iPad with an M-series chip, iPadOS 17 or newer, in Developer Mode and
     connected to the Mac by cable, with about 16 GB free;
@@ -144,8 +147,8 @@ The same, with the iPhone connected instead (with both connected,
 
 The launcher's resolutions are the phone's own screen at half, two
 thirds (the default), five sixths and full size: 1912×880 of 2868×1320,
-say. Play it with a controller: the touch controls are laid out for the
-iPad's screen and come out too small on a phone.
+say. Play it with a controller or a keyboard: the touch controls are laid out
+for the iPad's screen and come out small on a phone.
 
 ### Apple TV (experimental)
 
@@ -171,9 +174,9 @@ as on the iPad.
 
 ### Saves on every device
 
-With iCloud Drive on, the iPad keeps a copy of every save in its iCloud
-folder (**Liberty Pro Max** in iCloud Drive) and the Mac uses the same
-folder: each device takes the newer saves when the game starts and sends
+With iCloud Drive on, the iPad and the iPhone keep a copy of every save in
+their iCloud folder (**Liberty Pro Max** in iCloud Drive) and the Mac uses the
+same folder: each device takes the newer saves when the game starts and sends
 its own while it runs and when it quits. Per save the newer one wins; the
 one it replaces, on either side, is kept in that folder's `Backups`.
 `install-ios.sh` turns on iCloud for the app (its signing profile then
@@ -216,6 +219,34 @@ In an episode, the `update` folder gives its archives for that episode, such as
 files, and the mods folder's archives, stay out of the episodes, as they stop
 them from loading.
 
+### Your own music
+
+Independence FM plays your own music, as on Windows. Put the files in the
+game's User Music folder: on the Mac `~/Library/Application
+Support/gtaiv/drive_c/Documents and Settings/Player/My Documents/Rockstar
+Games/GTA IV/User Music`; on the iPad and iPhone the same path below `gtaiv`
+in the app's Documents (Files › On My iPad, or On My iPhone, › Liberty Pro
+Max). Make the folders that are not there yet. Then run **Complete Scan** in
+the game's audio settings. Tracks from 20 seconds to two hours long are
+taken. The app the Builder makes and the iPad's and iPhone's read MP3 only;
+one built with `install.sh` (Homebrew's full FFmpeg) also reads WMA.
+
+### If something goes wrong
+
+The game's log is `~/Library/Logs/gtaiv.log` on the Mac (written anew at every
+start), `log.txt` in the app's Documents on the iPad and iPhone, and in its
+Library/Caches on the Apple TV. Switches the launcher does not show are
+environment variables: start the app from the Terminal with them, and the
+launcher passes them on to the game. For the frame rate in the log every 30
+seconds:
+
+```bash
+GTAIV_FPS_REPORT=30 "/Applications/Liberty Pro Max.app/Contents/MacOS/gtaiv"
+```
+
+The launcher's own options are set by the launcher, over the same variable
+given this way.
+
 ### Mods
 
 Each folder in `~/Library/Application Support/gtaiv/drive_c/mods` is a mod (the
@@ -232,27 +263,42 @@ working.
 
 Only files are loaded: mods with Windows code (`.asi`, `.dll`) do not run. Mods
 are not part of this project, and it does not supply or support any. Add them
-before `install-ios.sh` to have them on the iPad too.
+before `install-ios.sh` to have them on the iPad, iPhone or Apple TV too.
 
 ## Fixes and options
 
-On the launcher's **General** tab: resolution and display, vertical sync, a
-frame limit (off, 30, 60 or 120 fps), anti-aliasing
-(TAA, SMAA, MetalFX), shadow and reflection resolution, field of view, fast
-loading, skipping the logo screens, continuing the last save, mods, the
-performance overlay, and on a display with a notch the whole screen. On the
-**Extras** tab, this port's own additions: the episodes, turn indicators, pad
-icons, phone cheats and full damage, each off until you turn it on, and the
-episodes' radio songs kept to their own episode, on. On the
-**Advanced** tab, every fix below, each a switch. Most follow FusionFix's and
-ZolikaPatch's (by what they do; their code is not used), some are this
-port's own.
+The Mac's launcher has three tabs. **General**: the game folder, full screen
+or a window (on a display with a notch, also the whole screen), vertical sync,
+a frame limit (off, 30, 60 or 120 fps), anti-aliasing (TAA, SMAA, MetalFX)
+with the MetalFX resolution and TAA sharpening, the performance overlay,
+skipping the logo screens, continuing the last save, and mods (**Open Mods
+Folder**). **Extras**: this port's own additions, the episodes, turn
+indicators, pad icons, phone cheats and full damage, each off until you turn
+it on, and the episodes' radio songs kept to their own episode, on.
+**Advanced**: shadow and reflection resolution, field of view, fast loading,
+**Combat** (stun punch and executions on anyone), then every fix below, each
+a switch. Most fixes follow FusionFix's and ZolikaPatch's (by what they do;
+their code is not used), some are this port's own.
+
+On the iPad and iPhone the settings screen has the same in sections: **Game**
+(touch controls, continuing the last save, skipping the start screens, mods,
+fast loading, stun punch and executions on anyone), **Extras**, **Graphics**
+(resolution, anti-aliasing, frame limit, shadows, reflections, field of view,
+the performance overlay) and **Fixes**.
+
+**Pad icons** need the other pads' button pictures, which the game does not
+have: the update folder's `update/pc/textures/buttons_360.wtd` must hold,
+beside the game's own Xbox 360 button textures, each other pad's set under
+the same names with a prefix: `XBONE_` (Xbox One and Series), `PS3_`, `PS4_`,
+`PS5_` and `SWITCH_` (`PS4_A_BUTT`, say). A set with a texture missing is not
+used. The game's own `pc/textures/buttons_360.wtd` has only the Xbox 360 set,
+so without such a file the option changes nothing.
 
 <details>
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-104 switches and choices in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`.
+103 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished; they are set by environment variable only.
 
 #### High frame rates
 
@@ -338,7 +384,6 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 | Brake lights stay on while your car stands | off |
 | Keep bloom (glow around bright lights) | on |
 | Keep depth of field blur | on |
-| Motion blur: Off, 1/8, 1/4, 1/2, Full | 1/4 |
 | The glow of lamps and signs does not cut into what is in front of it | on |
 | Every light casts moving shadows (very slow) | off |
 | Shadow under cars at any distance | on |
@@ -387,7 +432,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 | Game errors only to the log, no error box (may crash later) | off |
 | No crash when someone other than the player aims a thrown weapon | on |
 
-#### Mac, iPad and Apple TV
+#### Mac, iPad, iPhone and Apple TV
 
 | Option | Default |
 |---|---|
@@ -452,6 +497,11 @@ The app is `out/build/release/Liberty Pro Max.app`; the plain executable,
 `out/build/release/gtaiv --game-dir "$GTAIV_GAME_DIR"`, starts without the
 launcher. For the app's icon, before the last build (with Pillow):
 `python3 tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons --mac`.
+
+Building and testing: `cmake --preset release -DGTAIV_TESTS=ON`, build, then
+`ctest --test-dir out/build/release`. That runs the port's unit tests and the
+tools' Python tests (`python3 -m unittest discover -s tests` runs those
+alone).
 
 For the iPad, after that: `tools/apple_deps.sh`, `cmake --preset iphoneos &&
 cmake --build --preset iphoneos`, then `tools/ios_profile.sh`,

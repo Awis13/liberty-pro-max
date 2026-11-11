@@ -499,31 +499,47 @@ void f_008A3F70(Ctx& c) {
   for (const std::string& host : hosts) LoadTexts(host);
 }
 
+// language.cpp: in Russian, the English text of a key russian.gxt lacks.
+bool RussianText();
+uint32_t RussianMissingText(uint32_t hash);
+
 // CText::GetTextByKey (thiscall: key hash, and one more; returns the wide
 // string): FusionFix's first.
+// In Russian, a key the game has no text for (its empty string at
+// 011FB440): american.gxt's (language.cpp).
 void f_008A3BF0_lifted(Ctx& c);
 void f_008A3BF0(Ctx& c) {
-  if (const uint32_t s = FindText(Rd32(c.esp + 4))) {
+  const uint32_t hash = Rd32(c.esp + 4);
+  if (const uint32_t s = FindText(hash)) {
     c.eax = s;
     c.esp += 12;  // ret 8
     return;
   }
   f_008A3BF0_lifted(c);
+  if (c.eax == 0x011FB440)
+    if (const uint32_t s = RussianMissingText(hash)) c.eax = s;
 }
 
 // CText::DoesTextLabelExist (thiscall: key): FusionFix's count too (the
-// key's hash by the game's own, 0045CF50).
+// key's hash by the game's own, 0045CF50), and in Russian american.gxt's
+// for those russian.gxt lacks.
 void f_008A3CF0_lifted(Ctx& c);
 void f_008A3CF0(Ctx& c) {
   const uint32_t key = Rd32(c.esp + 4), self = c.ecx;
-  if (key && FfData()) {
+  const bool russian = RussianText();
+  if (key && (FfData() || russian)) {
     const uint32_t hash = uint32_t(CallGuest(c, 0x0045CF50, {key, 0}));
-    if (FindText(hash)) {
+    if (FfData() && FindText(hash)) {
       c.eax = 1;
       c.esp += 8;  // ret 4
       return;
     }
     c.ecx = self;
+    if (russian) {
+      f_008A3CF0_lifted(c);
+      if (!(c.eax & 0xFF) && RussianMissingText(hash)) c.eax = (c.eax & ~0xFFu) | 1;
+      return;
+    }
   }
   f_008A3CF0_lifted(c);
 }

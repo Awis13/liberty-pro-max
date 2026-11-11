@@ -1,9 +1,14 @@
 // language (src/language.h): the system's preferred language as the
-// Windows language id the game is given.
+// Windows language id the game is given; the game's language for it, with
+// and without the Russian files; the English texts russian.gxt lacks.
 
 #include "language.h"
 
 #include <cstdio>
+#include <cstring>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace {
 
@@ -66,12 +71,175 @@ void TestOthers() {
   EXPECT(LangIdForLocale("r\xC3\xBC") == 0x0409);
 }
 
+// The game's own lookup (007BEFFC), and Russian only with its files.
+void TestGameLanguage() {
+  using language::GameLanguageFor;
+  EXPECT(GameLanguageFor(0x0409, false) == 0);
+  EXPECT(GameLanguageFor(0x0809, false) == 0);  // English (UK): the primary language alone
+  EXPECT(GameLanguageFor(0x040C, false) == 1);
+  EXPECT(GameLanguageFor(0x0407, false) == 2);
+  EXPECT(GameLanguageFor(0x0410, false) == 3);
+  EXPECT(GameLanguageFor(0x0C0A, false) == 4);
+  EXPECT(GameLanguageFor(0x040A, false) == 4);
+  EXPECT(GameLanguageFor(0x0419, false) == 0);  // as the game: American
+  EXPECT(GameLanguageFor(0x0419, true) == 5);
+  EXPECT(GameLanguageFor(0x0819, true) == 5);   // Russian (Moldova)
+  EXPECT(GameLanguageFor(0x0411, true) == 0);   // Japanese: never by the language id
+  EXPECT(GameLanguageFor(0x0804, true) == 0);
+  // The Russian files change Russian alone.
+  for (uint16_t id : {0x0409, 0x040C, 0x0407, 0x0410, 0x0C0A, 0x0411})
+    EXPECT(GameLanguageFor(id, true) == GameLanguageFor(id, false));
+  // From the system's language to the game's, Russian files there.
+  EXPECT(GameLanguageFor(LangIdForLocale("ru-RU"), true) == language::kRussian);
+  EXPECT(GameLanguageFor(LangIdForLocale("fr-CA"), true) == language::kFrench);
+  EXPECT(GameLanguageFor(LangIdForLocale("es-419"), true) == language::kSpanish);
+  EXPECT(GameLanguageFor(LangIdForLocale("ja"), true) == language::kAmerican);
+}
+
+// Russian only with every file it needs: otherwise English and the first
+// file missing named.
+void TestRussianFiles() {
+  using language::RussianFiles;
+  using language::RussianOn;
+  const char* missing = "unset";
+  RussianFiles all;
+  all.text = all.font = true;
+  EXPECT(RussianOn(0x0419, all, &missing) && missing == nullptr);
+  // Another language: never, nothing missing.
+  EXPECT(!RussianOn(0x0409, all, &missing) && missing == nullptr);
+  EXPECT(!RussianOn(0x040C, RussianFiles{}, &missing) && missing == nullptr);
+  RussianFiles f = all;
+  f.text = false;
+  EXPECT(!RussianOn(0x0419, f, &missing) && missing && std::string(missing) == "common/text/russian.gxt");
+  f = all;
+  f.font = false;
+  EXPECT(!RussianOn(0x0419, f, &missing) && missing && std::string(missing) == "pc/textures/fonts_r.wtd");
+  EXPECT(!RussianOn(0x0419, RussianFiles{}, &missing) && missing &&
+         std::string(missing) == "common/text/russian.gxt");
+  // An episode's folder there: its text too; without the folder, none needed.
+  f = all;
+  f.tlad = true;
+  EXPECT(!RussianOn(0x0419, f, &missing) && missing && std::string(missing) == "TLAD/common/text/russian.gxt");
+  f.tlad_text = true;
+  EXPECT(RussianOn(0x0419, f, &missing));
+  f.tbogt = true;
+  EXPECT(!RussianOn(0x0419, f, &missing) && missing && std::string(missing) == "TBoGT/common/text/russian.gxt");
+  f.tbogt_text = true;
+  EXPECT(RussianOn(0x0419, f, &missing));
+  f = all;
+  f.tlad_text = f.tbogt_text = false;  // no episode folders
+  EXPECT(RussianOn(0x0419, f, &missing));
+}
+
+// English drawn with the Russian font: Latin-1 letters made plain (its
+// 0x80-0xFF are Cyrillic), the rest as it is.
+void TestPlainLatin() {
+  using language::PlainLatin;
+  EXPECT(PlainLatin(u'A') == u'A');
+  EXPECT(PlainLatin(u'~') == u'~');
+  EXPECT(PlainLatin(char16_t(0xE9)) == u'e');  // e acute
+  EXPECT(PlainLatin(char16_t(0xC0)) == u'A');
+  EXPECT(PlainLatin(char16_t(0xD1)) == u'N');
+  EXPECT(PlainLatin(char16_t(0xFC)) == u'u');
+  EXPECT(PlainLatin(char16_t(0xFF)) == u'y');
+  EXPECT(PlainLatin(char16_t(0xA9)) == char16_t(0xA9));  // not a letter
+  EXPECT(PlainLatin(char16_t(0x0418)) == char16_t(0x0418));  // a Cyrillic letter
+}
+
+// A GXT file as the game's: TABL, then each table (MAIN first and without
+// its name), its TKEY and TDAT.
+using Table = std::pair<std::string, std::vector<std::pair<uint32_t, std::u16string>>>;
+std::vector<uint8_t> Gxt(const std::vector<Table>& tables) {
+  std::vector<uint8_t> d;
+  auto u32 = [&d](uint32_t v) {
+    for (int i = 0; i < 4; i++) d.push_back(uint8_t(v >> (8 * i)));
+  };
+  auto tag = [&d](const char* t) { d.insert(d.end(), t, t + 4); };
+  u32(0x00100004);
+  tag("TABL");
+  u32(uint32_t(12 * tables.size()));
+  const size_t index = d.size();
+  d.resize(d.size() + 12 * tables.size());
+  for (size_t t = 0; t < tables.size(); t++) {
+    const auto& [name, entries] = tables[t];
+    const uint32_t at = uint32_t(d.size());
+    std::memset(&d[index + 12 * t], 0, 8);
+    std::memcpy(&d[index + 12 * t], name.data(), name.size());
+    std::memcpy(&d[index + 12 * t + 8], &at, 4);
+    if (t) {
+      d.insert(d.end(), name.begin(), name.end());
+      d.resize(d.size() + 8 - name.size());
+    }
+    tag("TKEY");
+    u32(uint32_t(8 * entries.size()));
+    std::vector<uint8_t> text;
+    for (const auto& [hash, s] : entries) {
+      u32(uint32_t(text.size()));
+      u32(hash);
+      for (char16_t ch : s) {
+        text.push_back(uint8_t(ch));
+        text.push_back(uint8_t(ch >> 8));
+      }
+      text.push_back(0);
+      text.push_back(0);
+    }
+    tag("TDAT");
+    u32(uint32_t(text.size()));
+    d.insert(d.end(), text.begin(), text.end());
+  }
+  return d;
+}
+
+void TestGxt() {
+  // Russian: Cyrillic written as the game's russian.gxt does (0x80-0xFF),
+  // the mission table named in lower case, one key moved to MAIN.
+  const std::u16string play = {char16_t(0x96), char16_t(0x91), char16_t(0x9E), char16_t(0x8E)};
+  const auto american = Gxt({
+      {"MAIN", {{1, u"PLAY"}, {2, u"Activating DLC."}, {3, u"ZiT! Communiqu\u00E9"}}},
+      {"B1AUD", {{10, u"~z~Great."}, {11, u"~z~The kids?"}, {12, u"Moved"}}},
+      {"CSTEAL", {{20, u"The target car has been destroyed."}}},
+  });
+  const auto russian = Gxt({
+      {"MAIN", {{1, play}, {12, u"x"}}},
+      {"b1aud", {{10, u"y"}}},
+      {"csteal", {}},
+  });
+  language::GxtTables am, ru;
+  EXPECT(language::ReadGxt(american.data(), american.size(), &am));
+  EXPECT(language::ReadGxt(russian.data(), russian.size(), &ru));
+  EXPECT(am.size() == 3 && ru.size() == 3 && ru.count("B1AUD") == 1);
+  EXPECT(am.count("MAIN") && am["MAIN"].count(2) &&
+         language::GxtString(american.data(), american.size(), am["MAIN"][2]) == u"Activating DLC.");
+  EXPECT(ru.count("MAIN") && ru["MAIN"].count(1) &&
+         language::GxtString(russian.data(), russian.size(), ru["MAIN"][1]) == play);
+  const auto missing = language::MissingTexts(american.data(), american.size(), am, ru);
+  // Lacking from Russian: 2, 3 (MAIN), 11 (its mission table), 20; not 1
+  // and 10 (there), nor 12 (in Russian's MAIN, always loaded).
+  EXPECT(missing.size() == 4);
+  EXPECT(missing.count(2) && missing.at(2) == u"Activating DLC.");
+  EXPECT(missing.count(3) && missing.at(3) == u"ZiT! Communique");
+  EXPECT(missing.count(11) && missing.at(11) == u"~z~The kids?");
+  EXPECT(missing.count(20));
+  EXPECT(!missing.count(1) && !missing.count(10) && !missing.count(12));
+  // Not GXT files of tables.
+  language::GxtTables none;
+  const uint8_t junk[] = {1, 2, 3};
+  EXPECT(!language::ReadGxt(junk, sizeof junk, &none));
+  auto cut = american;
+  cut.resize(cut.size() / 2);
+  EXPECT(!language::ReadGxt(cut.data(), cut.size(), &none));
+}
+
 }  // namespace
 
 int main() {
   TestLocales();
   TestPrimary();
   TestOthers();
+  TestGameLanguage();
+  TestRussianFiles();
+  TestPlainLatin();
+  TestGxt();
   if (g_failures) return 1;
   std::puts("language_test: ok");
   return 0;

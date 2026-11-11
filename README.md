@@ -222,12 +222,19 @@ them from loading.
 ### The game's language
 
 The game speaks the language your Mac, iPad, iPhone or Apple TV is set to
-(the first of your preferred languages): English, French, German, Italian or
-Spanish, with the text files your install already has. Any other language gives
-the game in English, as before. To keep the game in English on a system in
-another language, choose **Language: English** on the launcher's General tab
-(on the iPad and iPhone, turn off "Game in the device's language"); the Apple
-TV, with no settings screen yet, always follows the system.
+(the first of your preferred languages): English, French, German, Italian,
+Spanish or Russian. Any other language gives the game in English, as before.
+To keep the game in English on a system in another language, choose
+**Language: English** on the launcher's General tab (on the iPad and iPhone,
+turn off "Game in the device's language"); the Apple TV, with no settings
+screen yet, always follows the system.
+
+Russian needs the Russian files in your game folder: `common/text/russian.gxt`
+and `pc/textures/fonts_r.wtd` (with the episodes on, also their
+`common/text/russian.gxt`). Steam's install has them. Without them the game
+stays in English. The Russian text is older than the English: the few lines it
+lacks (some radio song names, messages about downloadable content) show in
+English. Saves are the same in every language.
 
 ### Your own music
 

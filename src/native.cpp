@@ -12,6 +12,7 @@
 #include <utility>
 
 #include "native.h"
+#include "shadow_anticull.h"
 
 #pragma clang fp contract(off)
 
@@ -482,7 +483,49 @@ NATIVE(00A391E0)
 NATIVE(005198E0)
 NATIVE(0044D930)
 NATIVE(00A55530)
-NATIVE(004151B0)
+// The sphere-against-frustum test, with the sun's cascades keeping what
+// lies near the game's camera (shadow_anticull.h; GTAIV_SHADOW_ANTICULL=0:
+// as the game culls).
+void f_004151B0_lifted(Ctx& c);
+void f_004151B0(Ctx& c) {
+  namespace sa = shadow_anticull;
+  static const bool keep = [] {
+    const char* e = std::getenv("GTAIV_SHADOW_ANTICULL");
+    return !(e && *e == '0');
+  }();
+  const uint32_t vp = c.ecx;
+  if (keep && vp && native::Rd<uint8_t>(vp + sa::kPerspective) == 0) {
+    using native::F;
+    using native::Rd;
+    const uint32_t index = Rd<uint32_t>(sa::kCameraTable);
+    const uint32_t camera = index < 64 ? Rd<uint32_t>(sa::kCameraTable + 4 * index) : 0;
+    if (camera) {
+      const float cam[3] = {F(Rd<uint32_t>(camera + sa::kCameraPos)), F(Rd<uint32_t>(camera + sa::kCameraPos + 4)),
+                            F(Rd<uint32_t>(camera + sa::kCameraPos + 8))};
+      const float p[3] = {F(Rd<uint32_t>(c.esp + 4)), F(Rd<uint32_t>(c.esp + 8)), F(Rd<uint32_t>(c.esp + 12))};
+      const float r = F(Rd<uint32_t>(c.esp + 0x10));
+      if (sa::Kept(cam, p, r)) {
+        const uint32_t out = Rd<uint32_t>(c.esp + 0x14);
+        if (out) {
+          const float plane[4] = {F(Rd<uint32_t>(vp + sa::kPlanes)), F(Rd<uint32_t>(vp + sa::kPlanes + 4)),
+                                  F(Rd<uint32_t>(vp + sa::kPlanes + 8)), F(Rd<uint32_t>(vp + sa::kPlanes + 12))};
+          const float v = sa::PlaneZero(plane, p, r);
+          uint32_t u;
+          std::memcpy(&u, &v, 4);
+          native::Wr<uint32_t>(out, u);
+        }
+        c.eax = sa::KeptAnswer(out != 0);
+        c.esp += 24;  // (the return address and ret 0x14)
+        return;
+      }
+    }
+  }
+  static const bool on = native::On() && native::Enabled(0x004151B0);
+  if (native::Use(c, on, Native_004151B0_x87))
+    Native_004151B0(c);
+  else
+    f_004151B0_lifted(c);
+}
 NATIVE(006A0960)
 NATIVE(00413A60)
 NATIVE(00414C20)

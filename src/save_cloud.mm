@@ -29,10 +29,11 @@
 #include <mutex>
 #include <thread>
 
+#include "save_paths.h"
+
 namespace {
 
-NSString* const kSavesRel =
-    @"drive_c/Documents and Settings/Player/Local Settings/Application Data/Rockstar Games/GTA IV/savegames";
+NSString* const kSavesRel = @(save_paths::kSavesRel);
 
 void Say(NSString* s) { std::fprintf(stderr, "save cloud: %s\n", s.UTF8String); }
 
@@ -90,7 +91,7 @@ NSString* Sha256(NSString* path) {
 
 bool IsSave(NSString* rel) {
   NSString* name = rel.lastPathComponent;
-  return [rel hasPrefix:@"user_"] && rel.pathComponents.count == 2 &&
+  return rel.pathComponents.count == 2 && save_paths::IsProfileFolder(rel.pathComponents[0].UTF8String) &&
          ([name hasPrefix:@"SGTA4"] || [name isEqualToString:@"ControlMap.dat"]) && ![name hasSuffix:@".json"];
 }
 

@@ -38,7 +38,7 @@ For the iPad, the iPhone and the Apple TV, see [Install](#install).
 | **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048, field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play** |
 | **Fixes built in** | about 100 fixes (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
-| **Extras** | the episodes, turn indicators, pad icons and phone cheats (the launcher's Extras, off until you turn them on), stun punch and executions on anyone, fast loading, a mods folder, saves shared through iCloud Drive | the same |
+| **Extras** | on the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, phone cheats, full damage; also stun punch and executions on anyone, fast loading, a mods folder, saves shared through iCloud Drive | the same |
 | **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
 
 The iPad's build also runs on an iPhone (experimental): the same, at the
@@ -188,7 +188,10 @@ The episodes are off until you turn them on: "The episodes" on the launcher's
 no settings screen yet, has them off). Then, if your game folder has the `TLAD`
 and `TBoGT` folders, The Lost and Damned and The Ballad of Gay Tony work: the
 game opens with its own screen to choose what to play. Their saves sit with
-IV's, in the same slots.
+IV's, in the same slots. With the episodes off their saves are kept, and
+"Continue from the last save" goes on from your newest IV save instead, or
+starts a new IV game if you have none; turn the episodes on to continue an
+episode.
 
 With "Continue from the last save" on, the game goes on from your newest save,
 in the game it was made in (IV or an episode). With no save yet it opens on that

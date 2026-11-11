@@ -1,6 +1,7 @@
 """tools/fixes_table.py: the launcher's options as the README lists them."""
 import importlib.util
 from pathlib import Path
+import re
 import unittest
 
 
@@ -78,6 +79,41 @@ class ReadmeTests(unittest.TestCase):
         a = readme.index('<!-- fixes:begin -->') + len('<!-- fixes:begin -->')
         b = readme.index('<!-- fixes:end -->')
         self.assertEqual(readme[a:b], '\n' + '\n'.join(lines) + '\n')
+
+
+class FallbackTests(unittest.TestCase):
+    """Each OptionOn("GTAIV_X", fallback) in src/ falls back to the launcher
+    table's default: a run without the launchers' environment (the plain
+    executable) gets what the table says."""
+
+    # Read with OptionOn but not switches of the table, with why.
+    NOT_IN_TABLE = {
+        'GTAIV_FF_SHADERS': 'the extended shaders, unfinished: no launcher option',
+        'GTAIV_TURN_LOG': 'a log of the turn indicators for development',
+        'GTAIV_MODS': "the General tab's Load mods (kModsKey), on, not a kFixes row",
+    }
+
+    def test_fallbacks_match_the_table(self):
+        root = Path(__file__).resolve().parents[1]
+        fixes, _ = fixes_table.parse((root / 'src/launcher_options.h').read_text())
+        table = {'GTAIV_' + f.env: f.on for f in fixes}
+        seen = set()
+        for path in sorted((root / 'src').iterdir()):
+            if path.suffix not in ('.cpp', '.mm', '.h'):
+                continue
+            for m in re.finditer(r'OptionOn\(\s*"(GTAIV_\w+)",\s*(true|false)\s*\)', path.read_text(errors='replace')):
+                env, fallback = m.group(1), m.group(2) == 'true'
+                seen.add(env)
+                if env in self.NOT_IN_TABLE:
+                    continue
+                self.assertIn(env, table, f'{path.name}: {env} is in neither the table nor NOT_IN_TABLE')
+                self.assertEqual(fallback, table[env], f'{path.name}: {env} falls back to {fallback}, '
+                                                       f'the table says {table[env]}')
+        self.assertIn('GTAIV_EPISODES', seen)
+        self.assertIn('GTAIV_PHONE_CHEATS', seen)
+        for env in self.NOT_IN_TABLE:
+            self.assertIn(env, seen, f'{env} is listed but no longer read with OptionOn')
+            self.assertNotIn(env, table)
 
 
 if __name__ == '__main__':

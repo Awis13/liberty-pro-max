@@ -34,6 +34,7 @@
 #include <thread>
 
 #include "first_menu.h"
+#include "option.h"
 #include "runtime/lifted.h"
 #include "runtime/log.h"
 #include "runtime/platform.h"
@@ -42,6 +43,8 @@
 namespace recomp::gen {
 
 void f_00A777C0_lifted(Ctx& c);
+void f_0085A520_lifted(Ctx& c);
+void f_004944E0_lifted(Ctx& c);
 
 namespace {
 
@@ -254,6 +257,47 @@ void hook_0047D255(Ctx& c) {
   g_menu_reached = true;
   c.esp -= 4;
   Wr32(c.esp, state);
+}
+
+// The start of a game from the title menu or Continue (004944E0, frontend
+// state 6) first reads the command line's -episode N (0085A520: then
+// [011D5E2A] set and N in [00F348F4]), scans the saves, and loads the
+// newest. Given -episode, the scan also keeps each game's newest save
+// (0085A2E5: IV's in [00F348E8]), the load takes that game's newest
+// (0085C5C8, 00859070) and that game starts (004946A1); with none, a new
+// game of it (state 7, 00494643). Without it the newest save of any game
+// loads in its own game: an episode's, with the episodes off, ends on the
+// game's "The downloadable content required for this autoload is not
+// available" and a new IV game. So with the episodes off the port gives
+// -episode 0 for that start (IV's newest save, or a new IV game), unless
+// the player's command line has an -episode of its own, and takes it back
+// when the start is over: later, the Load Game menu's episode save still
+// meets the game's own answer (0085B4E0 and 00492E30 read it too).
+namespace {
+bool g_iv_forced;
+}
+
+void f_0085A520(Ctx& c) {
+  f_0085A520_lifted(c);
+  static const bool episodes = OptionOn("GTAIV_EPISODES", false);
+  if (episodes || Rd8(0x011D5E2A)) return;
+  Wr8(0x011D5E2A, 1);
+  Wr32(0x00F348F4, 0);
+  Wr32(0x011D5E34, 0);
+  g_iv_forced = true;
+  static bool said;
+  if (!said) {
+    said = true;
+    WarnF("gtaiv: continue: the episodes are off: IV's newest save, as with -episode 0\n");
+  }
+}
+
+void f_004944E0(Ctx& c) {
+  f_004944E0_lifted(c);
+  if (!g_iv_forced) return;
+  g_iv_forced = false;
+  Wr8(0x011D5E2A, 0);  // as 0085A520 leaves them without -episode
+  Wr32(0x00F348F4, 0xFFFFFFFFu);
 }
 
 // A start screen's time on screen in ms (edx), after its count (ecx): the

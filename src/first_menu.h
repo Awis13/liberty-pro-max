@@ -11,7 +11,8 @@
 // (0085A2E0 puts that save's game in [011D5E34], which 00494140 starts:
 // 004946A1). With no save at all the scan ends with none (0085C390 case
 // 2) and a new game starts in [011D5E34], the game being started
-// ([0112D788], IV before any pick).
+// ([0112D788], IV before any pick). With the episodes off, Continue takes
+// IV's newest save instead, or a new IV game (f_0085A520 in options.cpp).
 //
 // With the episodes the first menu is the game's chooser (IV or the
 // episodes), built at 0047C888 with [010FBBB1] set. A 6 there goes past it:

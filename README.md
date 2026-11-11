@@ -193,9 +193,9 @@ IV's, in the same slots. With the episodes off their saves are kept, and
 starts a new IV game if you have none; turn the episodes on to continue an
 episode.
 
-With "Continue from the last save" on, the game goes on from your newest save,
-in the game it was made in (IV or an episode). With no save yet it opens on that
-screen. To play another game than your newest save's, untick "Continue from the
+With the episodes on and "Continue from the last save" on, the game goes on
+from your newest save, in the game it was made in (IV or an episode). With no
+save yet it opens on that screen. To play another game than your newest save's, untick "Continue from the
 last save".
 
 The episodes also bring radio songs, which the game would add to the same

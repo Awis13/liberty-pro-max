@@ -82,9 +82,11 @@ class ReadmeTests(unittest.TestCase):
 
 
 class FallbackTests(unittest.TestCase):
-    """Each OptionOn("GTAIV_X", fallback) in src/ falls back to the launcher
-    table's default: a run without the launchers' environment (the plain
-    executable) gets what the table says."""
+    """Every switch of the launcher's table read with OptionOn("GTAIV_X",
+    fallback) in src/ falls back to the table's default: a run without the
+    launchers' environment (the plain executable) gets what the table says.
+    Options read otherwise (Option("GTAIV_CONTINUE"), Option("GTAIV_SKIP_INTRO"),
+    Gameplay(...): off without the launcher) are not covered."""
 
     # Read with OptionOn but not switches of the table, with why.
     NOT_IN_TABLE = {
@@ -98,17 +100,23 @@ class FallbackTests(unittest.TestCase):
         fixes, _ = fixes_table.parse((root / 'src/launcher_options.h').read_text())
         table = {'GTAIV_' + f.env: f.on for f in fixes}
         seen = set()
+        calls = matched = 0
         for path in sorted((root / 'src').iterdir()):
-            if path.suffix not in ('.cpp', '.mm', '.h'):
+            if path.suffix not in ('.cpp', '.mm', '.h') or path.name == 'option.h':
                 continue
-            for m in re.finditer(r'OptionOn\(\s*"(GTAIV_\w+)",\s*(true|false)\s*\)', path.read_text(errors='replace')):
+            text = path.read_text(errors='replace')
+            calls += len(re.findall(r'\bOptionOn\(', text))
+            for m in re.finditer(r'OptionOn\(\s*"(GTAIV_\w+)",\s*(true|false)\s*\)', text):
                 env, fallback = m.group(1), m.group(2) == 'true'
+                matched += 1
                 seen.add(env)
                 if env in self.NOT_IN_TABLE:
                     continue
                 self.assertIn(env, table, f'{path.name}: {env} is in neither the table nor NOT_IN_TABLE')
                 self.assertEqual(fallback, table[env], f'{path.name}: {env} falls back to {fallback}, '
                                                        f'the table says {table[env]}')
+        # A call with a fallback that is not a literal would be skipped.
+        self.assertEqual(calls, matched, 'an OptionOn call the check cannot read')
         self.assertIn('GTAIV_EPISODES', seen)
         self.assertIn('GTAIV_PHONE_CHEATS', seen)
         for env in self.NOT_IN_TABLE:

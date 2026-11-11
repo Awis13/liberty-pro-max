@@ -3,7 +3,8 @@
 //     are not shown;
 //   GTAIV_CONTINUE=1: the game starts in the newest save, in the game it
 //     was made in, instead of the main menu (with the episodes found and
-//     no save yet, their chooser comes first);
+//     no save yet, their chooser comes first; with the episodes off, IV's
+//     newest save: see f_0085A520);
 //   GTAIV_FOV=degrees: added to the game camera's field of view (wide
 //     screens);
 //   GTAIV_FAST_LOADING=0 turns off the loading speed-ups (on by default):
@@ -264,7 +265,8 @@ void hook_0047D255(Ctx& c) {
 // [011D5E2A] set and N in [00F348F4]), scans the saves, and loads the
 // newest. Given -episode, the scan also keeps each game's newest save
 // (0085A2E5: IV's in [00F348E8]), the load takes that game's newest
-// (0085C5C8, 00859070) and that game starts (004946A1); with none, a new
+// (0085C5C8, 00859070) and that game starts (0049469A: [00F348F4], where
+// 004946A1 reads [011D5E34] without -episode); with none, a new
 // game of it (state 7, 00494643). Without it the newest save of any game
 // loads in its own game: an episode's, with the episodes off, ends on the
 // game's "The downloadable content required for this autoload is not

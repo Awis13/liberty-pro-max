@@ -254,7 +254,7 @@ int main(int argc, char** argv) {
   }
 #endif
   // The game in the system's language unless disabled by the launcher.
-  // GTAIV_LANG_ID (the Mac launcher's explicit choice, or a diagnostic
+  // GTAIV_LANG_ID (the launcher's explicit choice, or a diagnostic
   // override such as 0x0419 for Russian) takes priority in the runtime.
   if (OptionOn("GTAIV_SYSTEM_LANGUAGE", true)) {
     std::string code;

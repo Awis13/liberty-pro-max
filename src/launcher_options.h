@@ -42,26 +42,26 @@ NSString* const kSkipIntroKey = @"SkipIntro";
 NSString* const kContinueKey = @"ContinueLastSave";
 // The game in the system's language (YES) or always in English (NO).
 NSString* const kSystemLanguageKey = @"SystemLanguage";
-// The Mac's explicit choice; absent in older versions and on iOS/tvOS.
+// The Mac, iPhone and iPad launchers' explicit choice; absent in older versions.
 NSString* const kGameLanguageKey = @"GameLanguage";
-inline NSArray<NSString*>* MacLanguageTitles() {
+inline NSArray<NSString*>* LauncherLanguageTitles() {
   return @[ @"Same as the system", @"English", @"French", @"German", @"Italian", @"Spanish", @"Russian (Русский)" ];
 }
-inline NSString* MacLanguageCode(NSInteger index) {
+inline NSString* LauncherLanguageCode(NSInteger index) {
   return @[ @"system", @"en", @"fr", @"de", @"it", @"es", @"ru" ][std::clamp<NSInteger>(index, 0, 6)];
 }
-inline NSInteger MacLanguageIndex(NSUserDefaults* d) {
+inline NSInteger LauncherLanguageIndex(NSUserDefaults* d) {
   id saved = [d objectForKey:kGameLanguageKey];
   if (!saved) return [d boolForKey:kSystemLanguageKey] ? 0 : 1;
   for (NSInteger i = 0; i < 7; ++i)
-    if ([MacLanguageCode(i) isEqual:saved]) return i;
+    if ([LauncherLanguageCode(i) isEqual:saved]) return i;
   return 0;
 }
-// Called only by the Mac launcher, after ApplyOptions. The marker lets an
+// Called by the Mac, iPhone and iPad launchers after ApplyOptions. The marker lets an
 // explicit choice win over SETTINGS.CFG, and identifies an override to clear
 // if a relaunched launcher returns to following the system.
-inline void ApplyMacLanguage(NSUserDefaults* d) {
-  const NSInteger index = MacLanguageIndex(d);
+inline void ApplyLauncherLanguage(NSUserDefaults* d) {
+  const NSInteger index = LauncherLanguageIndex(d);
   if (index == 0) {
     const char* previous = std::getenv("GTAIV_LAUNCHER_LANGUAGE");
     if (previous && std::string(previous) == "1") unsetenv("GTAIV_LANG_ID");

@@ -300,9 +300,9 @@ void RunIosLauncher(std::vector<std::string>* launcher_args) {
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
     RegisterDefaults(d);
 #if TARGET_OS_TV
-    // Apple TV: no settings screen yet; the defaults at 1920x1080, SMAA,
-    // the graphics menu's settings applied from the start.
-    [d registerDefaults:@{kAntiAliasingKey : @1, kHudKey : @NO, @"FixDrawDistance" : @YES}];
+    // Apple TV: no settings screen yet; its own defaults (1920x1080, SMAA,
+    // the episodes on: TvDefaults).
+    [d registerDefaults:TvDefaults()];
     ApplyOptions(d);
     setenv("GTAIV_VSYNC", "1", 1);
     *launcher_args = {"-width", "1920", "-height", "1080"};

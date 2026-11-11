@@ -160,9 +160,9 @@ screen: it starts the game at 1920×1080 with SMAA at 60 fps. The A15 cannot
 sample the game's DXT textures, so they are decoded on upload and take
 several times their size: keep the game's texture quality at its default,
 or the Apple TV's 2.1 GB per app runs out. The log is `log.txt` in the
-app's Library/Caches (`devicectl`). The episodes are not available there
-yet: their folders are copied, but without a settings screen they cannot be
-turned on.
+app's Library/Caches (`devicectl`). The episodes are on there (with no
+settings screen, nothing could turn them on), and their folders are copied
+with the game's.
 
 The app's icon is made on your Mac from the logo in your own game files,
 as on the iPad.
@@ -186,7 +186,7 @@ option turns both off.
 
 The episodes are off until you turn them on: "The episodes" on the launcher's
 **Extras** tab (in its Extras section on the iPad and iPhone; the Apple TV, with
-no settings screen yet, has them off). Then, if your game folder has the `TLAD`
+no settings screen yet, has them on). Then, if your game folder has the `TLAD`
 and `TBoGT` folders, The Lost and Damned and The Ballad of Gay Tony work: the
 game opens with its own screen to choose what to play. Their saves sit with
 IV's, in the same slots. With the episodes off their saves are kept, and
@@ -396,7 +396,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 
 #### Extras
 
-This port's own additions, on the launcher's Extras tab (a section of their own on the iPad and iPhone).
+This port's own additions, on the launcher's Extras tab (a section of their own on the iPad and iPhone). The Apple TV, with no settings screen, has the episodes on.
 
 | Option | Default |
 |---|---|

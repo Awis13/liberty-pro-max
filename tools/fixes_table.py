@@ -72,7 +72,7 @@ GROUPS = [
 
 
 EXTRAS = ('Extras', "This port's own additions, on the launcher's Extras tab (a section of their own "
-          'on the iPad and iPhone).')
+          'on the iPad and iPhone). The Apple TV, with no settings screen, has the episodes on.')
 
 
 def table(fixes, choices):

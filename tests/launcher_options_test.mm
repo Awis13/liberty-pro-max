@@ -76,6 +76,23 @@ void TestDefaults() {
   }
 }
 
+// The Apple TV's own, over those: with no settings screen there, the
+// episodes are on; the phone cheats and the episodes' radio stay as
+// everywhere.
+void TestTvDefaults() {
+  NSUserDefaults* d = [[NSUserDefaults alloc] initWithSuiteName:@"launcher_options_test.unused"];
+  RegisterDefaults(d);
+  [d registerDefaults:TvDefaults()];
+  EXPECT([d boolForKey:@"Episodes"]);
+  EXPECT(![d boolForKey:@"PhoneCheats"]);
+  EXPECT([d boolForKey:@"EpisodeRadioOwn"]);
+  EXPECT(TvDefaults()[@"PhoneCheats"] == nil);
+  EXPECT(TvDefaults()[@"EpisodeRadioOwn"] == nil);
+  // Every key it sets is an option's.
+  NSDictionary* all = [d volatileDomainForName:NSRegistrationDomain];
+  for (NSString* k in TvDefaults()) EXPECT(all[k] != nil);
+}
+
 bool Has(NSArray* a, NSString* k) { return [a containsObject:k]; }
 
 // The one move to storing only changes: what earlier versions stored on
@@ -111,6 +128,7 @@ int main() {
     TestExtras();
     TestListsApart();
     TestDefaults();
+    TestTvDefaults();
     TestClearedOnce();
   }
   if (g_failures) return 1;

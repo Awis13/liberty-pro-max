@@ -268,6 +268,15 @@ void RegisterDefaults(NSUserDefaults* d) {
   [d registerDefaults:defaults];
 }
 
+// The Apple TV's defaults over those (launcher_ios.mm): it has no settings
+// screen yet, so they are what it plays with. 1920x1080 with SMAA, no
+// performance overlay, the graphics menu's settings applied from the start,
+// and the episodes on, as before they were off by default elsewhere: off,
+// nothing there could turn them on. The phone cheats stay off.
+inline NSDictionary* TvDefaults() {
+  return @{kAntiAliasingKey : @1, kHudKey : @NO, @"FixDrawDistance" : @YES, @"Episodes" : @YES};
+}
+
 // The options as the game reads them: environment variables of this process.
 void ApplyOptions(NSUserDefaults* d) {
   setenv("GTAIV_FULLSCREEN", [d boolForKey:kWindowKey] ? "window" : "desktop", 1);

@@ -230,7 +230,8 @@ turn off "Game in the device's language"); the Apple TV, with no settings
 screen yet, always follows the system. The game's own Language option, in its
 menus, is kept in its settings (`SETTINGS.CFG`): a language chosen there wins
 over the system's and the launcher's from then on, until you choose the
-system's language there again. Russian is in that menu only while the system
+system's language there again (or the game starts with the system set to the
+language you chose, which then counts as the system's again). Russian is in that menu only while the system
 (and the launcher) select it. In German the game hides a few statistics
 entries, as it does in German on Windows; nothing else changes.
 

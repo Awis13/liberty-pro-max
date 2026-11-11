@@ -38,16 +38,17 @@
 // launcher's English, never applied once the game had run. Here the
 // lookup's answer applies unless the file's language was chosen in the
 // menu (it differs from the lookup's answer then); a stored language the
-// game cannot use here (Russian without the files, past Japanese) is the
-// lookup's. The menu's own rule keeps Russian out of its cycle (and
+// game cannot use here (Russian without the files, Japanese without its
+// flag, past Japanese) is the lookup's. The menu's own rule keeps Russian out of its cycle (and
 // Japanese, which only its slider can give); with Russian on the cycle
 // goes through Russian (language.h, MenuLanguage). Saves hold no language.
 //
-// One text-scale tweak (004A20DE) asks the lookup and applies when it
-// answers Russian: with Russian on it takes the language in use instead,
-// so a western language chosen in the menu gets the western scale. The
-// lookup itself keeps answering Russian: 00494384 compares it with the
-// language in use to load a menu choice's text at start.
+// One text-scale tweak (004A20DE, for the legal screens at start) asks
+// the lookup and applies when it answers Russian: with Russian on it takes
+// the language of the text loaded instead, by its region letter, so a
+// western text gets the western scale. The lookup itself keeps answering
+// Russian: 00494384 compares it with the game's language to load a menu
+// choice's text at start.
 
 #include <sys/stat.h>
 
@@ -276,10 +277,16 @@ void hook_007C7A29(Ctx& c) {
   c.eax = lang;
 }
 
-// The text-scale tweak's test of the lookup's answer: cmp eax, 5. With
-// Russian on, the language in use (as the lookup answers 5 or 6 then, it
-// differs only for a language chosen in the menu).
-void hook_004A20E3(Ctx& c) { CmpFlags<4>(c, Russian() ? Rd32(kLanguage) : c.eax, language::kRussian); }
+// The text-scale tweak's test of the lookup's answer: cmp eax, 5. Its
+// function (004A2040) draws the legal screens (LEGAL_PC, LEGAL_PC_2; called
+// at 004A1CA4, 004A1CCD) at start, before a language chosen in the menu is
+// loaded (00494398), from the text object, whose region letter 008A3880
+// sets for each text file it loads. With Russian on: Russian when that text
+// is Russian ('r'), otherwise not.
+void hook_004A20E3(Ctx& c) {
+  const uint32_t text = Rd8(kRegion) == 'r' ? language::kRussian : language::kAmerican;
+  CmpFlags<4>(c, Russian() ? text : c.eax, language::kRussian);
+}
 
 // The streamed font at start: mov dword [esp+9C], 2B (the western one's
 // kind); 31, fonts_r's, with the region letter 'r' (as 008872EF does).

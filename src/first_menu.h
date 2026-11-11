@@ -12,7 +12,9 @@
 // 004946A1). With no save at all the scan ends with none (0085C390 case
 // 2) and a new game starts in [011D5E34], the game being started
 // ([0112D788], IV before any pick). With the episodes off, Continue takes
-// IV's newest save instead, or a new IV game (f_0085A520 in options.cpp).
+// IV's newest save instead, or a new IV game; with them on and an
+// episode's content missing, the newest save of a game that is there
+// (ChooseStart below, f_0085A520 in options.cpp).
 //
 // With the episodes the first menu is the game's chooser (IV or the
 // episodes), built at 0047C888 with [010FBBB1] set. A 6 there goes past it:
@@ -63,6 +65,57 @@ constexpr bool IsSaveName(std::string_view name) {
 // game can load.
 constexpr bool IsSave(std::string_view name, std::uintmax_t size) {
   return IsSaveName(name) && size > 0;
+}
+
+// The game a start from the title menu or Continue takes (f_0085A520 and
+// f_00859070 in options.cpp). The game's own rule: the command line's
+// -episode N, if any, starts game N's newest save (a new game of N with
+// none); without it the newest save of any game loads, in its own game.
+enum class StartRule {
+  kGameOwn,         // as the game does
+  kIV,              // as with -episode 0: IV's newest save, or a new IV game
+  kIVArgIgnored,    // the same, and the player's own -episode is ignored
+  kNewestThere,     // the newest save of a game whose content is there
+};
+
+// episodes: the episodes' option; arg_given, arg: the command line's
+// -episode; tlad, tbogt: whether the game found that episode's content.
+// With the episodes off, IV whatever the command line says (its -episode 0
+// is the game's own). With them on, a player's -episode is kept; without
+// one and with an episode missing, the newest save of a game that is there
+// (the newest overall may be the missing episode's).
+constexpr StartRule ChooseStart(bool episodes, bool arg_given, int32_t arg, bool tlad, bool tbogt) {
+  if (!episodes) {
+    if (!arg_given) return StartRule::kIV;
+    return arg == 0 ? StartRule::kGameOwn : StartRule::kIVArgIgnored;
+  }
+  if (arg_given || (tlad && tbogt)) return StartRule::kGameOwn;
+  return StartRule::kNewestThere;
+}
+
+// A save's time as the scan keeps it (six numbers, year first), compared
+// as 00859280 does: field by field, signed.
+struct SaveTime {
+  int32_t f[6];
+};
+
+constexpr bool Newer(const SaveTime& a, const SaveTime& b) {
+  for (int i = 0; i < 6; i++)
+    if (a.f[i] != b.f[i]) return a.f[i] > b.f[i];
+  return false;
+}
+
+// Of the games 0 IV, 1 TLAD, 2 TBoGT: slot, each game's newest save (-1
+// none) and time, its time; there, whether its content is there. The game
+// whose newest save is the newest of those there (the first on a tie); IV
+// with none, whose newest is then no save: a new IV game.
+constexpr uint32_t NewestThere(const SaveTime (&time)[3], const int32_t (&slot)[3], const bool (&there)[3]) {
+  int best = -1;
+  for (int g = 0; g < 3; g++) {
+    if (!there[g] || slot[g] < 0) continue;
+    if (best < 0 || Newer(time[g], time[best])) best = g;
+  }
+  return best < 0 ? 0 : uint32_t(best);
 }
 
 }  // namespace first_menu

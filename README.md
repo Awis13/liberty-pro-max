@@ -195,8 +195,15 @@ episode.
 
 With the episodes on and "Continue from the last save" on, the game goes on
 from your newest save, in the game it was made in (IV or an episode). With no
-save yet it opens on that screen. To play another game than your newest save's, untick "Continue from the
-last save".
+save yet it opens on that screen. To play another game than your newest save's,
+untick "Continue from the last save". If an episode's folder is missing (say
+only IV was copied to the iPad, and that episode's saves came through iCloud),
+the game goes on from the newest save of a game that is there.
+
+An `-episode` in your `commandline.txt` (`-episode 1` starts The Lost and
+Damned's newest save, `-episode 2` The Ballad of Gay Tony's) works with the
+episodes on. With the episodes off it is left out and IV starts; the log says
+so.
 
 The episodes also bring radio songs, which the game would add to the same
 stations in IV and in the other episode. They play only in their own episode,

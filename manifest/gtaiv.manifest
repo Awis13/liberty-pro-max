@@ -123,6 +123,7 @@ hook 009CB5DA 009CB5E2   # helicopter tail rotor speed: per time
 # Conveniences (src/options.cpp).
 hook 0047D255 0047D257   # the first menu: GTAIV_CONTINUE starts in the newest save (the chooser first with none)
 replace 0085A520 Saves_ReadEpisodeArg   # with the episodes off, a start is given -episode 0: IV's newest save
+replace 00859070 Saves_NewestSlotOfGame # with an episode's folder missing, the newest save of a game that is there
 replace 004944E0 Frontend_StartGame     # and that is taken back once the start is over
 hook 004A346B 004A3475   # start screens' times: GTAIV_SKIP_INTRO skips the short ones
 replace 00A777C0 CamGame_PostProcessHeightBasedFOV   # GTAIV_FOV: wider field of view

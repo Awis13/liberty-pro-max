@@ -4,7 +4,8 @@
 //   GTAIV_CONTINUE=1: the game starts in the newest save, in the game it
 //     was made in, instead of the main menu (with the episodes found and
 //     no save yet, their chooser comes first; with the episodes off, IV's
-//     newest save: see f_0085A520);
+//     newest save, and with an episode's folder missing, the newest save
+//     of a game that is there: see f_0085A520);
 //   GTAIV_FOV=degrees: added to the game camera's field of view (wide
 //     screens);
 //   GTAIV_FAST_LOADING=0 turns off the loading speed-ups (on by default):
@@ -46,6 +47,7 @@ namespace recomp::gen {
 void f_00A777C0_lifted(Ctx& c);
 void f_0085A520_lifted(Ctx& c);
 void f_004944E0_lifted(Ctx& c);
+void f_00859070_lifted(Ctx& c);
 
 namespace {
 
@@ -263,43 +265,106 @@ void hook_0047D255(Ctx& c) {
 // The start of a game from the title menu or Continue (004944E0, frontend
 // state 6) first reads the command line's -episode N (0085A520: then
 // [011D5E2A] set and N in [00F348F4]), scans the saves, and loads the
-// newest. Given -episode, the scan also keeps each game's newest save
-// (0085A2E5: IV's in [00F348E8]), the load takes that game's newest
-// (0085C5C8, 00859070) and that game starts (0049469A: [00F348F4], where
-// 004946A1 reads [011D5E34] without -episode); with none, a new
-// game of it (state 7, 00494643). Without it the newest save of any game
-// loads in its own game: an episode's, with the episodes off, ends on the
-// game's "The downloadable content required for this autoload is not
-// available" and a new IV game. So with the episodes off the port gives
-// -episode 0 for that start (IV's newest save, or a new IV game), unless
-// the player's command line has an -episode of its own, and takes it back
-// when the start is over: later, the Load Game menu's episode save still
-// meets the game's own answer (0085B4E0 and 00492E30 read it too).
+// newest. Given -episode, the scan also keeps each game's newest save and
+// its time (0085A2E5: IV's in [00F348E8], TLAD's [00F348EC], TBoGT's
+// [00F348F0]), the load takes game N's newest (0085C5D1, 00859070) and
+// game N starts (0049469A: [00F348F4], where 004946A1 reads [011D5E34]
+// without -episode); with none, a new game of it (state 7, 00494643).
+// Without it the newest save of any game loads in its own game.
+//
+// With the episodes off, an episode's newest save (or the player's own
+// -episode 1 or 2 in commandline.txt) ends on the game's "The downloadable
+// content required for this autoload is not available" and a new IV game.
+// So the port gives -episode 0 for that start (IV's newest save, or a new
+// IV game), in place of any -episode of the player's. With the episodes on
+// and an episode's content missing (its folder not copied), the newest
+// save may be that episode's, with the same end: the port gives -episode
+// too, so that the scan keeps each game's newest, and after the scan
+// (f_00859070) picks the game whose newest save is the newest of those
+// there. Either way it is taken back when the start is over: later, the
+// Load Game menu's episode save still meets the game's own answer
+// (0085B4E0 and 00492E30 read it too). first_menu::ChooseStart decides.
 namespace {
-bool g_iv_forced;
+constexpr gaddr kEpisodeArgGiven = 0x011D5E2A;  // byte: the start has an -episode
+constexpr gaddr kEpisodeArgGame = 0x00F348F4;   // its game, -1 none
+constexpr gaddr kStartGame = 0x011D5E34;        // the game to start without one
+constexpr gaddr kContentManager = 0x019CE57C;   // the episodes' contents (this)
+constexpr gaddr kEpisodeThere = 0x00890970;     // thiscall (episode): al, its content is there
+constexpr gaddr kNewestSlot = 0x00F348E4;       // the newest save's slot, any game
+constexpr gaddr kSlotGame = 0x011D012C;         // + 4 * slot: that save's game
+// Per game (IV, TLAD, TBoGT): its newest save's slot and time (24 bytes).
+constexpr gaddr kGameNewestSlot[3] = {0x00F348E8, 0x00F348EC, 0x00F348F0};
+constexpr gaddr kGameNewestTime[3] = {0x011D5E7C, 0x011D5E94, 0x011D5E4C};
+constexpr const char* kGameName[3] = {"IV", "TLAD", "TBoGT"};
+
+bool g_forced;  // the port gave -episode for this start
+bool g_pick;    // and picks the game after the scan
+
+bool EpisodeThere(Ctx& c, uint32_t episode) {
+  c.ecx = Rd32(kContentManager);
+  return c.ecx && (CallGuest(c, kEpisodeThere, {episode}) & 0xFF);
 }
+}  // namespace
 
 void f_0085A520(Ctx& c) {
+  using first_menu::StartRule;
   f_0085A520_lifted(c);
   static const bool episodes = OptionOn("GTAIV_EPISODES", false);
-  if (episodes || Rd8(0x011D5E2A)) return;
-  Wr8(0x011D5E2A, 1);
-  Wr32(0x00F348F4, 0);
-  Wr32(0x011D5E34, 0);
-  g_iv_forced = true;
+  const bool given = Rd8(kEpisodeArgGiven) != 0;
+  const int32_t arg = int32_t(Rd32(kEpisodeArgGame));
+  // Asked only when it matters. 00890970 first finds the contents if that
+  // has not been done (00890460, 0088FBB0); the first menu's chooser asks
+  // the same at 0047C81D, before this start.
+  const bool ask = episodes && !given;
+  const bool tlad = !ask || EpisodeThere(c, 1), tbogt = !ask || EpisodeThere(c, 2);
+  const StartRule rule = first_menu::ChooseStart(episodes, given, arg, tlad, tbogt);
+  if (rule == StartRule::kGameOwn) return;
+  Wr8(kEpisodeArgGiven, 1);
+  Wr32(kEpisodeArgGame, 0);
+  Wr32(kStartGame, 0);
+  g_forced = true;
+  g_pick = rule == StartRule::kNewestThere;
+  if (rule == StartRule::kIVArgIgnored) {
+    WarnF("gtaiv: continue: the command line's -episode %d is ignored: the episodes are off "
+          "(turn them on in Extras)\n", arg);
+    return;
+  }
   static bool said;
-  if (!said) {
+  if (rule == StartRule::kIV && !said) {
     said = true;
     WarnF("gtaiv: continue: the episodes are off: IV's newest save, as with -episode 0\n");
   }
 }
 
+// cdecl (game): that game's newest save's slot, -1 none (0085C5E4, after
+// the scan, with -episode). Picking the game here, it starts too (0049469A
+// reads [00F348F4]).
+void f_00859070(Ctx& c) {
+  if (!g_pick) return f_00859070_lifted(c);
+  first_menu::SaveTime time[3] = {};
+  int32_t slot[3];
+  const bool there[3] = {true, EpisodeThere(c, 1), EpisodeThere(c, 2)};
+  for (int g = 0; g < 3; g++) {
+    slot[g] = int32_t(Rd32(kGameNewestSlot[g]));
+    for (int i = 0; i < 6; i++) time[g].f[i] = int32_t(Rd32(kGameNewestTime[g] + 4 * i));
+  }
+  const uint32_t game = first_menu::NewestThere(time, slot, there);
+  const int32_t newest = int32_t(Rd32(kNewestSlot));
+  const uint32_t newest_game = newest >= 0 ? Rd32(kSlotGame + 4 * uint32_t(newest)) : 0;
+  if (newest >= 0 && newest_game < 3 && newest_game != game)
+    WarnF("gtaiv: continue: the newest save is %s's, whose folder is not there: %s's newest instead\n",
+          kGameName[newest_game], kGameName[game]);
+  Wr32(kEpisodeArgGame, game);
+  c.eax = Rd32(kGameNewestSlot[game]);
+  c.esp += 4;  // ret
+}
+
 void f_004944E0(Ctx& c) {
   f_004944E0_lifted(c);
-  if (!g_iv_forced) return;
-  g_iv_forced = false;
-  Wr8(0x011D5E2A, 0);  // as 0085A520 leaves them without -episode
-  Wr32(0x00F348F4, 0xFFFFFFFFu);
+  if (!g_forced) return;
+  g_forced = g_pick = false;
+  Wr8(kEpisodeArgGiven, 0);  // as 0085A520 leaves them without -episode
+  Wr32(kEpisodeArgGame, 0xFFFFFFFFu);
 }
 
 // A start screen's time on screen in ms (edx), after its count (ecx): the

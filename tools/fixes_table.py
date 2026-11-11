@@ -12,7 +12,8 @@ their own; another switch the groups below do not name lands in "Other": add
 it to a group. Options no launcher shows are left out: the hidden switches
 (Fix::hidden) and the choices (kShaderChoices, motion blur among them),
 which take effect with the extended shaders (GTAIV_FF_SHADERS), not
-finished; those are set by environment variable only.
+finished. The launcher sets those to their defaults too; another value takes
+effect only in a game started without the launcher.
 """
 import os
 import re
@@ -112,7 +113,8 @@ def table(fixes, choices):
             'have them on their settings screen). Each one is also an environment variable, `GTAIV_` and '
             'the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur '
             'among them, are not listed: no launcher shows them, as the extended shaders they belong to '
-            'are not finished; they are set by environment variable only.', ''] + out
+            'are not finished. The launcher sets them to their defaults too; another value takes effect '
+            'only in a game started without it (see If something goes wrong).', ''] + out
 
 
 def main():

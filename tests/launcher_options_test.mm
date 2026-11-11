@@ -78,19 +78,21 @@ void TestDefaults() {
 
 // The Apple TV's own, over those: with no settings screen there, the
 // episodes are on; the phone cheats and the episodes' radio stay as
-// everywhere.
+// everywhere. (The registration domain is the process's: this runs last.)
 void TestTvDefaults() {
   NSUserDefaults* d = [[NSUserDefaults alloc] initWithSuiteName:@"launcher_options_test.unused"];
   RegisterDefaults(d);
+  // Every key it sets is an option's: one RegisterDefaults registers, read
+  // before TvDefaults is registered over them.
+  NSDictionary* table = [[d volatileDomainForName:NSRegistrationDomain] copy];
+  for (NSString* k in TvDefaults()) EXPECT(table[k] != nil);
+  EXPECT([table[@"Episodes"] isEqual:@NO]);
   [d registerDefaults:TvDefaults()];
   EXPECT([d boolForKey:@"Episodes"]);
   EXPECT(![d boolForKey:@"PhoneCheats"]);
   EXPECT([d boolForKey:@"EpisodeRadioOwn"]);
   EXPECT(TvDefaults()[@"PhoneCheats"] == nil);
   EXPECT(TvDefaults()[@"EpisodeRadioOwn"] == nil);
-  // Every key it sets is an option's.
-  NSDictionary* all = [d volatileDomainForName:NSRegistrationDomain];
-  for (NSString* k in TvDefaults()) EXPECT(all[k] != nil);
 }
 
 bool Has(NSArray* a, NSString* k) { return [a containsObject:k]; }
@@ -128,8 +130,8 @@ int main() {
     TestExtras();
     TestListsApart();
     TestDefaults();
-    TestTvDefaults();
     TestClearedOnce();
+    TestTvDefaults();
   }
   if (g_failures) return 1;
   std::puts("launcher_options_test: ok");

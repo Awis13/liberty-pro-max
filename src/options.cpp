@@ -308,9 +308,9 @@ void f_0085A520(Ctx& c) {
   const bool episodes = EpisodesOn();
   const bool given = Rd8(kEpisodeArgGiven) != 0;
   const int32_t arg = int32_t(Rd32(kEpisodeArgGame));
-  // Asked only when it matters. 00890970 first finds the contents if that
-  // has not been done (00890460, 0088FBB0); the first menu's chooser asks
-  // the same at 0047C81D, before this start.
+  // Asked only when it matters. The contents are found by then: the game's
+  // own 0085A520 has just called 008914A0 on the same manager (0085A540),
+  // which calls 00890460 first; 00890970 calls it too.
   const bool ask = episodes && !given;
   const bool tlad = !ask || EpisodeThere(c, 1), tbogt = !ask || EpisodeThere(c, 2);
   const StartRule rule = first_menu::ChooseStart(episodes, given, arg, tlad, tbogt);
@@ -320,9 +320,13 @@ void f_0085A520(Ctx& c) {
   Wr32(kStartGame, 0);
   g_forced = true;
   g_pick = rule == StartRule::kNewestThere;
+  static bool said_ignored;
   if (rule == StartRule::kIVArgIgnored) {
-    WarnF("gtaiv: continue: the command line's -episode %d is ignored: the episodes are off "
-          "(turn them on in Extras)\n", arg);
+    if (!said_ignored) {
+      said_ignored = true;
+      WarnF("gtaiv: continue: the command line's -episode %d is ignored: the episodes are off "
+            "(turn them on in Extras)\n", arg);
+    }
     return;
   }
   static bool said;
@@ -347,9 +351,14 @@ void f_00859070(Ctx& c) {
   const uint32_t game = first_menu::NewestThere(time, slot, there);
   const int32_t newest = int32_t(Rd32(kNewestSlot));
   const uint32_t newest_game = newest >= 0 ? Rd32(kSlotGame + 4 * uint32_t(newest)) : 0;
-  if (newest >= 0 && newest_game < 3 && newest_game != game)
-    WarnF("gtaiv: continue: the newest save is %s's, whose folder is not there: %s's newest instead\n",
-          kGameName[newest_game], kGameName[game]);
+  if (newest >= 0 && newest_game < 3 && newest_game != game) {
+    if (slot[game] >= 0)
+      WarnF("gtaiv: continue: the newest save is %s's, whose folder is not there: %s's newest instead\n",
+            kGameName[newest_game], kGameName[game]);
+    else
+      WarnF("gtaiv: continue: the newest save is %s's, whose folder is not there, and no game that is "
+            "there has a save: a new IV game\n", kGameName[newest_game]);
+  }
   Wr32(kEpisodeArgGame, game);
   c.eax = Rd32(kGameNewestSlot[game]);
   c.esp += 4;  // ret

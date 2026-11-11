@@ -235,17 +235,29 @@ one built with `install.sh` (Homebrew's full FFmpeg) also reads WMA.
 
 The game's log is `~/Library/Logs/gtaiv.log` on the Mac (written anew at every
 start), `log.txt` in the app's Documents on the iPad and iPhone, and in its
-Library/Caches on the Apple TV. Switches the launcher does not show are
-environment variables: start the app from the Terminal with them, and the
-launcher passes them on to the game. For the frame rate in the log every 30
-seconds:
+Library/Caches on the Apple TV.
+
+An environment variable the launcher does not set itself, given when you start
+the app from the Terminal, reaches the game. `GTAIV_MEM_REPORT=30` writes two
+`mem:` lines to the log every 30 seconds, saying what fills the game's address
+space (all of it and the process heap, then its textures, buffers and shared
+heap); `GTAIV_FPS_REPORT=30` writes the frame rate:
 
 ```bash
-GTAIV_FPS_REPORT=30 "/Applications/Liberty Pro Max.app/Contents/MacOS/gtaiv"
+GTAIV_MEM_REPORT=30 "/Applications/Liberty Pro Max.app/Contents/MacOS/gtaiv"
 ```
 
-The launcher's own options are set by the launcher, over the same variable
-given this way.
+Every option of the launcher's table, shown or hidden, is set by the launcher
+when you press **Play**, over the same variable given this way. To give one
+yourself, start the game without the launcher. Its log then goes to the
+Terminal, and the options you do not give take the code's defaults, which are
+not all the launcher's (continuing the last save, for one, is off; the Metal
+renderer needs `GTAIV_GFX=metal`):
+
+```bash
+GTAIV_GFX=metal GTAIV_NAME=1 "/Applications/Liberty Pro Max.app/Contents/MacOS/gtaiv" \
+  --no-launcher --game-dir "/path/to/Grand Theft Auto IV"
+```
 
 ### Mods
 
@@ -298,7 +310,7 @@ so without such a file the option changes nothing.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-103 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished; they are set by environment variable only.
+103 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
 
 #### High frame rates
 
@@ -436,7 +448,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 
 | Option | Default |
 |---|---|
-| Saves synced with your iPad and Apple TV at start and quit (needs Xcode) | on |
+| Saves synced with your iPad, iPhone and Apple TV at start and quit (Apple TV: needs Xcode) | on |
 | Keep running when the window is not in front | off |
 
 #### Extras

@@ -1,4 +1,4 @@
-// FusionFix's timecycle extension and volumetric fog (#125) on the game's
+// FusionFix's timecycle extension and volumetric fog on the game's
 // side, by their ideas (FusionFix's timecycext.ixx, timecyc.ixx and
 // settings.ixx; GPL-3.0, its code not taken). Only with FusionFix's
 // shaders (GTAIV_FF_SHADERS): ff_shaders.cpp writes what is blended here

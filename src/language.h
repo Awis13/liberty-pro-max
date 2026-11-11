@@ -70,6 +70,43 @@ inline uint32_t GameLanguageFor(uint16_t lang_id, bool russian) {
   }
 }
 
+// The game's language menu (007C7A29): `chosen` the language it stepped
+// to ([010FC138]), `applied` the one in use ([010FC13C]). The game's own
+// rule keeps Russian and Japanese out of the cycle, assuming the one in use
+// is 0-4: Russian after Spanish wraps to American, Russian or Japanese
+// before American to Spanish. With Russian on (and the text object's
+// Japanese flag off) the cycle is 0-5 both ways: Japanese after Russian
+// wraps to American, Japanese before American is Russian.
+inline uint32_t MenuLanguage(uint32_t chosen, uint32_t applied, bool russian) {
+  if (russian) return chosen == kJapanese ? (applied == kAmerican ? kRussian : kAmerican) : chosen;
+  if (chosen == kRussian) {
+    if (applied == kSpanish) return kAmerican;
+    if (applied == kAmerican) return kSpanish;
+  } else if (chosen == kJapanese && applied == kAmerican) {
+    return kSpanish;
+  }
+  return chosen;
+}
+
+// A language the game stored and reads back (SETTINGS.CFG, the profile's
+// setting 0xCE), with `lookup` the language lookup's answer now: one the
+// game cannot use here (Russian without the Russian files, past Japanese)
+// is the lookup's.
+inline uint32_t StoredLanguage(uint32_t stored, uint32_t lookup, bool russian) {
+  if (stored > kJapanese || (stored == kRussian && !russian)) return lookup;
+  return stored;
+}
+
+// The language after SETTINGS.CFG is read (007C72E7): the file keeps the
+// lookup's answer when it was written ([010FC134]) and the language then
+// ([010FC138]). The same: no choice was made in the game's menu, and the
+// lookup's answer now applies (the system's language, or the launcher's
+// English, may have changed since). Different: the menu's choice stays.
+inline uint32_t StartLanguage(uint32_t stored_lookup, uint32_t stored, uint32_t lookup, bool russian) {
+  if (stored == stored_lookup) return lookup;
+  return StoredLanguage(stored, lookup, russian);
+}
+
 // The files the game needs in Russian, found (through the mods and the
 // update folder, as the game reads them) or not: IV's text and font, and
 // each episode's text when the episodes are on and that episode's folder

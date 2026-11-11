@@ -227,7 +227,12 @@ Spanish or Russian. Any other language gives the game in English, as before.
 To keep the game in English on a system in another language, choose
 **Language: English** on the launcher's General tab (on the iPad and iPhone,
 turn off "Game in the device's language"); the Apple TV, with no settings
-screen yet, always follows the system.
+screen yet, always follows the system. The game's own Language option, in its
+menus, is kept in its settings (`SETTINGS.CFG`): a language chosen there wins
+over the system's and the launcher's from then on, until you choose the
+system's language there again. Russian is in that menu only while the system
+(and the launcher) select it. In German the game hides a few statistics
+entries, as it does in German on Windows; nothing else changes.
 
 Russian needs the Russian files in your game folder: `common/text/russian.gxt`
 and `pc/textures/fonts_r.wtd` (with the episodes on, also their

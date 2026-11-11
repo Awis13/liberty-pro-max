@@ -596,6 +596,9 @@ replace 008A3880 Text_GetGxtName        # language 5: RUSSIAN.GXT, region letter
 hook 008A3E02 008A3E09   # text object constructor: region letter 'r' in Russian
 hook 00887DB0 00887DBB   # streamed font at start: fonts_r's with 'r', as 008872EF does
 hook 00887E01 00887E06   #   its path when not found: fonts_r_streamed_1 with 'r'
+hook 007C72E7 007C72E8   # SETTINGS.CFG read: the lookup's language unless chosen in the menu
+hook 007C9685 007C968A   # the profile's language read back: one the game can use
+hook 007C7A29 007C7A5A   # language menu step: Russian in the cycle with Russian on
 hook 004063D2 004063D6   # keep running without focus (option, off)
 hook 00865ADE 00865AE1   # menus: right click goes back
 hook 008661B9 008661BC

@@ -28,8 +28,19 @@
 //
 // Without the files (IV's text and font, and the episodes' texts when the
 // episodes are on) the game stays in English, with one line in the log.
-// Nothing about the language goes into saves; the game's settings keep a
-// language only when it differs from the user's (007BD4D4), as before.
+//
+// The game's own language menu and its settings: SETTINGS.CFG keeps the
+// lookup's answer and the language in use (010FC134, 010FC138), and the
+// profile keeps the language as setting 0xCE when the two differ (007BD4D4).
+// Read back, the file's language would override the lookup on every start
+// (007C70D0 runs after 00481560), so a new system language, or the
+// launcher's English, never applied once the game had run. Here the
+// lookup's answer applies unless the file's language was chosen in the
+// menu (it differs from the lookup's answer then); a stored language the
+// game cannot use here (Russian without the files, past Japanese) is the
+// lookup's. The menu's own rule keeps Russian and Japanese out of its
+// cycle assuming a western language in use; with Russian on the cycle
+// goes through Russian (language.h, MenuLanguage). Saves hold no language.
 
 #include <sys/stat.h>
 
@@ -61,7 +72,9 @@ void f_008A3880_lifted(Ctx& c);
 
 namespace {
 
+constexpr gaddr kLookupLanguage = 0x010FC134;    // the language lookup's answer at start
 constexpr gaddr kLanguage = 0x010FC138;          // the game's language (GameLanguage)
+constexpr gaddr kAppliedLanguage = 0x010FC13C;   // the language in use (the menu's previous)
 constexpr gaddr kRegion = 0x011FB728;            // the text object's region letter
 constexpr gaddr kJapaneseFlag = 0x011FB72B;      // the text object's own Japanese
 constexpr gaddr kStartingEpisode = 0x0112D788;   // 0 IV, 1 TLAD, 2 TBoGT
@@ -109,6 +122,12 @@ bool Russian() {
 // the text object's Japanese flag).
 uint32_t RussianAnswer() {
   return Rd8(kJapaneseFlag) ? language::kJapanese : language::GameLanguageFor(UserLangId(), true);
+}
+
+// What the language lookup answers (007BEF90): as the game's own, with
+// Russian when Russian() is on.
+uint32_t LookupAnswer() {
+  return Rd8(kJapaneseFlag) ? language::kJapanese : language::GameLanguageFor(UserLangId(), Russian());
 }
 
 // Guest memory for strings the game reads (they live as long as it):
@@ -209,6 +228,38 @@ void f_008A3880(Ctx& c) {
 
 // The text object's constructor: mov byte [esi+260], 'e'.
 void hook_008A3E02(Ctx& c) { Wr8(c.esi + kTextRegion, Russian() ? 'r' : 'e'); }
+
+// SETTINGS.CFG read (007C70D0), after either of its copies into the
+// settings block, which holds the lookup's answer when the file was written
+// and the language then: push ebp. The lookup's answer now applies unless
+// the language was chosen in the game's menu (language::StartLanguage).
+void hook_007C72E7(Ctx& c) {
+  const uint32_t stored = Rd32(kLanguage), lookup = LookupAnswer();
+  const uint32_t lang = language::StartLanguage(Rd32(kLookupLanguage), stored, lookup, Russian());
+  Wr32(kLookupLanguage, lookup);
+  if (lang != stored) {
+    Wr32(kLanguage, lang);
+    Wr32(kAppliedLanguage, lang);
+  }
+  Push(c, c.ebp);
+}
+
+// The profile's language (setting 0xCE, kept by the game when it differs
+// from the lookup's answer) read back: mov [010FC138], eax. One the game
+// cannot use here is the lookup's (language::StoredLanguage).
+void hook_007C9685(Ctx& c) { Wr32(kLanguage, language::StoredLanguage(c.eax, LookupAnswer(), Russian())); }
+
+// The game's language menu, after a step left or right ([010FC138] the new
+// one, [010FC13C] the one in use): the game's rule that keeps Russian and
+// Japanese out, or with Russian on the cycle through Russian
+// (language::MenuLanguage). The block 007C7A29-007C7A5A it replaces only
+// sets [010FC138] (eax is not used after it).
+void hook_007C7A29(Ctx& c) {
+  const uint32_t chosen = Rd32(kLanguage);
+  const uint32_t lang = language::MenuLanguage(chosen, Rd32(kAppliedLanguage), Russian() && !Rd8(kJapaneseFlag));
+  if (lang != chosen) Wr32(kLanguage, lang);
+  c.eax = lang;
+}
 
 // The streamed font at start: mov dword [esp+9C], 2B (the western one's
 // kind); 31, fonts_r's, with the region letter 'r' (as 008872EF does).

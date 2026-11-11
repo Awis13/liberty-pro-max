@@ -42,7 +42,8 @@ For the iPad, the iPhone and the Apple TV, see [Install](#install).
 | **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
 
 The iPad's build also runs on an iPhone (experimental): the same, at the
-phone's own wide resolutions, played with a controller.
+phone's own wide resolutions, played with a controller or a keyboard (the
+iPad's touch controls are there too, but small on a phone).
 
 ## What you need
 
@@ -65,8 +66,8 @@ phone's own wide resolutions, played with a controller.
   - a controller or a keyboard.
 - **For the iPhone** (experimental): an iPhone with iOS 17 or newer, in
   Developer Mode and connected to the Mac by cable, with about 16 GB free;
-  the same Xcode and paid account; a controller. Which iPhones have the
-  memory for the game is not known yet.
+  the same Xcode and paid account; a controller or a keyboard. Which iPhones
+  have the memory for the game is not known yet.
 - **For the Apple TV** (experimental): an Apple TV 4K (3rd generation,
   A15) with tvOS 17 or newer, paired with Xcode (Window › Devices and
   Simulators) and in Developer Mode, on Ethernet (the game's 15 GB go over
@@ -425,8 +426,8 @@ keyboard lighting, graphics API choice and plugin loaders have nothing to do.
 
 - Mac, iPad and (experimental) iPhone and Apple TV for now. Linux and the Steam Deck are planned.
 - iPad: busy streets need the game's view and detail distances lowered for a steady 60 fps.
-- iPhone: needs a controller (the touch controls are the iPad's, too small
-  on a phone); which models have enough memory is not known yet.
+- iPhone: best with a controller or a keyboard (the touch controls are the
+  iPad's, small on a phone); which models have enough memory is not known yet.
 - Apple TV: no settings screen yet; high texture quality does not
   fit its memory (DXT decoded on upload).
 - MetalFX temporal upscaling costs about 5 ms a frame at 3440×1440 output,

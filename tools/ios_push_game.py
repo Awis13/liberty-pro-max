@@ -29,11 +29,18 @@ CHUNK = 1 << 30          # send a folder whole below 1 GB
 MIN_FREE = 15 << 30      # stop when the Mac has less than 15 GB free
 
 
+def unreadable(error):
+    """os.walk's onerror: a folder below that cannot be read stops the plan
+    (left out, the folder above would go over without it)."""
+    raise error
+
+
 def size_of(path):
+    """The bytes of the files below path; a folder that cannot be read raises."""
     if os.path.isfile(path):
         return os.path.getsize(path)
     total = 0
-    for root, _, files in os.walk(path, followlinks=True):
+    for root, _, files in os.walk(path, onerror=unreadable, followlinks=True):
         for name in files:
             total += os.path.getsize(os.path.join(root, name))
     return total
@@ -41,8 +48,6 @@ def size_of(path):
 
 def has_files(path):
     """Whether any file is below path; a folder that cannot be read raises."""
-    def unreadable(error):
-        raise error
     return any(files for _, _, files in os.walk(path, onerror=unreadable, followlinks=True))
 
 
@@ -76,7 +81,12 @@ def main():
     if os.path.exists(state):
         with open(state) as f:
             done = set(line.rstrip("\n") for line in f)
-    items = [it for e in ENTRIES if os.path.exists(os.path.join(src, e)) for it in plan(src, e)]
+    try:
+        items = [it for e in ENTRIES if os.path.exists(os.path.join(src, e)) for it in plan(src, e)]
+    except OSError as e:
+        print(f"STOP: cannot read {e.filename}: {e.strerror} (give it read access, then run this again)",
+              flush=True)
+        sys.exit(1)
     total = sum(size for _, size in items)
     sent = [sum(size for item, size in items if item in done)]
     lock = threading.Lock()

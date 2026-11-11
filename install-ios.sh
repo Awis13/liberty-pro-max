@@ -37,15 +37,18 @@ fi
 xcode-select -p | grep -q Xcode.app || die "the $kind build needs Xcode (not only the Command Line Tools)"
 
 say "$kind"
+# The record of the files already sent (ios_push_game.py's STATE): the
+# iPad's is push-ios.state, the iPhone's push-iphone.state (below), the Apple
+# TV's push-tvos.state. Keep the names: a new name would send all 15 GB again.
 state=out/apple/push-$p.state
+# The first available physical device whose line in devicectl's list matches
+# $1 (a regular expression): its identifier.
+find_device() {
+  xcrun devicectl list devices 2>/dev/null | awk -v k="$1" '$0 ~ k && /available/ && !/unavailable/ && /physical/ {for (i=1;i<=NF;i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) print $i}' | head -1
+}
 if (( tv )); then
-  device=$(xcrun devicectl list devices 2>/dev/null | awk -v k="$kind" 'index($0, k) && /available/ && /physical/ {for (i=1;i<=NF;i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) print $i}' | head -1)
+  device=$(find_device 'Apple TV')
 else
-  # The first connected physical device whose line in devicectl's list has
-  # $1: its identifier.
-  find_device() {
-    xcrun devicectl list devices 2>/dev/null | awk -v k="$1" '$0 ~ k && /available/ && !/unavailable/ && /physical/ {for (i=1;i<=NF;i++) if ($i ~ /^[0-9A-F]{8}-[0-9A-F]{16}$/) print $i}' | head -1
-  }
   # By the model's code ("iPad16,10", "iPhone18,1"), not the name its owner
   # gave it.
   ipad=$(find_device 'iPad[0-9]+,[0-9]+') iphone=$(find_device 'iPhone[0-9]+,[0-9]+')
@@ -107,5 +110,9 @@ say "Done"
 if (( tv )); then
   echo "Open Liberty Pro Max on the Apple TV (it starts the game directly). A controller plays it."
 else
-  echo "Open Liberty Pro Max on the $kind, press Play. A controller or a keyboard plays it."
+  if [[ $kind == iPhone ]]; then
+    echo "Open Liberty Pro Max on the iPhone, press Play. A controller or a keyboard plays it best: the touch controls are the iPad's, small on a phone."
+  else
+    echo "Open Liberty Pro Max on the iPad, press Play. The touch controls, a controller or a keyboard play it."
+  fi
 fi

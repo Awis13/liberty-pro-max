@@ -101,4 +101,7 @@ def generate(icon_dir, artwork=None):
 
 
 if __name__ == "__main__":
+    if not 2 <= len(sys.argv) <= 3:
+        print("usage: make_tvos_icon.py ICON_DIR [ARTWORK]", file=sys.stderr)
+        sys.exit(2)
     print(generate(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None))

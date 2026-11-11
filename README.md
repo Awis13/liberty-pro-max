@@ -36,7 +36,7 @@ For the iPad, the iPhone and the Apple TV, see [Install](#install).
 |---|---|---|
 | **Renderer** | Metal, written for this port: drawing encoded on its own thread, geometry read in place from the game's memory, several frames in flight | the same |
 | **Frame rate** | about 125 fps indoors, 60–100 fps outdoors at 3440×1440, maximum settings, M3 Pro; no frame rate cap unless you set the launcher's frame limit (30, 60 or 120 fps) | 60 fps indoors, 45–60 outdoors at 1792×1344, iPad Air (M4) |
-| **Anti-aliasing** | TAA (default, sharpened), SMAA, MetalFX temporal and SMAA + MetalFX spatial upscaling | SMAA (default), TAA |
+| **Anti-aliasing** | TAA (default), SMAA, MetalFX temporal and SMAA + MetalFX spatial upscaling; TAA and MetalFX sharpened (AMD RCAS, off to high) | SMAA (default), TAA (sharpened as on the Mac) |
 | **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048 (iPhone: half to all of its own screen), field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play** |
 | **Fixes built in** | about 100 fixes (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
@@ -307,7 +307,7 @@ before `install-ios.sh` to have them on the iPad, iPhone or Apple TV too.
 The Mac's launcher has three tabs. **General**: the game folder, full screen
 or a window (on a display with a notch, also the whole screen), vertical sync,
 a frame limit (off, 30, 60 or 120 fps), anti-aliasing (TAA, SMAA, MetalFX)
-with the MetalFX resolution and TAA sharpening, the performance overlay,
+with the MetalFX resolution and sharpening, the performance overlay,
 skipping the logo screens, continuing the last save, the game's language,
 and mods (**Open Mods Folder**). **Extras**: this port's own additions, the episodes, turn
 indicators, pad icons, phone cheats and full damage, each off until you turn
@@ -320,7 +320,7 @@ their code is not used), some are this port's own.
 On the iPad and iPhone the settings screen has the same in sections: **Game**
 (touch controls, continuing the last save, skipping the start screens, the
 game's language, mods, fast loading, stun punch and executions on anyone), **Extras**, **Graphics**
-(resolution, anti-aliasing, frame limit, shadows, reflections, field of view,
+(resolution, anti-aliasing, sharpening, frame limit, shadows, reflections, field of view,
 the performance overlay) and **Fixes**.
 
 **Pad icons** need the other pads' button pictures, which the game does not

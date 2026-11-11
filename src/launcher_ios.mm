@@ -189,6 +189,7 @@ static NSArray* GraphicsRows() {
   return @[
     @[ @"Resolution", kIosResolutionKey, res ],
     @[ @"Anti-aliasing", kAntiAliasingKey, @[ @"Off", @"SMAA", @"TAA" ] ],
+    @[ @"Sharpening", kTaaSharpeningKey, @[ @"Off", @"Low", @"Medium", @"High" ] ],
     @[ @"Frame limit", kIosFrameLimitKey, @[ @"60", @"40", @"30", @"Off" ] ],
     @[ @"Shadows", kShadowsKey, @[ @"Game's", @"High" ] ],
     @[ @"Reflections", kReflectionsKey, @[ @"Game's", @"High" ] ],
@@ -256,6 +257,9 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
   UISegmentedControl* seg = [[UISegmentedControl alloc] initWithItems:items];
   seg.selectedSegmentIndex = std::clamp<NSInteger>(value, 0, NSInteger(items.count) - 1);
   seg.accessibilityIdentifier = key;
+  // Sharpening follows TAA only here (no MetalFX on the iPad): greyed with
+  // the others.
+  if ([key isEqualToString:kTaaSharpeningKey]) seg.enabled = SharpeningApplies([_d integerForKey:kAntiAliasingKey]);
   [seg addTarget:self action:@selector(segmented:) forControlEvents:UIControlEventValueChanged];
   [seg sizeToFit];
   cell.accessoryView = seg;
@@ -268,9 +272,10 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
 
 - (void)segmented:(UISegmentedControl*)seg {
   NSString* key = seg.accessibilityIdentifier;
-  if ([key isEqualToString:kAntiAliasingKey])
+  if ([key isEqualToString:kAntiAliasingKey]) {
     [_d setInteger:AaValue(seg.selectedSegmentIndex) forKey:key];
-  else if ([key isEqualToString:kHudKey])
+    [self.table reloadSections:[NSIndexSet indexSetWithIndex:kGraphics] withRowAnimation:UITableViewRowAnimationNone];
+  } else if ([key isEqualToString:kHudKey])
     [_d setBool:seg.selectedSegmentIndex == 1 forKey:key];
   else
     [_d setInteger:seg.selectedSegmentIndex forKey:key];

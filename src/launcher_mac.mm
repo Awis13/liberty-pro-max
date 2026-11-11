@@ -123,7 +123,7 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 @property(strong) NSPopUpButton* language;
 @property(strong) NSPopUpButton* antialiasing;
 @property(strong) NSPopUpButton* metalfxScale;
-@property(strong) NSPopUpButton* taaSharpening;
+@property(strong) NSPopUpButton* sharpening;
 @property(strong) NSButton* hud;
 @property(strong) NSButton* skipIntro;
 @property(strong) NSButton* continueSave;
@@ -203,10 +203,13 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @"Off", @"SMAA (light)", @"MetalFX (temporal)", @"TAA (temporal, light)", @"SMAA + MetalFX spatial (fast)"
   ]
                          selected:std::clamp<NSInteger>([d integerForKey:kAntiAliasingKey], 0, 4)];
+  self.antialiasing.target = self;
+  self.antialiasing.action = @selector(antialiasingChanged:);
   self.metalfxScale = [self popup:@[ @"Native (100%)", @"Quality (67%)", @"Balanced (58%)", @"Performance (50%)" ]
                          selected:std::clamp<NSInteger>([d integerForKey:kMetalFXScaleKey], 0, 3)];
-  self.taaSharpening = [self popup:@[ @"Off", @"Low", @"Medium", @"High" ]
-                          selected:std::clamp<NSInteger>([d integerForKey:kTaaSharpeningKey], 0, 3)];
+  self.sharpening = [self popup:@[ @"Off", @"Low", @"Medium", @"High" ]
+                       selected:std::clamp<NSInteger>([d integerForKey:kTaaSharpeningKey], 0, 3)];
+  [self antialiasingChanged:nil];
   NSTextField* aaNote = [NSTextField
       wrappingLabelWithString:@"SMAA smooths edges cheaply. TAA also steadies wires, fences and leaves at little cost; "
                       @"MetalFX does it best and, below native resolution, also raises the frame rate. "
@@ -248,7 +251,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ [self label:@"Anti-aliasing:"], self.antialiasing ],
     @[ [self label:@"MetalFX resolution:"], self.metalfxScale ],
     @[ NSGridCell.emptyContentView, aaNote ],
-    @[ [self label:@"TAA sharpening:"], self.taaSharpening ],
+    @[ [self label:@"Sharpening:"], self.sharpening ],
     @[ NSGridCell.emptyContentView, self.hud ],
     @[ [self label:@"Start:"], self.skipIntro ],
     @[ NSGridCell.emptyContentView, self.continueSave ],
@@ -451,7 +454,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   Store(d, kSystemLanguageKey, @(self.language.indexOfSelectedItem == 0));
   Store(d, kAntiAliasingKey, @(self.antialiasing.indexOfSelectedItem));
   Store(d, kMetalFXScaleKey, @(self.metalfxScale.indexOfSelectedItem));
-  Store(d, kTaaSharpeningKey, @(self.taaSharpening.indexOfSelectedItem));
+  Store(d, kTaaSharpeningKey, @(self.sharpening.indexOfSelectedItem));
   Store(d, kHudKey, @(self.hud.state == NSControlStateValueOn));
   Store(d, kSkipIntroKey, @(self.skipIntro.state == NSControlStateValueOn));
   Store(d, kContinueKey, @(self.continueSave.state == NSControlStateValueOn));
@@ -469,6 +472,11 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   Store(d, kSkipKey, @(self.skip.state == NSControlStateValueOn));
   [d synchronize];
   [self finishWithResponse:NSModalResponseOK];
+}
+
+// Sharpening follows TAA and MetalFX only: greyed with the others.
+- (void)antialiasingChanged:(id)sender {
+  self.sharpening.enabled = SharpeningApplies(self.antialiasing.indexOfSelectedItem);
 }
 
 - (void)openMods:(id)sender {

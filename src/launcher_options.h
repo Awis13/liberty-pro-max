@@ -24,8 +24,18 @@ const int kMacFrameLimits[] = {0, 30, 60, 120};
 NSString* const kMetalFXKey = @"MetalFX";      // earlier versions: on/off
 NSString* const kAntiAliasingKey = @"AntiAliasing";  // 0 off, 1 SMAA, 2 MetalFX, 3 TAA, 4 SMAA + MetalFX spatial
 NSString* const kMetalFXScaleKey = @"MetalFXScale";  // 0 native, 1 quality, 2 balanced, 3 performance
-// TAA's sharpening: 0 off, 1 low, 2 medium, 3 high.
+// The sharpening after TAA and MetalFX: 0 off, 1 low, 2 medium, 3 high.
+// (The key keeps its name from when it was TAA's only.)
 NSString* const kTaaSharpeningKey = @"TaaSharpening";
+// RECOMP_SHARPNESS for each: the runtime's amount, 0..1 to 2..0 stops of
+// RCAS (1, half and a fifth of a stop for low, medium and high).
+inline const char* SharpnessFor(NSInteger level) {
+  static const char* const kSharpness[] = {"0", "0.5", "0.75", "0.9"};
+  return kSharpness[std::clamp<NSInteger>(level, 0, 3)];
+}
+// Whether an anti-aliasing choice (kAntiAliasingKey) is sharpened: TAA and
+// both MetalFX upscales are; off and SMAA are not (their option greyed).
+inline bool SharpeningApplies(NSInteger aa) { return aa >= 2 && aa <= 4; }
 NSString* const kHudKey = @"PerformanceOverlay";
 NSString* const kSkipKey = @"SkipLauncher";
 NSString* const kSkipIntroKey = @"SkipIntro";
@@ -309,8 +319,7 @@ void ApplyOptions(NSUserDefaults* d) {
     case 3: setenv("RECOMP_UPSCALER", "taa", 1); break;
     default: unsetenv("RECOMP_UPSCALER"); break;
   }
-  static const char* const kSharpness[] = {"0", "0.3", "0.5", "0.8"};
-  setenv("RECOMP_TAA_SHARPNESS", kSharpness[std::clamp<NSInteger>([d integerForKey:kTaaSharpeningKey], 0, 3)], 1);
+  setenv("RECOMP_SHARPNESS", SharpnessFor([d integerForKey:kTaaSharpeningKey]), 1);
   setenv("MTL_HUD_ENABLED", [d boolForKey:kHudKey] ? "1" : "0", 1);
   setenv("GTAIV_SKIP_INTRO", [d boolForKey:kSkipIntroKey] ? "1" : "0", 1);
   // Render targets made larger (RECOMP_RT_BOOST): the shadow maps (the

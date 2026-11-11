@@ -7,21 +7,31 @@
 //
 // Shown when the executable runs from the app bundle; with "Skip this
 // window" set, only while Option is held at launch.
+//
+// While it is open, the shaders and pipelines earlier runs compiled are
+// compiled again in the background if the caches for this macOS version
+// and GPU lack them (after an OS update, they are all gone): PrewarmCaches
+// (runtime/gfx/prewarm.h), shown as a line under the buttons. Play or
+// Quit stops it at once; the game, a new instance of this app, shares
+// macOS's cache of compiled shaders with it.
 
 #import <AppKit/AppKit.h>
 
 #include <unistd.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "launcher_options.h"
+#include "runtime/gfx/prewarm.h"
 
 namespace {
 
@@ -111,6 +121,19 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
   std::exit(failed ? 1 : 0);
 }
 
+// The shaders prepared while the launcher is open (PrewarmCaches): its
+// stop flag, and its end (nil: not started).
+std::atomic<bool> g_prewarm_cancel{false};
+dispatch_semaphore_t g_prewarm_done = nil;
+
+// Stopped, waited for 200 ms at most (it stops within about one compile).
+void StopPrewarm() {
+  if (!g_prewarm_done) return;
+  g_prewarm_cancel = true;
+  if (dispatch_semaphore_wait(g_prewarm_done, dispatch_time(DISPATCH_TIME_NOW, 200 * NSEC_PER_MSEC)) == 0)
+    dispatch_semaphore_signal(g_prewarm_done);  // (for a second caller)
+}
+
 }  // namespace
 
 @interface GtaivLauncher : NSObject <NSApplicationDelegate, NSWindowDelegate>
@@ -141,6 +164,8 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 @property(strong) NSMutableArray<NSPopUpButton*>* shaderChoices;
 @property(strong) NSButton* skip;
 @property(strong) NSButton* play;
+@property(strong) NSTextField* preparing;
+@property(strong) NSStackView* stack;
 @property(copy) NSString* folder;
 @property NSModalResponse response;
 @end
@@ -396,7 +421,15 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [spacer setContentHuggingPriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
   NSStackView* buttons = [NSStackView stackViewWithViews:@[ spacer, quit, self.play ]];
 
-  NSStackView* all = [NSStackView stackViewWithViews:@[ title, subtitle, self.tabs, self.problem, self.skip, buttons ]];
+  // The shaders being prepared (StartPrewarm), shown only meanwhile.
+  self.preparing = [NSTextField labelWithString:@""];
+  self.preparing.textColor = NSColor.secondaryLabelColor;
+  self.preparing.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+  self.preparing.hidden = YES;
+
+  NSStackView* all = [NSStackView
+      stackViewWithViews:@[ title, subtitle, self.tabs, self.problem, self.skip, buttons, self.preparing ]];
+  self.stack = all;
   all.orientation = NSUserInterfaceLayoutOrientationVertical;
   all.alignment = NSLayoutAttributeLeading;
   all.spacing = 14;
@@ -422,6 +455,22 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [self.window layoutIfNeeded];
   [self.window setContentSize:all.fittingSize];
   [self.window center];
+}
+
+// The line under the buttons: `text`, or none (nil). The window grows or
+// shrinks by its height, its top staying where it is.
+- (void)showPreparing:(NSString*)text {
+  const BOOL hide = text == nil;
+  if (!hide) self.preparing.stringValue = text;
+  if (self.preparing.hidden == hide) return;
+  self.preparing.hidden = hide;
+  [self.window layoutIfNeeded];
+  NSRect frame = self.window.frame;
+  const NSRect content = [self.window contentRectForFrameRect:frame];
+  NSRect fitted = [self.window frameRectForContentRect:NSMakeRect(content.origin.x, content.origin.y,
+                                                                  content.size.width, self.stack.fittingSize.height)];
+  fitted.origin.y = NSMaxY(frame) - fitted.size.height;
+  [self.window setFrame:fitted display:YES];
 }
 
 - (void)showFolder {
@@ -485,6 +534,39 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [NSWorkspace.sharedWorkspace openURL:[NSURL fileURLWithPath:ModsFolder()]];
 }
 
+// If the caches lack shaders earlier runs compiled: compiled again in the
+// background, the count shown under the buttons until done.
+- (void)startPrewarm {
+  g_prewarm_done = dispatch_semaphore_create(0);
+  dispatch_semaphore_t done = g_prewarm_done;
+  __weak GtaivLauncher* weakSelf = self;
+  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+    if (!g_prewarm_cancel.load() && recomp::gfx::PrewarmNeeded()) {
+      // The count, shown on the main thread (at most one update waiting).
+      auto shown = std::make_shared<std::atomic<bool>>(false);
+      auto counts = std::make_shared<std::atomic<uint64_t>>(0);
+      recomp::gfx::PrewarmCaches(
+          [weakSelf, shown, counts](size_t n, size_t total, const char*) {
+            counts->store(uint64_t(n) << 32 | uint64_t(total));
+            if (shown->exchange(true)) return;
+            dispatch_async(dispatch_get_main_queue(), ^{
+              shown->store(false);
+              const uint64_t c = counts->load();
+              if (!g_prewarm_cancel.load())
+                [weakSelf showPreparing:[NSString stringWithFormat:@"Preparing shaders… %llu / %llu",
+                                                                   (unsigned long long)(c >> 32),
+                                                                   (unsigned long long)(c & 0xFFFFFFFFu)]];
+            });
+          },
+          g_prewarm_cancel);
+    }
+    dispatch_async(dispatch_get_main_queue(), ^{
+      [weakSelf showPreparing:nil];
+    });
+    dispatch_semaphore_signal(done);
+  });
+}
+
 - (void)finishWithResponse:(NSModalResponse)response {
   self.response = response;
   [NSApp stop:nil];
@@ -501,6 +583,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication*)sender {
   // Accept system quit so logout and shutdown receive a successful reply.
   [self.window orderOut:nil];
+  StopPrewarm();
   return NSTerminateNow;
 }
 
@@ -603,8 +686,10 @@ void RunLauncherIfWanted(int argc, char** argv) {
     }
     [l.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
+    [l startPrewarm];
     // A modal session suppresses Command-Q and defers system quit Apple events.
     [NSApp run];
+    StopPrewarm();  // Play or Quit: at once
     if (l.response != NSModalResponseOK) std::exit(0);
     [l.window orderOut:nil];
     Launch(l.folder, d, args);

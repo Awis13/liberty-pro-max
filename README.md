@@ -55,6 +55,16 @@ iPad's touch controls are there too, but small on a phone).
   and the game's data next to it (`pc/`, `common/`, …). Only this file, as
   Rockstar signed it, works: a changed or cracked exe does not. The Complete
   Edition (1.2.0.x) is not supported.
+
+  If you own the game on Steam, you can download this version from your own
+  account with [DepotDownloader](https://github.com/SteamRE/DepotDownloader)
+  (`brew tap steamre/tools && brew install depotdownloader`):
+
+  ```sh
+  depotdownloader -app 12210 -depot 12211 -manifest 4406763129603688303 \
+    -username <your Steam name> -dir GTAIV-1.0.8.0
+  shasum -a 256 GTAIV-1.0.8.0/GTAIV/GTAIV.exe   # must match the SHA-256 above
+  ```
 - **A Mac with Apple silicon** (M1 or newer), macOS 15 or newer, with the
   **Xcode Command Line Tools** (`xcode-select --install`) and
   [Homebrew](https://brew.sh); about 6 GB free for the build. The Mac builds

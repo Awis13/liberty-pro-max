@@ -219,6 +219,16 @@ In an episode, the `update` folder gives its archives for that episode, such as
 files, and the mods folder's archives, stay out of the episodes, as they stop
 them from loading.
 
+### The game's language
+
+The game speaks the language your Mac, iPad, iPhone or Apple TV is set to
+(the first of your preferred languages): English, French, German, Italian or
+Spanish, with the text files your install already has. Any other language gives
+the game in English, as before. To keep the game in English on a system in
+another language, choose **Language: English** on the launcher's General tab
+(on the iPad and iPhone, turn off "Game in the device's language"); the Apple
+TV, with no settings screen yet, always follows the system.
+
 ### Your own music
 
 Independence FM plays your own music, as on Windows. Put the files in the
@@ -283,8 +293,8 @@ The Mac's launcher has three tabs. **General**: the game folder, full screen
 or a window (on a display with a notch, also the whole screen), vertical sync,
 a frame limit (off, 30, 60 or 120 fps), anti-aliasing (TAA, SMAA, MetalFX)
 with the MetalFX resolution and TAA sharpening, the performance overlay,
-skipping the logo screens, continuing the last save, and mods (**Open Mods
-Folder**). **Extras**: this port's own additions, the episodes, turn
+skipping the logo screens, continuing the last save, the game's language,
+and mods (**Open Mods Folder**). **Extras**: this port's own additions, the episodes, turn
 indicators, pad icons, phone cheats and full damage, each off until you turn
 it on, and the episodes' radio songs kept to their own episode, on.
 **Advanced**: shadow and reflection resolution, field of view, fast loading,
@@ -293,8 +303,8 @@ a switch. Most fixes follow FusionFix's and ZolikaPatch's (by what they do;
 their code is not used), some are this port's own.
 
 On the iPad and iPhone the settings screen has the same in sections: **Game**
-(touch controls, continuing the last save, skipping the start screens, mods,
-fast loading, stun punch and executions on anyone), **Extras**, **Graphics**
+(touch controls, continuing the last save, skipping the start screens, the
+game's language, mods, fast loading, stun punch and executions on anyone), **Extras**, **Graphics**
 (resolution, anti-aliasing, frame limit, shadows, reflections, field of view,
 the performance overlay) and **Fixes**.
 

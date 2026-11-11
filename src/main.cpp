@@ -21,10 +21,13 @@
 #include <vector>
 
 #include "game_args.h"
+#include "language.h"
+#include "option.h"
 #include "runtime/log.h"
 #include "runtime/runtime.h"
 
 #if defined(__APPLE__)
+#include <CoreFoundation/CoreFoundation.h>
 #include <TargetConditionals.h>
 #endif
 #if TARGET_OS_IOS || TARGET_OS_TV
@@ -82,6 +85,26 @@ std::string ReadRedirect(const std::string& guest_path) {
   std::string r = GtaivModsRedirect(guest_path);
   if (r.empty()) r = recomp::gen::UpdateFolderRedirect(guest_path);
   return r;
+}
+
+// The game's language: the first of the system's preferred languages (the
+// Mac's, the iPad's: Settings, Language & Region) as a Windows language
+// id (language.h); English elsewhere.
+uint16_t SystemLangId(std::string* code) {
+  uint16_t id = language::kEnglish;
+#if defined(__APPLE__)
+  if (CFArrayRef langs = CFLocaleCopyPreferredLanguages()) {
+    char buf[64];
+    if (CFArrayGetCount(langs) > 0 &&
+        CFStringGetCString(static_cast<CFStringRef>(CFArrayGetValueAtIndex(langs, 0)), buf, sizeof buf,
+                           kCFStringEncodingUTF8)) {
+      *code = buf;
+      id = language::LangIdForLocale(buf);
+    }
+    CFRelease(langs);
+  }
+#endif
+  return id;
 }
 }  // namespace
 
@@ -230,6 +253,16 @@ int main(int argc, char** argv) {
     game.mac_fullscreen_space = !(n && *n == '1');
   }
 #endif
+  // The game in the system's language, unless the launcher's choice is
+  // English (GTAIV_SYSTEM_LANGUAGE=0). GTAIV_LANG_ID=0x0419 (the runtime's
+  // switch, for test runs) overrides both.
+  if (OptionOn("GTAIV_SYSTEM_LANGUAGE", true)) {
+    std::string code;
+    game.user_lang_id = SystemLangId(&code);
+    if (!code.empty())
+      std::fprintf(stderr, "gtaiv: the system's language %s: the game's language id %04X\n", code.c_str(),
+                   unsigned(game.user_lang_id));
+  }
   // The launcher's window (integrity.cpp).
   game.send_message = GtaivSendMessage;
   // Threads by what they do, not by the game's priorities (threads.cpp).

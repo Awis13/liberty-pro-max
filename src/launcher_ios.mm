@@ -176,6 +176,7 @@ typedef NS_ENUM(NSInteger, LpmSection) { kGame, kExtrasSection, kGraphics, kFixe
 static NSArray* GameRows() {
   return @[
     @[ @"Touch controls (hidden with a controller)", kTouchKey ], @[ @"Continue from the last save", kContinueKey ], @[ @"Skip the start screens", kSkipIntroKey ],
+    @[ @"Game in the device's language (off: English)", kSystemLanguageKey ],
     @[ @"Mods", kModsKey ], @[ @"Fast loading", kFastLoadingKey ],
     @[ @"Stun punch on anyone", kStunPunchKey ], @[ @"Executions on anyone", kExecutionsKey ]
   ];

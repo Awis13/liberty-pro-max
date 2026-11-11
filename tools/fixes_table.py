@@ -6,10 +6,14 @@
                                   <!-- fixes:begin --> and <!-- fixes:end -->
                                   lines
 
-Every switch of the launcher's Advanced and Extras tabs (kFixes) and every
-choice (kShaderChoices), grouped by what it is about, with its default. The
-extras (Fix::extra) are a group of their own; another switch the groups
-below do not name lands in "Other": add it to a group.
+Every switch of the launcher's Advanced and Extras tabs (kFixes), grouped by
+what it is about, with its default. The extras (Fix::extra) are a group of
+their own; another switch the groups below do not name lands in "Other": add
+it to a group. Options no launcher shows are left out: the hidden switches
+(Fix::hidden) and the choices (kShaderChoices, motion blur among them),
+which take effect with the extended shaders (GTAIV_FF_SHADERS), not
+finished. The launcher sets those to their defaults too; another value takes
+effect only in a game started without the launcher.
 """
 import os
 import re
@@ -56,7 +60,7 @@ GROUPS = [
      'FF_DATA'),
     ('Lights, shadows and effects', '',
      'SIGN_GLOW_FIX LOD_LIGHTS CONSOLE_REFLECTIONS MIRROR_OFFSET WATER_TILING CORONA_LIMIT REVERSING_LIGHTS RAIN_LIGHTING '
-     'HELI_SEARCHLIGHTS NIGHT_SHADOW_RESOLUTION BRAKE_LIGHTS_STOPPED BLOOM DEPTH_OF_FIELD MOTION_BLUR '
+     'HELI_SEARCHLIGHTS NIGHT_SHADOW_RESOLUTION BRAKE_LIGHTS_STOPPED BLOOM DEPTH_OF_FIELD '
      'VEHICLE_NIGHT_SHADOWS EMISSIVE_NO_DEPTH_WRITE DYNAMIC_SHADOWS_EVERYWHERE CAR_SHADOW_ANY_DISTANCE '
      'NO_STATIC_CAR_SHADOWS NO_CUTSCENE_STATIC_CAR_SHADOWS HIGH_DETAIL_REFLECTIONS GLASS_SHARD_COLOURS '
      'BULLET_TRACERS TBOGT_TRACER_FX TREE_SHADOWS'),
@@ -67,25 +71,24 @@ GROUPS = [
     ('Limits, streaming and stability', '',
      'DRAW_DISTANCE_FIX VEHICLE_BUDGET BIGGER_POOLS DRAWABLE_LIMIT NO_MEM_RESTRICT EXTRA_STREAMING_MEMORY '
      'COMPARE_STRING_FIX ERRORS_TO_LOG AIM_PROJECTILE_FIX'),
-    ('Mac, iPad and Apple TV', '', 'SAVE_SYNC RUN_IN_BACKGROUND'),
+    ('Mac, iPad, iPhone and Apple TV', '', 'SAVE_SYNC RUN_IN_BACKGROUND'),
 ]
 
 
 EXTRAS = ('Extras', "This port's own additions, on the launcher's Extras tab (a section of their own "
-          'on the iPad and iPhone).')
+          'on the iPad and iPhone). The Apple TV, with no settings screen, has the episodes on.')
 
 
 def table(fixes, choices):
-    """The README's lines: the count, then a table per group."""
+    """The README's lines: the count, then a table per group. The choices are
+    not listed: no launcher shows them (FixShown, launcher_mac.mm,
+    launcher_ios.mm's kShaders)."""
     out = []
     named = set()
     # FusionFix's shader options are hidden in the launchers too (FixShown).
     shown = lambda e: e == 'FF_DATA' or not e.startswith('FF_')
     rows = {f.env: f'| {f.title} | {"on" if f.on else "off"} |' for f in fixes
             if not f.extra and not f.hidden and shown(f.env) and 'needs FusionFix shaders' not in f.title}
-    for e, t, items, d in choices:
-        if shown(e):
-            rows[e] = f'| {t}: {", ".join(items)} | {items[d]} |'
     extras = [f'| {f.title} | {"on" if f.on else "off"} |' for f in fixes if f.extra and not f.hidden]
 
     def group(title, note, present):
@@ -106,9 +109,12 @@ def table(fixes, choices):
     if extras:
         out += group(*EXTRAS, extras)
     total = len(rows) + len(extras)
-    return [f'{total} switches and choices in the launcher (Advanced and Extras tabs; the iPad and iPhone '
+    return [f'{total} switches in the launcher (Advanced and Extras tabs; the iPad and iPhone '
             'have them on their settings screen). Each one is also an environment variable, `GTAIV_` and '
-            'the name in capitals in `src/launcher_options.h`.', ''] + out
+            'the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur '
+            'among them, are not listed: no launcher shows them, as the extended shaders they belong to '
+            'are not finished. The launcher sets them to their defaults too; another value takes effect '
+            'only in a game started without it (see If something goes wrong).', ''] + out
 
 
 def main():

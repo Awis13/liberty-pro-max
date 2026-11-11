@@ -9,3 +9,9 @@ inline bool OptionOn(const char* name, bool def) {
   if (!e || !*e) return def;
   return *e != '0';
 }
+
+namespace recomp::gen {
+// The episodes' option, GTAIV_EPISODES, with its fallback: the one reader
+// (src/episodes.cpp).
+bool EpisodesOn();
+}  // namespace recomp::gen

@@ -72,7 +72,7 @@ const Fix kFixes[] = {
     {@"HideCursorOnPad", "GTAIV_HIDE_CURSOR_ON_PAD", @"Menu cursor hidden while playing with a gamepad"},
     {@"ReticleHealth", "GTAIV_RETICLE_HEALTH", @"Target health on the reticle with the mouse"},
     {@"SaveHealthCap", "GTAIV_SAVE_HEALTH_CAP", @"Health from a save at most a full bar (trainer saves)"},
-    {@"SaveSync", "GTAIV_SAVE_SYNC", @"Saves synced with your iPad and Apple TV at start and quit (needs Xcode)"},
+    {@"SaveSync", "GTAIV_SAVE_SYNC", @"Saves synced with your iPad, iPhone and Apple TV at start and quit (Apple TV: needs Xcode)"},
     {@"RadarZoomDelay", "GTAIV_RADAR_ZOOM_DELAY", @"Radar stays zoomed out for 3 seconds"},
     {@"TrainLanes", "GTAIV_TRAIN_LANES", @"Cars do not swerve under trains"},
     {@"DateFix", "GTAIV_DATE_FIX", @"Date does not go back after dying or arrest"},
@@ -266,6 +266,15 @@ void RegisterDefaults(NSUserDefaults* d) {
   for (const Fix& f : kFixes) defaults[f.key] = @(f.on);
   for (const ShaderChoice& sc : kShaderChoices) defaults[sc.key] = @(sc.def);
   [d registerDefaults:defaults];
+}
+
+// The Apple TV's defaults over those (launcher_ios.mm): it has no settings
+// screen yet, so they are what it plays with. 1920x1080 with SMAA, no
+// performance overlay, the graphics menu's settings applied from the start,
+// and the episodes on, as before they were off by default elsewhere: off,
+// nothing there could turn them on. The phone cheats stay off.
+inline NSDictionary* TvDefaults() {
+  return @{kAntiAliasingKey : @1, kHudKey : @NO, @"FixDrawDistance" : @YES, @"Episodes" : @YES};
 }
 
 // The options as the game reads them: environment variables of this process.

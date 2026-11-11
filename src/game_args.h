@@ -54,15 +54,14 @@
 namespace gtaiv {
 
 // The arguments of a response file's text, split as the game splits
-// commandline.txt (above). An unquoted argument "@name" is replaced by
-// the arguments of read(name)'s text, 8 deep at most (two includes in one
-// file deliberately differ from the game: it reads every include of a file
-// into the same place, so the second overwrites the first; here both are
-// kept); read reads at most
-// max_bytes (what is left of the game's buffer) and returns false for a
-// file it cannot read (it is not called if empty). A UTF-8 byte order mark
-// at the start of a text is skipped (the game would take it as part of the
-// first argument, which it then ignores).
+// commandline.txt (above). An unquoted argument "@name" is replaced by the
+// arguments of read(name)'s text, 8 deep at most. Two includes in one file
+// deliberately differ from the game: it reads every include of a file into
+// the same place, so the second overwrites the first; here both are kept.
+// read reads at most max_bytes (what is left of the game's buffer) and
+// returns false for a file it cannot read (it is not called if empty). A
+// UTF-8 byte order mark at the start of a text is skipped (the game would
+// take it as part of the first argument, which it then ignores).
 using ReadFile = std::function<bool(const std::string& name, size_t max_bytes, std::string* text)>;
 std::vector<std::string> SplitResponseText(std::string_view text, const ReadFile& read = {});
 
@@ -92,7 +91,7 @@ std::vector<std::string> LauncherGameArgs(const std::string& game_dir,
                                           const std::vector<std::string>& last);
 
 // One argument as the game's CRT splits it back (quoted only when it has
-// to be: empty, or with a space, tab, newline or '"').
+// to be: empty, or with a space, tab, newline, vertical tab or '"').
 std::string QuoteArg(const std::string& arg);
 
 // The arguments as one command line (QuoteArg each, a space between).

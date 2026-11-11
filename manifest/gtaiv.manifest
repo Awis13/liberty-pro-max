@@ -92,7 +92,7 @@ replace 008CC970 Pool_SweepAtShutdown   # quit before the world loaded: no strea
 replace 0094A6D0 PedIntelligence_DecreasePinnedDown   # above 30 fps it never decreased: cops stuck in cover
 replace 008936A0 RadioHud_LogoBw      # a logo dictionary without the logo: the logo found stays
 replace 00893680 RadioHud_LogoColour  # the same
-replace 00893870 RadioHud_Find       # a station without a radiohud.dat line: an empty record, not null (issue 15)
+replace 00893870 RadioHud_Find       # a station without a radiohud.dat line: an empty record, not null
 replace 00893920 RadioHud_DrawLogo   # and no logo drawn for it
 replace 00896310 RadioHud_DrawWheelLogo  # the same, in the wheel (its fade still steps)
 replace 00B564A0 RadioHud_DrawMenuLogo   # the same, the menus' deferred logo
@@ -123,6 +123,7 @@ hook 009CB5DA 009CB5E2   # helicopter tail rotor speed: per time
 # Conveniences (src/options.cpp).
 hook 0047D255 0047D257   # the first menu: GTAIV_CONTINUE starts in the newest save (the chooser first with none)
 replace 0085A520 Saves_ReadEpisodeArg   # with the episodes off, a start is given -episode 0: IV's newest save
+replace 00859070 Saves_NewestSlotOfGame # with an episode's folder missing, the newest save of a game that is there
 replace 004944E0 Frontend_StartGame     # and that is taken back once the start is over
 hook 004A346B 004A3475   # start screens' times: GTAIV_SKIP_INTRO skips the short ones
 replace 00A777C0 CamGame_PostProcessHeightBasedFOV   # GTAIV_FOV: wider field of view
@@ -832,5 +833,5 @@ replace 008AE060 RegisterNatives   # the Complete Edition scripts' multiplayer n
 replace 008905E0 ExtraContent_Load   # an episode's radio only in that episode (GTAIV_EPISODE_RADIO_OWN)
 replace 008906B0 ExtraContent_LoadAudio   #   the same, the audio lists alone
 # The icons of the pad in use (src/pad_icons.cpp).
-hook 0088798D 0088798E
+hook 0088798D 0088798E   # the game's button textures loaded (push ebp): the other pads' sets beside them (GTAIV_PAD_ICONS)
 replace 00887E80 MenuManager_ReleaseButtonTextures   # the other pad sets released, the game's own given back

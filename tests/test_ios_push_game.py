@@ -56,6 +56,23 @@ class TransferPlanTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             self.plan("data")
 
+    @unittest.skipIf(os.geteuid() == 0, "root reads any directory")
+    def test_unreadable_directory_beside_files_is_an_error(self):
+        (self.root / "data").mkdir()
+        (self.root / "data/content").write_bytes(b"game")
+        locked = self.root / "data/locked"
+        locked.mkdir()
+        (locked / "more").write_bytes(b"game")
+        locked.chmod(0)
+        self.addCleanup(locked.chmod, 0o700)
+        with self.assertRaises(PermissionError):
+            self.plan("data")
+        # A folder over CHUNK is split: still an error, not a raw one in listdir.
+        with patch.object(upload, "CHUNK", 2), self.assertRaises(PermissionError):
+            self.plan("data")
+        with self.assertRaises(PermissionError):
+            upload.size_of(self.root / "data")
+
     def test_chunked_plan_skips_empty_tree_and_preserves_other_files(self):
         (self.root / "pc/data/face/nested").mkdir(parents=True)
         (self.root / "pc/data/zero").touch()

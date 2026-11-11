@@ -177,7 +177,8 @@ int main(int argc, char** argv) {
     } else {
       std::fprintf(stderr,
                    "usage: %s [--game-dir DIR] [--no-launcher] [-- GAME ARGS...]\n"
-                   "  --no-launcher  started by the launcher: the game gets the port's defaults,\n"
+                   "  --no-launcher  started by the launcher: the game gets the port's defaults\n"
+                   "                 (-norestrictions -availablevidmem 2047, or GTAIV_VIDMEM's MB),\n"
                    "                 then the game folder's commandline.txt, then GAME ARGS\n",
                    argv[0]);
       return 2;

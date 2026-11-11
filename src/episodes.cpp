@@ -29,12 +29,12 @@ void f_008AE060_lifted(Ctx& c);
 void f_008905E0_lifted(Ctx& c);
 void f_008906B0_lifted(Ctx& c);
 
-namespace {
-
 bool EpisodesOn() {
   static const bool on = OptionOn("GTAIV_EPISODES", false);
   return on;
 }
+
+namespace {
 
 // Each episode's setup2.xml lists two contents: the episode itself, with its
 // number in <episode>, enabled while that episode is chosen (00890900), and

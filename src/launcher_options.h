@@ -122,6 +122,8 @@ const Fix kFixes[] = {
     {@"RainLighting", "GTAIV_RAIN_LIGHTING", @"Rain lit as on consoles (visible at night)"},
     {@"HeliSearchlights", "GTAIV_HELI_SEARCHLIGHTS", @"Police helicopter searchlights do not flicker"},
     {@"NightShadowResolution", "GTAIV_NIGHT_SHADOW_RESOLUTION", @"The Night Shadows setting changes how sharp night shadows are"},
+    {@"NightShadowStable", "GTAIV_NIGHT_SHADOW_STABLE", @"Street lamps keep the shadows of people and cars when the camera turns or cars drive by"},
+    {@"ShadowAnticull", "GTAIV_SHADOW_ANTICULL", @"Sun shadows near the camera do not vanish as it turns"},
     {@"CenteredCarCamera", "GTAIV_CENTERED_CAR_CAMERA", @"Car camera centred behind the car", false},
     {@"CenteredFootCamera", "GTAIV_CENTERED_FOOT_CAMERA", @"On-foot camera centred behind the player", false},
     {@"BrakeLightsStopped", "GTAIV_BRAKE_LIGHTS_STOPPED", @"Brake lights stay on while your car stands", false},

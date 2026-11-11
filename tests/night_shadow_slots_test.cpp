@@ -102,6 +102,44 @@ int main() {
   Check(!ns::Held(0, none) && ns::Held(5, some) && !ns::Held(6, some), "held: only a nonzero id in the table");
   Check(ns::RankDistance(10.0f, true) == 6.0f && ns::RankDistance(10.0f, false) == 10.0f,
         "a held light competes at 0.6 of its distance");
+  // The priorities, the game's (even false) and even.
+  const uint32_t car = 0x164, lamp = 0x67, forced = 0x467;
+  Check(ns::Priority(car, 0, false) == 0 && ns::Priority(lamp, 0, true) == 0, "an empty place is taken");
+  Check(ns::Priority(car, lamp, false) == 0 && ns::Priority(lamp, car, false) == 2 &&
+            ns::Priority(car, car, false) == 1 && ns::Priority(lamp, lamp, false) == 1,
+        "the game's: a car's light before a lamp whatever the distance");
+  Check(ns::Priority(car, lamp, true) == 1 && ns::Priority(lamp, car, true) == 1, "even: the distances decide");
+  Check(ns::Priority(forced, car, true) == 0 && ns::Priority(car, forced, true) == 2 &&
+            ns::Priority(lamp, forced, false) == 2 && ns::Priority(forced, lamp, false) == 0,
+        "a 0x400 light first either way");
+  // 008C4550's ranking of eight places with 008C32B0's order: eight cars'
+  // lights 12-19 m away fill them and the lamp 3 m away is left out; even,
+  // the lamp is in.
+  for (int even = 0; even < 2; even++) {
+    struct L {
+      uint32_t flags;
+      float d;
+    };
+    std::vector<L> ls = {{lamp, 3.0f}};
+    for (int k = 0; k < 8; k++) ls.push_back({car, 12.0f + float(k)});
+    uint32_t place_flags[8] = {};
+    float place_d[8] = {};
+    for (const L& l : ls) {  // 008C499A's insertion, the place 0 first
+      uint32_t f = l.flags;
+      float d = l.d;
+      for (int k = 0; k < 8; k++) {
+        const uint32_t p = ns::Priority(f, place_flags[k], even != 0);
+        if (p == 0 || (p == 1 && place_d[k] > d)) {
+          std::swap(f, place_flags[k]);
+          std::swap(d, place_d[k]);
+        }
+      }
+    }
+    const bool lamp_in = std::find(place_flags, place_flags + 8, lamp) != place_flags + 8;
+    std::snprintf(what, sizeof what, "a lamp 3 m away among eight cars' lights 12-19 m away: %s (%s)",
+                  lamp_in ? "has a slot" : "no slot", even ? "even" : "the game's");
+    Check(lamp_in == (even != 0), what);
+  }
   if (failures) return 1;
   std::puts("night shadow slots: ok");
   return 0;

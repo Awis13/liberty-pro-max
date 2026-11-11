@@ -736,6 +736,7 @@ hook 00CC3F10 00CC3F15
 # Shadows and lights (src/shadows_lights.cpp).
 hook 008CB242 008CB244   # vehicle night shadows: register "wd_local" after "wd" (FF shaders only)
 hook 0095AEE9 0095AEEE   # vehicle night shadows: lists 0, 1 into local lights' shadow maps
+replace 008C32B0 NightShadowPriority   # the night shadows' ranking order (night_shadow_slots.h Priority)
 hook 008C45CA 008C45D2   # night shadow slots: ranked from the camera, not 8 m ahead (issue #50)
 hook 008C499A 008C499E   # night shadow slots: a light that held a slot keeps it unless clearly beaten
 hook 0095A41B 0095A41E   # vehicle night shadows: peds in vehicles not left out

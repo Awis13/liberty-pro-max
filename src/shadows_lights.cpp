@@ -146,6 +146,14 @@ void hook_008C499A(Ctx& c) {
   if (ns::Held(id, ids)) SetLane0(c.xmm[1], ns::RankDistance(Lane0(c.xmm[1]), true));
 }
 
+// 008C32B0 (cdecl: the fresh light's flags, the ranking place's): which of
+// the two the place keeps (night_shadow_slots.h's Priority), the cars' lights
+// and the others even when steady.
+void f_008C32B0(Ctx& c) {
+  c.eax = night_shadow_slots::Priority(Rd32(c.esp + 4), Rd32(c.esp + 8), NightShadowsStable());
+  c.esp += 4;  // ret
+}
+
 void hook_0095AEE9(Ctx& c) {
   const uint8_t cascade = Rd8(c.esp + 0x13);
   if (!cascade && VehicleNightShadows()) {

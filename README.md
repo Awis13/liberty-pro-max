@@ -219,6 +219,31 @@ In an episode, the `update` folder gives its archives for that episode, such as
 files, and the mods folder's archives, stay out of the episodes, as they stop
 them from loading.
 
+### The game's language
+
+The game speaks the language your Mac, iPad, iPhone or Apple TV is set to
+(the first of your preferred languages): English, French, German, Italian,
+Spanish or Russian. Any other language gives the game in English, as before.
+To keep the game in English on a system in another language, choose
+**Language: English** on the launcher's General tab (on the iPad and iPhone,
+turn off "Game in the device's language"); the Apple TV, with no settings
+screen yet, always follows the system. The game's own Language option, in its
+menus, is kept in its settings (`SETTINGS.CFG`): a language chosen there wins
+over the system's and the launcher's from then on, until you choose the
+system's language there again (or the game starts with the system set to the
+language you chose, which then counts as the system's again). Russian is in that menu only while the system
+(and the launcher) select it. In German the game hides a few statistics
+entries, as it does in German on Windows; nothing else changes.
+
+Russian needs the Russian files in your game folder: `common/text/russian.gxt`,
+`common/data/fonts_r.dat`, and in `pc/textures` `fonts_r.wtd`,
+`fonts_r_streamed_1.wtd` and `title_offline_ru.wtd` (with the episodes on,
+also their `common/text/russian.gxt` and `title_offline_e1_ru.wtd`,
+`title_offline_e2_ru.wtd`). Steam's install has them. Without them the game
+stays in English. The Russian text is older than the English: the few lines it
+lacks (some radio song names, messages about downloadable content, one
+mission's subtitles) show in English. Saves are the same in every language.
+
 ### Your own music
 
 Independence FM plays your own music, as on Windows. Put the files in the
@@ -283,8 +308,8 @@ The Mac's launcher has three tabs. **General**: the game folder, full screen
 or a window (on a display with a notch, also the whole screen), vertical sync,
 a frame limit (off, 30, 60 or 120 fps), anti-aliasing (TAA, SMAA, MetalFX)
 with the MetalFX resolution and TAA sharpening, the performance overlay,
-skipping the logo screens, continuing the last save, and mods (**Open Mods
-Folder**). **Extras**: this port's own additions, the episodes, turn
+skipping the logo screens, continuing the last save, the game's language,
+and mods (**Open Mods Folder**). **Extras**: this port's own additions, the episodes, turn
 indicators, pad icons, phone cheats and full damage, each off until you turn
 it on, and the episodes' radio songs kept to their own episode, on.
 **Advanced**: shadow and reflection resolution, field of view, fast loading,
@@ -293,8 +318,8 @@ a switch. Most fixes follow FusionFix's and ZolikaPatch's (by what they do;
 their code is not used), some are this port's own.
 
 On the iPad and iPhone the settings screen has the same in sections: **Game**
-(touch controls, continuing the last save, skipping the start screens, mods,
-fast loading, stun punch and executions on anyone), **Extras**, **Graphics**
+(touch controls, continuing the last save, skipping the start screens, the
+game's language, mods, fast loading, stun punch and executions on anyone), **Extras**, **Graphics**
 (resolution, anti-aliasing, frame limit, shadows, reflections, field of view,
 the performance overlay) and **Fixes**.
 

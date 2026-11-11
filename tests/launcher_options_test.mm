@@ -70,6 +70,7 @@ void TestDefaults() {
   EXPECT([defaults[@"PlayerFullDamage"] isEqual:@NO]);
   EXPECT([defaults[@"EpisodeRadioOwn"] isEqual:@YES]);
   EXPECT([defaults[kModsKey] isEqual:@YES]);
+  EXPECT([defaults[kSystemLanguageKey] isEqual:@YES]);  // the game in the system's language
   for (NSString* k in DefaultsTurnedOff()) {
     EXPECT(Find(k) != nullptr);
     EXPECT(Find(k) && !Find(k)->on);

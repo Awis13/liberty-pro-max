@@ -35,7 +35,7 @@ add_subdirectory("${X86RECOMP_DIR}" x86recomp)
 # recomp_lift from the user's own install; see README.md).
 recomp_add_lifted(gtaiv_lifted "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 if(TARGET gtaiv_lifted)
-  add_executable(gtaiv src/main.cpp src/game_args.cpp src/paul.cpp src/integrity.cpp src/diagnostics.cpp src/widescreen.cpp src/crt_math.cpp
+  add_executable(gtaiv src/main.cpp src/game_args.cpp src/language.cpp src/paul.cpp src/integrity.cpp src/diagnostics.cpp src/widescreen.cpp src/crt_math.cpp
     src/bench.cpp src/fixes.cpp src/jobs.cpp src/options.cpp src/perf.cpp src/episodes.cpp src/mods.cpp src/threads.cpp src/native.cpp src/pad_icons.cpp
     src/community_fixes.cpp
     src/high_fps_fixes.cpp
@@ -60,6 +60,10 @@ if(TARGET gtaiv_lifted)
                         recomp_dinput8 recomp_xinput recomp_d3d9 recomp_xlive
                         recomp_dbghelp recomp_wmvcore)
   set_target_properties(gtaiv PROPERTIES ENABLE_EXPORTS ON)  # names in fault backtraces
+  if(APPLE)
+    # The system's preferred languages (main.cpp).
+    target_link_libraries(gtaiv PRIVATE "-framework CoreFoundation")
+  endif()
   if(RECOMP_IOS)
     # The .app with its Info.plist; tools/ios_bundle.sh adds the runtime
     # dylibs (Frameworks/), the icon, and signs it. The game's files go into
@@ -125,6 +129,9 @@ if(GTAIV_TESTS AND NOT RECOMP_IOS)
   add_executable(gtaiv_save_paths_test tests/save_paths_test.cpp)
   target_include_directories(gtaiv_save_paths_test PRIVATE src)
   add_test(NAME save_paths COMMAND gtaiv_save_paths_test)
+  add_executable(gtaiv_language_test tests/language_test.cpp)
+  target_include_directories(gtaiv_language_test PRIVATE src)
+  add_test(NAME language COMMAND gtaiv_language_test)
   # The tools' Python tests (tests/test_*.py), so that ctest runs them too.
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)

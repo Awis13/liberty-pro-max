@@ -120,6 +120,7 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
 @property(strong) NSPopUpButton* display;
 @property(strong) NSPopUpButton* vsync;
 @property(strong) NSPopUpButton* frameLimit;
+@property(strong) NSPopUpButton* language;
 @property(strong) NSPopUpButton* antialiasing;
 @property(strong) NSPopUpButton* metalfxScale;
 @property(strong) NSPopUpButton* taaSharpening;
@@ -197,6 +198,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
                   selected:std::clamp<NSInteger>([d integerForKey:kVsyncKey], 0, 2)];
   self.frameLimit = [self popup:@[ @"Off", @"30 fps", @"60 fps", @"120 fps" ]
                        selected:std::clamp<NSInteger>([d integerForKey:kFrameLimitKey], 0, 3)];
+  self.language = [self popup:@[ @"Same as the system", @"English" ] selected:[d boolForKey:kSystemLanguageKey] ? 0 : 1];
   self.antialiasing = [self popup:@[
     @"Off", @"SMAA (light)", @"MetalFX (temporal)", @"TAA (temporal, light)", @"SMAA + MetalFX spatial (fast)"
   ]
@@ -250,6 +252,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ NSGridCell.emptyContentView, self.hud ],
     @[ [self label:@"Start:"], self.skipIntro ],
     @[ NSGridCell.emptyContentView, self.continueSave ],
+    @[ [self label:@"Language:"], self.language ],
     @[ [self label:@"Mods:"], self.mods ],
     @[ NSGridCell.emptyContentView, modsFolder ],
     @[ NSGridCell.emptyContentView, self.modsNote ],
@@ -445,6 +448,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   Store(d, kOverNotchKey, @(self.overNotch.state == NSControlStateValueOn));
   Store(d, kVsyncKey, @(self.vsync.indexOfSelectedItem));
   Store(d, kFrameLimitKey, @(self.frameLimit.indexOfSelectedItem));
+  Store(d, kSystemLanguageKey, @(self.language.indexOfSelectedItem == 0));
   Store(d, kAntiAliasingKey, @(self.antialiasing.indexOfSelectedItem));
   Store(d, kMetalFXScaleKey, @(self.metalfxScale.indexOfSelectedItem));
   Store(d, kTaaSharpeningKey, @(self.taaSharpening.indexOfSelectedItem));

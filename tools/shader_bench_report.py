@@ -11,6 +11,11 @@ Read from the log (the runtime's switches the script sets):
 - "gfx: perf: ... in N frames: ... S shaders (X ms, M MSL compiles), P
   pipelines compiled while drawing (X ms, max Y)" (<ID>_PERF, every 2 s):
   summed, the max the largest;
+- the same lines' "; pipeline archive: N shards, H found, M missed (X ms),
+  A added, P to add, last saved in S ms (B MB)" (the runtime's pipeline
+  archive): found, missed and their ms summed (each report counts its own
+  2 s); shards, added (in all since the start), to add and the last save
+  as the section's last report has them (a save of -1 ms: none yet);
 - "hitch: frame N took X ms (t=T s)" (<ID>_HITCH=50): frames from 50 ms;
 - "fps: F at t=T s (interval ms: min . p1 . median . ...)" (<ID>_FPS_REPORT);
 - "load: loading screen down at T s" (GTAIV_LOAD_LOG=1, seconds since the
@@ -36,6 +41,9 @@ RE_PERF = re.compile(
     r"gfx: perf: .*?in (\d+) frames: .*?(\d+) shaders \(([\d.]+) ms, (\d+) MSL compiles\), "
     r"(\d+) pipelines compiled while drawing \(([\d.]+) ms, max ([\d.]+)\)"
     r"(?:, (\d+) built ahead used)?")
+RE_ARCHIVE = re.compile(
+    r"; pipeline archive: (\d+) shards, (\d+) found, (\d+) missed \(([\d.]+) ms\), (\d+) added, "
+    r"(\d+) to add, last saved in (-?[\d.]+) ms \(([\d.]+) MB\)")
 RE_HITCH = re.compile(r"hitch: frame \d+ took ([\d.]+) ms \(t=([\d.]+) s\)")
 RE_FPS = re.compile(r"fps: ([\d.]+) at t=([\d.]+) s \(interval ms: min [\d.]+ p1 ([\d.]+) median ([\d.]+) "
                     r"p99 ([\d.]+) max ([\d.]+)")
@@ -59,9 +67,15 @@ def _empty_perf():
             "built_ahead_used": 0}
 
 
+def _empty_archive():
+    return {"reports": 0, "shards": None, "found": 0, "missed": 0, "missed_ms": 0.0, "added": None,
+            "to_add": None, "last_save_ms": None, "last_save_mb": None}
+
+
 def _section(lines):
     compiles, hitches, fps = [], [], []
     perf = _empty_perf()
+    archive = _empty_archive()
     for line in lines:
         m = RE_COMPILE.search(line)
         if m:
@@ -79,6 +93,18 @@ def _section(lines):
             perf["pipeline_max_ms"] = max(perf["pipeline_max_ms"], float(m.group(7)))
             if m.group(8):
                 perf["built_ahead_used"] += int(m.group(8))
+            a = RE_ARCHIVE.search(line)
+            if a:
+                archive["reports"] += 1
+                archive["shards"] = int(a.group(1))
+                archive["found"] += int(a.group(2))
+                archive["missed"] += int(a.group(3))
+                archive["missed_ms"] += float(a.group(4))
+                archive["added"] = int(a.group(5))
+                archive["to_add"] = int(a.group(6))
+                if float(a.group(7)) >= 0:
+                    archive["last_save_ms"] = float(a.group(7))
+                    archive["last_save_mb"] = float(a.group(8))
             continue
         m = RE_HITCH.search(line)
         if m:
@@ -91,6 +117,7 @@ def _section(lines):
                         "max_ms": float(m.group(6))})
     perf["shader_ms"] = round(perf["shader_ms"], 1)
     perf["pipeline_ms"] = round(perf["pipeline_ms"], 1)
+    archive["missed_ms"] = round(archive["missed_ms"], 1)
     slow = [c for c in compiles if c >= COMPILE_SLOW_MS]
     big = [h for h in hitches if h["ms"] >= HITCH_MS]
     rates = [f["fps"] for f in fps]
@@ -99,6 +126,7 @@ def _section(lines):
         "compiles_slow": len(slow),
         "compile_worst_ms": max(compiles) if compiles else None,
         "perf": perf,
+        "archive": archive,
         "hitches": len(big),
         "hitch_worst_ms": max(h["ms"] for h in big) if big else None,
         "fps_reports": len(fps),
@@ -142,6 +170,13 @@ def _fmt(v, digits=1):
     return str(v)
 
 
+def _archive(s, key):
+    """The whole run's archive figure (none: no archive in the log, or a
+    summary from before the archive)."""
+    a = s["all"].get("archive")
+    return a[key] if a and a["reports"] else None
+
+
 ROWS = [
     ("time to first scene (s)", lambda s: s["first_scene_s"]),
     ("MSL from earlier runs", lambda s: s["msl_from_earlier_runs"]),
@@ -156,6 +191,14 @@ ROWS = [
     ("PERF pipeline ms", lambda s: s["all"]["perf"]["pipeline_ms"]),
     ("PERF pipeline max ms", lambda s: s["all"]["perf"]["pipeline_max_ms"]),
     ("PERF built ahead used", lambda s: s["all"]["perf"]["built_ahead_used"]),
+    ("archive shards", lambda s: _archive(s, "shards")),
+    ("archive found", lambda s: _archive(s, "found")),
+    ("archive missed", lambda s: _archive(s, "missed")),
+    ("archive missed ms", lambda s: _archive(s, "missed_ms")),
+    ("archive added", lambda s: _archive(s, "added")),
+    ("archive to add", lambda s: _archive(s, "to_add")),
+    ("archive last save ms", lambda s: _archive(s, "last_save_ms")),
+    ("archive last save MB", lambda s: _archive(s, "last_save_mb")),
     ("hitches >= 50 ms (all)", lambda s: s["all"]["hitches"]),
     ("worst hitch ms (all)", lambda s: s["all"]["hitch_worst_ms"]),
     ("hitches >= 50 ms (scene)", lambda s: s["scene"]["hitches"]),

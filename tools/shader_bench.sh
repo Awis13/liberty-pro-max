@@ -6,10 +6,15 @@
 # fps, the time to the first scene). macOS only: the iPad is measured
 # otherwise, not by this script.
 #
-#   tools/shader_bench.sh cold|warm|both [options]
+#   tools/shader_bench.sh MODE[,MODE...]|both|all3 [options]
 #
-#   cold  the shader caches emptied first; warm  kept from the last run;
-#   both  cold, then warm.
+#   cold    the shader caches emptied first (macOS's and the runtime's);
+#   oscold  only macOS's Metal caches emptied: the runtime's (translated
+#           MSL, pipeline recipes, its pipeline archive) kept from the
+#           last run, so the run shows what those are worth on their own;
+#   warm    all kept from the last run;
+#   a list (e.g. cold,oscold,warm) runs them in that order; both is
+#   cold,warm and all3 cold,oscold,warm.
 #
 # The player's own caches are never touched. The game runs from a copy of
 # the app in the work folder whose bundle id is the original's plus
@@ -21,8 +26,8 @@
 # CFFIXED_USER_HOME (not HOME): the game gets the work folder's home/ as
 # that, so they are home/Library/Caches/x86recomp. Saves and settings are
 # in the work folder's data/ (XDG_DATA_HOME), kept between runs but for the
-# save, copied in every time. A cold run deletes those cache folders only,
-# and says which.
+# save, copied in every time. A cold run deletes those cache folders only
+# (an oscold run only the Metal ones), and says which.
 #
 # The run goes through the farm (a measurement: it waits its turn), hidden
 # and muted, vsync off. The variables it sets are listed in env.txt; any
@@ -46,8 +51,8 @@
 #   --who NAME          the farm's name for the job (shader-bench)
 #
 # Output: <out>/<date>-<mode>/ with game.log, summary.json, summary.txt,
-# env.txt and run.txt (for both: cold/ and warm/ each, and summary.txt with
-# the two side by side).
+# env.txt and run.txt (for several runs: a folder for each, named after
+# its mode, and summary.txt with them side by side in the order run).
 set -u
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
@@ -72,7 +77,19 @@ usage() { sed -n '2,/^set -u/p' "$0" | sed -e '/^set -u/d' -e 's/^# \{0,1\}//'; 
 [ "$(uname -s)" = Darwin ] || die "macOS only"
 [ $# -ge 1 ] || usage 1
 MODE=$1; shift
-case $MODE in cold|warm|both) ;; -h|--help) usage 0 ;; *) usage 1 ;; esac
+case $MODE in
+  -h|--help) usage 0 ;;
+  both) KINDS="cold warm" ;;
+  all3) KINDS="cold oscold warm" ;;
+  *)
+    KINDS=${MODE//,/ }
+    ;;
+esac
+read -r -a RUNS <<< "$KINDS"
+[ "${#RUNS[@]}" -ge 1 ] || usage 1
+for k in "${RUNS[@]}"; do
+  case $k in cold|oscold|warm) ;; *) usage 1 ;; esac
+done
 while [ $# -gt 0 ]; do
   [ $# -ge 2 ] || die "$1: no value"
   case $1 in
@@ -141,12 +158,17 @@ prepare_app() {
   echo "shader_bench: app copy $BENCH_APP ($BENCH_ID)"
 }
 
-empty_caches() {
-  bench_rm "$RECOMP_CACHE"
+# macOS's Metal caches of the bench's bundle id.
+empty_os_caches() {
   local d
   for d in com.apple.metal com.apple.metalfe com.apple.gpuarchiver; do
     bench_rm "$METAL_CACHE/$d"
   done
+}
+
+empty_caches() {
+  bench_rm "$RECOMP_CACHE"
+  empty_os_caches
 }
 
 prepare_save() {
@@ -205,17 +227,23 @@ LOCK=$WORK/.lock
 mkdir "$LOCK" 2> /dev/null || die "another bench uses $WORK (else remove $LOCK)"
 trap 'rmdir "$LOCK" 2> /dev/null' EXIT
 
-# $1 cold|warm, $2 the run's folder: summary.json and summary.txt.
+# $1 cold|oscold|warm, $2 the run's folder: summary.json and summary.txt.
 report() {
   python3 -I "$REPO/tools/shader_bench_report.py" "$2/game.log" --json "$2/summary.json" --label "$1" \
     | tee "$2/summary.txt"
 }
 
-# One run: $1 cold|warm, $2 its folder.
+# One run: $1 cold|oscold|warm, $2 its folder.
 run_one() {
   local kind=$1 dir=$2 log=$2/game.log t0 now scene_t=
   mkdir -p "$dir" "$HOME_DIR" || die "cannot make $dir"
-  [ "$kind" = cold ] && empty_caches
+  case $kind in
+    cold) empty_caches ;;
+    oscold)
+      [ -d "$RECOMP_CACHE" ] || echo "shader_bench: oscold: no runtime cache from an earlier run at $RECOMP_CACHE" >&2
+      empty_os_caches
+      ;;
+  esac
   prepare_save
   {
     echo "kind=$kind"
@@ -291,15 +319,20 @@ RUN=$OUT/$STAMP-$MODE
 mkdir -p "$RUN" || die "cannot make $RUN"
 echo "shader_bench: $RUN"
 prepare_app
-case $MODE in
-  cold|warm)
-    run_one "$MODE" "$RUN" || exit 1
-    ;;
-  both)
-    run_one cold "$RUN/cold" || exit 1
-    run_one warm "$RUN/warm" || exit 1
-    echo
-    python3 -I "$REPO/tools/shader_bench_report.py" --table "$RUN/cold/summary.json" "$RUN/warm/summary.json" \
-      | tee "$RUN/summary.txt"
-    ;;
-esac
+if [ "${#RUNS[@]}" -eq 1 ]; then
+  run_one "${RUNS[0]}" "$RUN" || exit 1
+else
+  # A folder per run, named after its mode (a mode listed again: its place
+  # in the list added, e.g. warm-3).
+  SUMMARIES=()
+  i=0
+  for k in "${RUNS[@]}"; do
+    i=$((i + 1))
+    dir=$RUN/$k
+    [ -e "$dir" ] && dir=$RUN/$k-$i
+    run_one "$k" "$dir" || exit 1
+    SUMMARIES+=("$dir/summary.json")
+  done
+  echo
+  python3 -I "$REPO/tools/shader_bench_report.py" --table "${SUMMARIES[@]}" | tee "$RUN/summary.txt"
+fi

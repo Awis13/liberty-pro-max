@@ -134,5 +134,58 @@ class SummaryTests(unittest.TestCase):
             self.assertEqual(buf.getvalue().splitlines()[0].count("cold"), 2)
 
 
+ARCHIVE = ("; pipeline archive: {shards} shards, {found} found, {missed} missed ({mms} ms), {added} added, "
+           "{pending} to add, last saved in {sms} ms ({mb} MB)")
+PERF_ARGS = dict(frames=100, shaders=1, sms="1.0", msl=0, pipes=2, pms="5.0", pmax="3.0", ahead=0)
+
+
+class ArchiveTests(unittest.TestCase):
+    """The runtime's pipeline archive, from the end of its PERF lines."""
+
+    LOG = "\n".join([
+        PERF.format(**PERF_ARGS) + ARCHIVE.format(shards=2, found=300, missed=4, mms="1.5", added=4, pending=3,
+                                                  sms="-1", mb="0.0"),
+        "warning: gtaiv: bench: player placed at -421.90,1494.00,18.90 heading 90.0",
+        PERF.format(**PERF_ARGS) + ARCHIVE.format(shards=2, found=20, missed=6, mms="2.25", added=9, pending=1,
+                                                  sms="812", mb="23.4"),
+        PERF.format(**PERF_ARGS) + ARCHIVE.format(shards=2, found=1, missed=0, mms="0.0", added=10, pending=0,
+                                                  sms="-1", mb="0.0"),
+    ])
+
+    def test_all_and_scene(self):
+        s = report.summarize(self.LOG, "oscold")
+        a = s["all"]["archive"]
+        self.assertEqual(a["reports"], 3)
+        self.assertEqual(a["shards"], 2)
+        self.assertEqual(a["found"], 321)
+        self.assertEqual(a["missed"], 10)
+        self.assertEqual(a["missed_ms"], 3.8)  # 3.75 rounded
+        self.assertEqual(a["added"], 10)  # in all: the last report's
+        self.assertEqual(a["to_add"], 0)
+        self.assertEqual(a["last_save_ms"], 812.0)  # -1: not saved since, the earlier one kept
+        self.assertEqual(a["last_save_mb"], 23.4)
+        sc = s["scene"]["archive"]
+        self.assertEqual((sc["reports"], sc["found"], sc["missed"]), (2, 21, 6))
+        self.assertEqual(s["all"]["perf"]["reports"], 3)  # the PERF counts still read
+
+    def test_no_save_yet_and_no_archive(self):
+        s = report.summarize(self.LOG.splitlines()[0])
+        self.assertIsNone(s["all"]["archive"]["last_save_ms"])
+        self.assertEqual(s["all"]["archive"]["to_add"], 3)
+        s = report.summarize(LOG)  # PERF lines without the archive (RECOMP_PIPELINE_ARCHIVE=0)
+        self.assertEqual(s["all"]["archive"]["reports"], 0)
+        self.assertIsNone(report._archive(s, "found"))
+
+    def test_table_rows(self):
+        with_archive = report.summarize(self.LOG, "oscold")
+        old = report.summarize(LOG, "cold")
+        del old["all"]["archive"]  # a summary.json from before the archive
+        rows = report.table([old, with_archive]).splitlines()
+        found = next(r for r in rows if r.startswith("archive found"))
+        self.assertEqual(found.split()[-2:], ["-", "321"])
+        save = next(r for r in rows if r.startswith("archive last save MB"))
+        self.assertTrue(save.endswith("23.4"))
+
+
 if __name__ == "__main__":
     unittest.main()

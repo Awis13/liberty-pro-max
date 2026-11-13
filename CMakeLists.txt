@@ -58,7 +58,8 @@ if(TARGET gtaiv_lifted)
   target_include_directories(gtaiv PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/generated")
   target_link_libraries(gtaiv PRIVATE recomp_runtime recomp_dsound recomp_bink
                         recomp_dinput8 recomp_xinput recomp_d3d9 recomp_xlive
-                        recomp_dbghelp recomp_wmvcore)
+                        recomp_dbghelp recomp_wmvcore
+                        recomp_gfx)  # gfx::ExactTargetScope, which src/fixes.cpp holds
   set_target_properties(gtaiv PROPERTIES ENABLE_EXPORTS ON)  # names in fault backtraces
   if(APPLE)
     # The system's preferred languages (main.cpp).

@@ -21,6 +21,7 @@
 #include <initializer_list>
 #include <string>
 
+#include "guest_string.h"
 #include "hook_util.h"
 #include "option.h"
 #include "runtime/lifted.h"
@@ -193,15 +194,7 @@ uint32_t DialledNumber(Ctx& c) {
   return globals + 4 * global + bytes;
 }
 
-std::string GuestString(uint32_t va, size_t max) {
-  std::string s;
-  for (size_t i = 0; i < max; ++i) {
-    const char ch = char(Rd8(va + uint32_t(i)));
-    if (!ch) break;
-    s += ch;
-  }
-  return s;
-}
+std::string GuestString(uint32_t va, size_t max) { return guest_string::Read(va, max, Rd8); }
 
 // Niko's component `comp` between drawables 0 and 1, with the game's help
 // text.

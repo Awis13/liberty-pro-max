@@ -621,6 +621,7 @@ hook 009AA8AA 009AA8B0   # water surface 256x256 (setting 1): the noise texture
 hook 009ADB46 009ADB4C   # the pass's texel
 hook 009AFC40 009AFC46   # the noise texture again
 hook 00A0DA85 00A0DA8B   # its two render targets
+replace 00423BA0 RenderTarget_Create   # those two at the size the game asks for, whatever RECOMP_RT_BOOST lists
 hook 00A8A6E0 00A8A6E6   # on-foot camera: no recentring 2 s after the mouse
 # The coronas' limit, 768 -> 49152 (src/coronas.cpp): new arrays, limits, index shift.
 hook 00A6F7B9 00A6F7BF

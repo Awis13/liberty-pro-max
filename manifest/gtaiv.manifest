@@ -140,6 +140,7 @@ replace 00922630         # physics job count: GTAIV_JOB_WORKERS (game: 3)
 
 # Saves (src/saves.cpp).
 replace 00857E90 Saves_SetError   # the save and load errors recorded here are also lines in the log
+hook 0061ED8D 0061ED92   # a save sealed by Games for Windows Live: the checksum comparison passed when its own sum is right (GTAIV_SAVE_LIVE_CHECKSUM)
 
 # Native versions of hot functions (src/native.cpp, tools/x86n.py).
 replace 00567940 Native_00567940

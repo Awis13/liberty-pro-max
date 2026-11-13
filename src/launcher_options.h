@@ -84,6 +84,7 @@ const Fix kFixes[] = {
     {@"HideCursorOnPad", "GTAIV_HIDE_CURSOR_ON_PAD", @"Menu cursor hidden while playing with a gamepad"},
     {@"ReticleHealth", "GTAIV_RETICLE_HEALTH", @"Target health on the reticle with the mouse"},
     {@"SaveHealthCap", "GTAIV_SAVE_HEALTH_CAP", @"Health from a save at most a full bar (trainer saves)"},
+    {@"SaveLiveChecksum", "GTAIV_SAVE_LIVE_CHECKSUM", @"Saves made with Games for Windows Live can be loaded (checked by their own sum)"},
     {@"SaveSync", "GTAIV_SAVE_SYNC", @"Saves synced with your iPad, iPhone and Apple TV at start and quit (Apple TV: needs Xcode)"},
     {@"RadarZoomDelay", "GTAIV_RADAR_ZOOM_DELAY", @"Radar stays zoomed out for 3 seconds"},
     {@"TrainLanes", "GTAIV_TRAIN_LANES", @"Cars do not swerve under trains"},

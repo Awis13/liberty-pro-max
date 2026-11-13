@@ -260,16 +260,20 @@ const ShaderChoice kShaderChoices[] = {
     {@"FFMotionBlur", "GTAIV_MOTION_BLUR", @"Motion blur:", @[ @"Off", @"1/8", @"1/4", @"1/2", @"Full" ], 2},
 };
 
-// The mods' folder (mods.cpp reads it from the port's data directory:
-// $XDG_DATA_HOME/gtaiv, else ~/Library/Application Support/gtaiv - the
-// runtime's DataDir).
-NSString* ModsFolder() {
+// The port's data directory: $XDG_DATA_HOME/gtaiv, else
+// ~/Library/Application Support/gtaiv - the runtime's DataDir.
+NSString* DataFolder() {
   NSString* root;
   if (const char* x = std::getenv("XDG_DATA_HOME"); x && *x)
     root = @(x);
   else
     root = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support"];
-  return [root stringByAppendingPathComponent:@"gtaiv/drive_c/mods"];
+  return [root stringByAppendingPathComponent:@"gtaiv"];
+}
+
+// The mods' folder (mods.cpp reads it from the port's data directory).
+NSString* ModsFolder() {
+  return [DataFolder() stringByAppendingPathComponent:@"drive_c/mods"];
 }
 
 // The defaults of every option (the player's choices override them).

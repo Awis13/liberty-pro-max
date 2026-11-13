@@ -180,6 +180,7 @@ const Fix kFixes[] = {
     {@"TurnIndicatorsManual", "GTAIV_TURN_INDICATORS_MANUAL", @"Turn indicators by hand: [ and ] or bumpers, both for hazards (needs Turn indicators)", false, true},
     {@"RouteIndicators", "GTAIV_TURN_INDICATORS_ROUTE", @"Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand)", false, true},
     {@"PadIcons", "GTAIV_PAD_ICONS", @"Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder)", false, true},
+    {@"PadFeedback", "GTAIV_PAD_FEEDBACK", @"DualSense: adaptive triggers when driving and with a gun in hand, light bar flashes red and blue while wanted", false, true},
     {@"PhoneCheats", "GTAIV_PHONE_CHEATS", @"Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100)", false, true},
     {@"PlayerFullDamage", "GTAIV_PLAYER_FULL_DAMAGE", @"Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5", false, true},
 };

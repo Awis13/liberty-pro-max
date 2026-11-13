@@ -40,7 +40,7 @@ For the iPad, the iPhone and the Apple TV, see [Install](#install).
 | **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048 (iPhone: half to all of its own screen), field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play** |
 | **Fixes built in** | about 100 fixes (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
-| **Extras** | the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, phone cheats, full damage | the same, in the settings screen's Extras section |
+| **Extras** | the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, DualSense triggers and light bar, phone cheats, full damage | the same, in the settings screen's Extras section |
 | **More options** | stun punch and executions on anyone, fast loading, continuing the last save, a mods folder, saves shared through iCloud Drive | the same |
 | **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
 
@@ -320,8 +320,9 @@ a frame limit (off, 30, 60 or 120 fps), anti-aliasing (TAA, SMAA, MetalFX)
 with the MetalFX resolution and sharpening, the performance overlay,
 skipping the logo screens, continuing the last save, the game's language,
 and mods (**Open Mods Folder**). **Extras**: this port's own additions, the episodes, turn
-indicators, pad icons, phone cheats and full damage, each off until you turn
-it on, and the episodes' radio songs kept to their own episode, on.
+indicators, pad icons, the DualSense's triggers and light bar, phone cheats
+and full damage, each off until you turn it on, and the episodes' radio songs
+kept to their own episode, on.
 **Advanced**: shadow and reflection resolution, field of view, fast loading,
 **Combat** (stun punch and executions on anyone), then every fix below, each
 a switch. Most fixes follow FusionFix's and ZolikaPatch's (by what they do;
@@ -341,11 +342,32 @@ the same names with a prefix: `XBONE_` (Xbox One and Series), `PS3_`, `PS4_`,
 used. The game's own `pc/textures/buttons_360.wtd` has only the Xbox 360 set,
 so without such a file the option changes nothing.
 
+**DualSense** (the PlayStation 5 pad; other pads are left alone): with the
+option on, the triggers and the light bar follow the game.
+
+| When | Left trigger | Right trigger | Light bar |
+|---|---|---|---|
+| Menus, the pause menu, cutscenes | free | free | the pad's own colour |
+| Driving (not helicopters) | brake: pushes back | accelerate: pushes back lightly; shakes for a moment on a gear change | the pad's own colour |
+| On foot with a gun in hand, not shooting | free | fire: pushes back from early in its travel, then gives way with a click, differently for pistols, submachine guns, rifles, shotguns, sniper rifles and heavy weapons | the pad's own colour |
+| Shooting (as the game counts shots, not the trigger) | free | vibrates low in its travel: submachine guns and rifles as long as they fire, at about their rate of fire; pistols, shotguns, sniper rifles and rocket launchers one short kick a shot (shotguns and sniper rifles the strongest); released, the click again | the pad's own colour |
+| On foot with fists, a melee or a thrown weapon | free | free | the pad's own colour |
+| Wanted, while playing | as above | as above | flashes red and blue, faster from three stars |
+
+The light bar is not touched until you are first wanted; when the stars are
+gone, in the pause menu and when the game quits it goes back to the pad's own
+colour and the triggers are freed. The game's own vibration (engine, crashes,
+gunfire) is the game's, as on any pad, with or without the option. The
+option is new and has not been tried on every setup yet: the code handles the
+pad by cable and by Bluetooth on the Mac, and through the system's controller
+support on the iPad and iPhone. The Apple TV has no settings screen, so it is
+off there. Not yet: gyro aiming.
+
 <details>
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-103 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
+104 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
 
 #### High frame rates
 
@@ -498,6 +520,7 @@ This port's own additions, on the launcher's Extras tab (a section of their own 
 | Turn indicators by hand: [ and ] or bumpers, both for hazards (needs Turn indicators) | off |
 | Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand) | off |
 | Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder) | off |
+| DualSense: adaptive triggers when driving and with a gun in hand, light bar flashes red and blue while wanted | off |
 | Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100) | off |
 | Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5 | off |
 

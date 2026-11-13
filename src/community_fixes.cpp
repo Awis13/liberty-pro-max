@@ -87,6 +87,7 @@
 #include "option.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
+#include "water_surface.h"
 
 namespace recomp::gen {
 
@@ -405,18 +406,31 @@ void hook_00901929(Ctx& c) {
   LoadSs(c.xmm[1], on ? 0.0125f : RdF32(0x00F41AA8));
 }
 
-// The water surface's render target grows with the water quality setting
-// ([010FC324], a shift), and the water's tiling with it; the consoles'
-// 256x256 (quality 1) always.
+// The water surface's render targets grow with the water quality setting
+// ([010FC324], a shift), and the water's tiling with them; the consoles'
+// 256x256 (setting 1) always. The setting is read for the pass's texel
+// and for the noise texture (mov ecx, [setting]), and the targets' side
+// is in esi where the surface's two are made. All of them the same size,
+// or the ripples drift across the water; every value comes from
+// water_surface.h, which the test checks.
 namespace {
-uint32_t WaterQuality() {
+constexpr uint32_t kWaterSetting = 0x010FC324;
+constexpr uint32_t kRenderTargetFactory = 0x018CAD4C;
+bool WaterTiling() {
   static const bool on = OptionOn("GTAIV_WATER_TILING", true);
-  return on ? 1 : Rd32(0x010FC324);
+  return on;
 }
 }  // namespace
-void hook_009AA8AA(Ctx& c) { c.ecx = WaterQuality(); }  // mov ecx, [quality]
-void hook_009ADB46(Ctx& c) { c.ecx = WaterQuality(); }
-void hook_009AFC40(Ctx& c) { c.ecx = WaterQuality(); }
+void hook_009AA8AA(Ctx& c) { c.ecx = water_surface::NoiseSetting(WaterTiling(), Rd32(kWaterSetting)); }
+void hook_009ADB46(Ctx& c) { c.ecx = water_surface::PassSetting(WaterTiling(), Rd32(kWaterSetting)); }
+void hook_009AFC40(Ctx& c) { c.ecx = water_surface::NoiseSetting(WaterTiling(), Rd32(kWaterSetting)); }
+// This replaces the 6-byte mov ecx, [018CAD4C] at 00A0DA85. esi may
+// change there because after the reflection's targets only the two water
+// surface targets read it before it is overwritten at 00A0DAF8.
+void hook_00A0DA85(Ctx& c) {
+  c.ecx = Rd32(kRenderTargetFactory);
+  c.esi = water_surface::TargetSide(WaterTiling(), c.esi);
+}
 
 // CCamFollowPed: how strongly the camera swings back behind the player
 // this frame (movss [esp+48], xmm0). With the mouse it pulls against the

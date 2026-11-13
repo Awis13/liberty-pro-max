@@ -9,9 +9,11 @@
 #include <unordered_map>
 
 #include "hook_util.h"
+#include "runtime/gfx/target_size.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
 #include "runtime/x87.h"
+#include "water_surface.h"
 
 namespace recomp::gen {
 
@@ -27,6 +29,7 @@ void f_00893870_lifted(Ctx& c);
 void f_00893920_lifted(Ctx& c);
 void f_00896310_lifted(Ctx& c);
 void f_00B564A0_lifted(Ctx& c);
+void f_00423BA0_lifted(Ctx& c);
 
 // The sweep of a pool of objects (cdecl, keep-all flag) that ends it at
 // shutdown (008CCA80) reads each object's model's streaming flags
@@ -450,6 +453,17 @@ void f_009AE2C0(Ctx& c) {
 void f_009AE360(Ctx& c) {
   ScaleArg(c, 0x10);
   f_009AE360_lifted(c);
+}
+
+// The game creates a render target's Direct3D texture or surface (esi:
+// the target). Not the game's bug but the port's to avoid: the runtime
+// makes render targets of some sizes larger (RECOMP_RT_BOOST, which the
+// launcher's high reflections and shadows set), and the water surface's
+// two must stay as the game asks for them, so those are created inside
+// the runtime's scope of exact targets. water_surface.h has why, where
+// the game creates them, and all that is decided; not an option.
+void f_00423BA0(Ctx& c) {
+  water_surface::CreateTargetOf<gfx::ExactTargetScope>(c.esi, Rd8, Rd32, [&c] { f_00423BA0_lifted(c); });
 }
 
 }  // namespace recomp::gen

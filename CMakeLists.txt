@@ -58,7 +58,8 @@ if(TARGET gtaiv_lifted)
   target_include_directories(gtaiv PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/generated")
   target_link_libraries(gtaiv PRIVATE recomp_runtime recomp_dsound recomp_bink
                         recomp_dinput8 recomp_xinput recomp_d3d9 recomp_xlive
-                        recomp_dbghelp recomp_wmvcore)
+                        recomp_dbghelp recomp_wmvcore
+                        recomp_gfx)  # gfx::ExactTargetScope, which src/fixes.cpp holds
   set_target_properties(gtaiv PROPERTIES ENABLE_EXPORTS ON)  # names in fault backtraces
   if(APPLE)
     # The system's preferred languages (main.cpp).
@@ -137,6 +138,9 @@ if(GTAIV_TESTS AND NOT RECOMP_IOS)
   add_executable(gtaiv_language_test tests/language_test.cpp)
   target_include_directories(gtaiv_language_test PRIVATE src)
   add_test(NAME language COMMAND gtaiv_language_test)
+  add_executable(gtaiv_water_surface_test tests/water_surface_test.cpp)
+  target_include_directories(gtaiv_water_surface_test PRIVATE src)
+  add_test(NAME water_surface COMMAND gtaiv_water_surface_test)
   # The tools' Python tests (tests/test_*.py), so that ctest runs them too.
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)

@@ -151,7 +151,6 @@ if(GTAIV_TESTS AND NOT RECOMP_IOS)
     target_compile_options(gtaiv_launcher_options_test PRIVATE -fobjc-arc)
     target_link_libraries(gtaiv_launcher_options_test PRIVATE "-framework Foundation")
     add_test(NAME launcher_options COMMAND gtaiv_launcher_options_test)
-
   endif()
 endif()
 

@@ -441,13 +441,11 @@ void RunIosLauncher(std::vector<std::string>* launcher_args) {
         [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
       }
     }
+    setenv("RECOMP_METAL_HUD", [d boolForKey:kHudKey] ? "1" : "0", 1);
     window.hidden = YES;
     window.rootViewController = nil;
 
     ApplyOptions(d);
-#if !TARGET_OS_TV
-    setenv("RECOMP_METAL_HUD", [d boolForKey:kHudKey] ? "1" : "0", 1);
-#endif
     // The Mac's vsync choice does not apply: here the flag only makes a
     // frame wait for the display's next refresh (there is no tearing to
     // turn on), also with the frame limit off.

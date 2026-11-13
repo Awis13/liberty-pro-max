@@ -36,6 +36,12 @@ if [ ! -d vendor/x86recomp/.git ]; then
   git clone --branch liberty https://github.com/Awis13/x86recomp vendor/x86recomp
 fi
 git -C vendor/x86recomp fetch --quiet origin liberty
+# A pinned runtime may be newer than the fetched branch (for example
+# while its companion runtime PR is under review). Fetch that exact
+# public commit when it is not present locally.
+if ! git -C vendor/x86recomp cat-file -e "$pin^{commit}" 2>/dev/null; then
+  git -C vendor/x86recomp fetch --quiet origin "$pin"
+fi
 git -C vendor/x86recomp checkout --quiet "$pin"
 
 say "Lifter and runtime (first build)"

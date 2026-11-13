@@ -314,6 +314,8 @@ before `install-ios.sh` to have them on the iPad, iPhone or Apple TV too.
 
 ## Fixes and options
 
+Apple TV now opens a remote-friendly launcher with Game, Graphics, Fixes and Extras tabs. Its existing settings persist between launches; the title and Play button stay fixed while tabs change. Compile Shaders is the last Game option. It prepares pipelines recorded by earlier runs, shows shader-function and pipeline progress separately, and supports cancellation with saved work retained. Play stays locked until compilation and archive writes finish. A ready cache disables the action; an empty cache asks you to play first. Previously unseen pipelines may still compile during gameplay. Performance overlay follows its saved setting even after the launcher has initialized Metal.
+
 The Mac's launcher has three tabs. **General**: the game folder, full screen
 or a window (on a display with a notch, also the whole screen), vertical sync,
 a frame limit (off, 30, 60 or 120 fps), anti-aliasing (TAA, SMAA, MetalFX)

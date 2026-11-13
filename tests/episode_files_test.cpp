@@ -1,5 +1,6 @@
 // episode_files (src/episode_files.h): whether an episode is installed in
-// its folder, from the files that are there.
+// its folder, from the files that are there, and what the launchers tell
+// the player of a folder the game will not take.
 
 #include "episode_files.h"
 
@@ -128,6 +129,47 @@ void TestWhatIsAsked() {
   EXPECT(asked == (std::vector<std::string>{"TBoGT\\setup2.xml", "TBoGT\\E2_List.txt"}));
 }
 
+bool Says(const std::string& note, const char* what) { return note.find(what) != std::string::npos; }
+
+// The episodes the launchers have something to say of: those with
+// setup2.xml and no list, each on its own. No folder, an installed one and
+// a folder with the list alone (not an episode's folder at all) are none.
+void TestMissingLists() {
+  using episode_files::MissingLists;
+  const uint32_t tlad = 1u << kTLAD, tbogt = 1u << kTBoGT;
+  EXPECT(MissingLists(Files{}) == 0);
+  EXPECT(MissingLists(Files{{"TLAD\\setup2.xml", "TLAD\\E1_List.txt", "TBoGT\\setup2.xml", "TBoGT\\E2_List.txt"}}) == 0);
+  EXPECT(MissingLists(Files{{"TLAD\\setup2.xml"}}) == tlad);
+  EXPECT(MissingLists(Files{{"TBoGT\\setup2.xml"}}) == tbogt);
+  EXPECT(MissingLists(Files{{"TLAD\\setup2.xml", "TBoGT\\setup2.xml"}}) == (tlad | tbogt));
+  EXPECT(MissingLists(Files{{"TLAD\\E1_List.txt", "TBoGT\\E2_List.txt"}}) == 0);
+  // One installed, the other without its list: the other alone.
+  EXPECT(MissingLists(Files{{"TLAD\\setup2.xml", "TLAD\\E1_List.txt", "TBoGT\\setup2.xml"}}) == tbogt);
+  EXPECT(MissingLists(Files{{"TLAD\\setup2.xml", "TBoGT\\setup2.xml", "TBoGT\\E2_List.txt"}}) == tlad);
+}
+
+// The note: nothing for no such episode; else each folder with the file it
+// lacks, and no other episode's file.
+void TestMissingListNote() {
+  using episode_files::MissingListNote;
+  const uint32_t tlad = 1u << kTLAD, tbogt = 1u << kTBoGT;
+  EXPECT(MissingListNote(0).empty());
+  const std::string one = MissingListNote(tlad);
+  EXPECT(Says(one, "The TLAD folder") && Says(one, "E1_List.txt") && !Says(one, "E2_List.txt"));
+  const std::string two = MissingListNote(tbogt);
+  EXPECT(Says(two, "The TBoGT folder") && Says(two, "E2_List.txt") && !Says(two, "E1_List.txt"));
+  const std::string both = MissingListNote(tlad | tbogt);
+  EXPECT(Says(both, "The TLAD folder") && Says(both, "E1_List.txt"));
+  EXPECT(Says(both, "the TBoGT folder") && Says(both, "E2_List.txt"));
+  // Each folder before its own file.
+  EXPECT(both.find("TLAD") < both.find("E1_List.txt") && both.find("E1_List.txt") < both.find("TBoGT"));
+  EXPECT(both.find("TBoGT") < both.find("E2_List.txt"));
+  // What to do, in each.
+  for (const std::string& note : {one, two, both}) EXPECT(Says(note, "Complete Edition"));
+  // Bits that are no episode's say nothing.
+  EXPECT(MissingListNote(1u | 8u).empty());
+}
+
 }  // namespace
 
 int main() {
@@ -140,6 +182,8 @@ int main() {
   TestTheOtherEpisodesFolder();
   TestNoEpisode();
   TestWhatIsAsked();
+  TestMissingLists();
+  TestMissingListNote();
   if (g_failures) return 1;
   std::puts("episode_files_test: ok");
   return 0;

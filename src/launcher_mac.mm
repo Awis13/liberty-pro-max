@@ -153,6 +153,8 @@ void StopPrewarm() {
 @property(strong) NSButton* overNotch;
 @property(strong) NSButton* mods;
 @property(strong) NSTextField* modsNote;
+@property(strong) NSTextField* episodesNote;
+@property(strong) NSGridRow* episodesNoteRow;
 @property(strong) NSTabView* tabs;
 @property(strong) NSPopUpButton* shadows;
 @property(strong) NSPopUpButton* reflections;
@@ -312,8 +314,11 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.executions.state = [d boolForKey:kExecutionsKey] ? NSControlStateValueOn : NSControlStateValueOff;
   NSTextField* meleeNote = [NSTextField
       wrappingLabelWithString:@"Moves the game keeps for a few missions: sneak up unarmed (or with a pistol), lock on, attack."];
-  for (NSTextField* n : @[ aaNote, self.modsNote, meleeNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
-  for (NSTextField* n : @[ shadowNote, reflNote, fovNote, loadNote, meleeNote ]) {
+  // Under the episodes' option, only for a game folder with an episode's
+  // folder the game will not take (showFolder).
+  self.episodesNote = [NSTextField wrappingLabelWithString:@""];
+  for (NSTextField* n : @[ aaNote, self.modsNote, meleeNote, self.episodesNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
+  for (NSTextField* n : @[ shadowNote, reflNote, fovNote, loadNote, meleeNote, self.episodesNote ]) {
     n.textColor = NSColor.secondaryLabelColor;
     n.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
   }
@@ -349,6 +354,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
       b.lineBreakMode = NSLineBreakByWordWrapping;
       [b.widthAnchor constraintLessThanOrEqualToConstant:kWindowWidth - 100].active = YES;
       [extraRows addObject:@[ b ]];
+      if ([f.key isEqualToString:@"Episodes"]) [extraRows addObject:@[ self.episodesNote ]];
     } else if (AdvancedFixShown(f)) {
       [rows addObject:@[ fixesLabelled ? NSGridCell.emptyContentView : [self label:@"Fixes:"], b ]];
       fixesLabelled = YES;
@@ -356,6 +362,12 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   }
   NSGridView* extras = [NSGridView gridViewWithViews:extraRows];
   extras.rowSpacing = 10;
+  // The note is indented under its checkbox.
+  NSGridCell* noteCell = [extras cellForView:self.episodesNote];
+  self.episodesNoteRow = noteCell.row;
+  noteCell.xPlacement = NSGridCellPlacementNone;
+  noteCell.customPlacementConstraints =
+      @[ [self.episodesNote.leadingAnchor constraintEqualToAnchor:extras.leadingAnchor constant:20] ];
   NSGridView* adv = [NSGridView gridViewWithViews:rows];
   adv.rowSpacing = 10;
   adv.columnSpacing = 10;
@@ -479,6 +491,9 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.problem.stringValue = ok ? @"" : @"Choose the folder of your Grand Theft Auto IV (PC) install: the one with GTAIV.exe.";
   self.problem.hidden = ok;
   self.play.enabled = ok;
+  NSString* note = EpisodesNote(self.folder);
+  self.episodesNote.stringValue = note ?: @"";
+  self.episodesNoteRow.hidden = note == nil;
 }
 
 - (void)choose:(id)sender {

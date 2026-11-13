@@ -207,6 +207,14 @@ IV's, in the same slots. With the episodes off their saves are kept, and
 starts a new IV game if you have none; turn the episodes on to continue an
 episode.
 
+The game shows an episode only if its folder has the episode's list of files,
+`TLAD/E1_List.txt` and `TBoGT/E2_List.txt`. The Complete Edition's folders have
+them (the game itself stays 1.0.8.0). With the `TLAD` and `TBoGT` folders of
+the standalone Episodes from Liberty City (Steam depot 12221) the game shows no
+episodes; those Steam gives with `download_depot 12210 12212` work. If a list
+is missing, the launcher says so by "The episodes" (Mac, iPad, iPhone), and so
+does the log; on the Apple TV, which has no settings screen, only the log does.
+
 With the episodes on and "Continue from the last save" on, the game goes on
 from your newest save, in the game it was made in (IV or an episode). With no
 save yet it opens on that screen. To play another game than your newest save's,

@@ -15,7 +15,8 @@
 //
 // So an episode is installed when its folder has both files. The port
 // tells apart the folder that has setup2.xml and no list, to say so in the
-// log (episodes.cpp).
+// log (episodes.cpp) and in the launchers, by their episodes' option
+// (MissingLists, MissingListNote; launcher_options.h).
 #pragma once
 
 #include <cstdint>
@@ -65,6 +66,34 @@ State Find(uint32_t episode, HasFile&& has_file) {
 template <class HasFile>
 bool Installed(uint32_t episode, HasFile&& has_file) {
   return Find(episode, has_file) == State::kInstalled;
+}
+
+// The episodes whose folder has setup2.xml and no list, a bit each (1 <<
+// episode): those the player put there and the game will not take.
+template <class HasFile>
+uint32_t MissingLists(HasFile&& has_file) {
+  uint32_t missing = 0;
+  for (uint32_t episode : {kTLAD, kTBoGT})
+    if (Find(episode, has_file) == State::kNoList) missing |= 1u << episode;
+  return missing;
+}
+
+// What the launchers tell the player for those episodes (MissingLists):
+// each folder and the file it lacks, and what to do. Empty for none.
+inline std::string MissingListNote(uint32_t missing) {
+  std::string note;
+  int count = 0;
+  for (uint32_t episode : {kTLAD, kTBoGT}) {
+    if (!(missing & 1u << episode)) continue;
+    note += count++ ? " and the " : "The ";
+    note += std::string(Folder(episode)) + " folder";
+    if (count == 1) note += " in your game folder";
+    note += std::string(" has no ") + ListName(episode) + " file";
+  }
+  if (!count) return note;
+  note += count == 1 ? ", so the game will not show that episode." : ", so the game will not show those episodes.";
+  note += " Use the TLAD and TBoGT folders of the Complete Edition.";
+  return note;
 }
 
 }  // namespace episode_files

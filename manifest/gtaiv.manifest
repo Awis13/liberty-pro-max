@@ -617,9 +617,10 @@ hook 00A38B65 00A38B6D   # environment reflections: 1.0, not 0.6
 hook 008FEAEC 008FEAF3   # cars spawn with dirt and reflections as on consoles
 hook 00B98343 00B98345
 hook 00901929 00901931   # mirror plane offset 0.0125
-hook 009AA8AA 009AA8B0   # water surface 256x256 (quality 1)
-hook 009ADB46 009ADB4C
-hook 009AFC40 009AFC46
+hook 009AA8AA 009AA8B0   # water surface 256x256 (setting 1): the noise texture
+hook 009ADB46 009ADB4C   # the pass's texel
+hook 009AFC40 009AFC46   # the noise texture again
+hook 00A0DA85 00A0DA8B   # its two render targets
 hook 00A8A6E0 00A8A6E6   # on-foot camera: no recentring 2 s after the mouse
 # The coronas' limit, 768 -> 49152 (src/coronas.cpp): new arrays, limits, index shift.
 hook 00A6F7B9 00A6F7BF

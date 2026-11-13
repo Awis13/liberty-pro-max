@@ -14,6 +14,9 @@
 #include <vector>
 
 #include "launcher_options.h"
+#if !TARGET_OS_TV
+#include "launcher_shader_preparation.h"
+#endif
 
 namespace {
 
@@ -73,8 +76,43 @@ bool g_play = false;
 }  // namespace
 
 #if !TARGET_OS_TV
+@interface LpmShaderProgress : UIViewController
+@property(strong) UILabel* status;
+@property(strong) UIProgressView* progress;
+@property(strong) UIButton* cancelButton;
+@property(copy) void (^cancelHandler)(void);
+@end
+@implementation LpmShaderProgress
+- (void)viewDidLoad {
+  [super viewDidLoad];
+  self.view.backgroundColor = UIColor.systemBackgroundColor;
+  UILabel* title = [UILabel new]; title.text = @"Compile Shaders";
+  title.font = [UIFont preferredFontForTextStyle:UIFontTextStyleTitle1];
+  self.status = [UILabel new]; self.status.text = @"Reading shader cache…";
+  self.status.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+  self.status.numberOfLines = 0; self.status.textAlignment = NSTextAlignmentCenter;
+  self.progress = [UIProgressView new]; self.progress.accessibilityLabel = @"Shader compilation progress";
+  self.cancelButton = [UIButton buttonWithType:UIButtonTypeSystem];
+  [self.cancelButton setTitle:@"Cancel" forState:UIControlStateNormal];
+  [self.cancelButton addTarget:self action:@selector(cancel:) forControlEvents:UIControlEventTouchUpInside];
+  UIStackView* stack = [[UIStackView alloc] initWithArrangedSubviews:@[title,self.status,self.progress,self.cancelButton]];
+  stack.axis = UILayoutConstraintAxisVertical; stack.spacing = 24; stack.alignment = UIStackViewAlignmentFill;
+  title.textAlignment = NSTextAlignmentCenter; stack.translatesAutoresizingMaskIntoConstraints = NO;
+  [self.view addSubview:stack];
+  [NSLayoutConstraint activateConstraints:@[
+    [stack.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.centerYAnchor],
+    [stack.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:32],
+    [stack.trailingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-32],
+    [self.cancelButton.heightAnchor constraintGreaterThanOrEqualToConstant:44],
+  ]];
+}
+- (void)cancel:(id)sender { if (self.cancelHandler) self.cancelHandler(); }
+@end
+
 @interface LpmLauncher : UIViewController <UITableViewDataSource, UITableViewDelegate>
 @property(strong) UITableView* table;
+@property(strong) LpmShaderPreparation* shaderPreparation;
+@property(strong) LpmShaderProgress* shaderProgress;
 @end
 
 @implementation LpmLauncher {
@@ -91,6 +129,10 @@ typedef NS_ENUM(NSInteger, LpmSection) { kGame, kExtrasSection, kGraphics, kFixe
 
 - (void)viewDidLoad {
   [super viewDidLoad];
+  self.shaderPreparation = [LpmShaderPreparation new];
+  __weak LpmLauncher* weak = self;
+  self.shaderPreparation.changed = ^{ [weak updateShaderPreparation]; };
+  [self.shaderPreparation refresh];
   self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
   self.view.backgroundColor = UIColor.blackColor;
 
@@ -145,6 +187,7 @@ typedef NS_ENUM(NSInteger, LpmSection) { kGame, kExtrasSection, kGraphics, kFixe
 }
 
 - (void)play:(id)sender {
+  if (self.shaderPreparation.running) return;
   [_d synchronize];
   g_play = true;
 }
@@ -200,7 +243,7 @@ static NSArray* GraphicsRows() {
 
 - (NSInteger)tableView:(UITableView*)t numberOfRowsInSection:(NSInteger)s {
   switch (s) {
-    case kGame: return GameRows().count;
+    case kGame: return GameRows().count + (!TARGET_OS_TV ? 1 : 0);
     case kExtrasSection: return ExtraCount();
     case kGraphics: return GraphicsRows().count;
     case kFixesSection: return ShownFixCount();
@@ -214,6 +257,17 @@ static NSInteger AaSegment(NSInteger v) { return v == 1 ? 1 : v == 3 ? 2 : 0; }
 static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0; }
 
 - (UITableViewCell*)tableView:(UITableView*)t cellForRowAtIndexPath:(NSIndexPath*)ip {
+  if (ip.section == kGame && ip.row == NSInteger(GameRows().count)) {
+    UITableViewCell* cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
+    cell.textLabel.text = @"Compile Shaders";
+    cell.detailTextLabel.text = self.shaderPreparation.note;
+    cell.detailTextLabel.numberOfLines = 0;
+    cell.textLabel.textColor = self.shaderPreparation.canCompile ? UIColor.labelColor : UIColor.secondaryLabelColor;
+    cell.selectionStyle = self.shaderPreparation.canCompile ? UITableViewCellSelectionStyleDefault : UITableViewCellSelectionStyleNone;
+    cell.accessibilityIdentifier = @"CompileShaders";
+    cell.accessibilityTraits = UIAccessibilityTraitButton | (self.shaderPreparation.canCompile ? 0 : UIAccessibilityTraitNotEnabled);
+    return cell;
+  }
   UITableViewCell* cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
   cell.selectionStyle = UITableViewCellSelectionStyleNone;
   cell.backgroundColor = [UIColor colorWithWhite:0.11 alpha:1];
@@ -281,9 +335,40 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
     [_d setInteger:seg.selectedSegmentIndex forKey:key];
 }
 
+- (void)updateShaderPreparation {
+  NSIndexPath* ip = [NSIndexPath indexPathForRow:GameRows().count inSection:kGame];
+  if (self.table && (!self.shaderProgress || !self.shaderPreparation.running))
+    [self.table reloadRowsAtIndexPaths:@[ip] withRowAnimation:UITableViewRowAnimationNone];
+  if (!self.shaderProgress) return;
+  if (!self.shaderPreparation.running) {
+    [self dismissViewControllerAnimated:YES completion:nil]; self.shaderProgress = nil;
+    return;
+  }
+  const auto status = self.shaderPreparation.status;
+  using Phase = recomp::gfx::PrewarmStatus::Phase;
+  NSString* detail = status.phase == Phase::Shaders
+      ? [NSString stringWithFormat:@"Preparing shader functions: %zu / %zu",status.functions_done,status.functions_total]
+      : status.phase == Phase::Saving ? @"Saving compiled pipelines…" : @"Compiling remaining pipelines…";
+  self.shaderProgress.status.text = self.shaderPreparation.cancelling ? self.shaderPreparation.note
+      : [NSString stringWithFormat:@"Pipelines prepared: %zu / %zu\n%@",status.pipelines_ready,status.pipelines_total,detail];
+  self.shaderProgress.progress.progress = status.pipelines_total ? float(status.pipelines_ready) / status.pipelines_total : 0;
+  self.shaderProgress.cancelButton.enabled = !self.shaderPreparation.cancelling;
+}
+- (void)tableView:(UITableView*)table didSelectRowAtIndexPath:(NSIndexPath*)ip {
+  [table deselectRowAtIndexPath:ip animated:YES];
+  if (ip.section != kGame || ip.row != NSInteger(GameRows().count) || !self.shaderPreparation.canCompile) return;
+  self.shaderProgress = [LpmShaderProgress new];
+  self.shaderProgress.modalPresentationStyle = UIModalPresentationFullScreen;
+  self.shaderProgress.modalInPresentation = YES;
+  __weak LpmLauncher* weak = self;
+  self.shaderProgress.cancelHandler = ^{ [weak.shaderPreparation cancel]; };
+  [self presentViewController:self.shaderProgress animated:YES completion:^{ [weak.shaderPreparation start]; }];
+}
+
 @end
 
-#endif  // !TARGET_OS_TV
+
+#endif
 
 // main.cpp: whether this is an iPhone, and then its resolutions as a
 // display mode list ("WxH,WxH,...").
@@ -304,6 +389,9 @@ bool IosPhoneDisplay(std::string* modes) {
 void RunIosLauncher(std::vector<std::string>* launcher_args) {
   @autoreleasepool {
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
+#if !TARGET_OS_TV
+    setenv("MTL_HUD_ENABLED","1",1);  // load support before cache inspection; game layer follows the setting
+#endif
     RegisterDefaults(d);
 #if TARGET_OS_TV
     // Apple TV: no settings screen yet; its own defaults (1920x1080, SMAA,
@@ -357,6 +445,9 @@ void RunIosLauncher(std::vector<std::string>* launcher_args) {
     window.rootViewController = nil;
 
     ApplyOptions(d);
+#if !TARGET_OS_TV
+    setenv("RECOMP_METAL_HUD", [d boolForKey:kHudKey] ? "1" : "0", 1);
+#endif
     // The Mac's vsync choice does not apply: here the flag only makes a
     // frame wait for the display's next refresh (there is no tearing to
     // turn on), also with the frame limit off.

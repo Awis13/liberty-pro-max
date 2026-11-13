@@ -314,6 +314,8 @@ before `install-ios.sh` to have them on the iPad, iPhone or Apple TV too.
 
 ## Fixes and options
 
+On iPhone and iPad, Compile Shaders is the last Game option. It prepares missing recorded pipelines with a full-screen progress dialog and Cancel, and locks the launcher until compilation and archive writes finish. Progress separates shader-function work from a fixed pipeline total, completed work survives cancellation, and a ready cache disables the row. An empty cache asks you to play first. Performance overlay continues to follow its setting after cache inspection initializes Metal.
+
 The Mac's launcher has three tabs. **General**: the game folder, full screen
 or a window (on a display with a notch, also the whole screen), vertical sync,
 a frame limit (off, 30, 60 or 120 fps), anti-aliasing (TAA, SMAA, MetalFX)

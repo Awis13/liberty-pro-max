@@ -226,6 +226,15 @@ void TestEpisodesNote() {
 
 int main() {
   @autoreleasepool {
+    NSUserDefaults* hud = [[NSUserDefaults alloc] initWithSuiteName:@"launcher_options_test.hud"];
+    [hud setVolatileDomain:@{kHudKey:@NO} forName:NSArgumentDomain];
+    setenv("MTL_HUD_ENABLED", "1", 1);
+    ApplyLauncherHud(hud);
+    EXPECT(std::getenv("MTL_HUD_ENABLED") == nullptr);
+    [hud setVolatileDomain:@{kHudKey:@YES} forName:NSArgumentDomain];
+    ApplyLauncherHud(hud);
+    EXPECT(std::getenv("MTL_HUD_ENABLED") && std::string(std::getenv("MTL_HUD_ENABLED")) == "1");
+    [hud removeVolatileDomainForName:NSArgumentDomain];
     TestExtras();
     TestListsApart();
     TestDefaults();

@@ -336,6 +336,13 @@ inline NSDictionary* TvDefaults() {
   return @{kAntiAliasingKey : @1, kHudKey : @NO, @"FixDrawDistance" : @YES, @"Episodes" : @YES};
 }
 
+// Apply before cache inspection can create the first Metal device. Opt in
+// only when requested; turning the option off removes our environment flag.
+inline void ApplyLauncherHud(NSUserDefaults* d) {
+  if ([d boolForKey:kHudKey]) setenv("MTL_HUD_ENABLED", "1", 1);
+  else unsetenv("MTL_HUD_ENABLED");
+}
+
 // The options as the game reads them: environment variables of this process.
 void ApplyOptions(NSUserDefaults* d) {
   setenv("GTAIV_FULLSCREEN", [d boolForKey:kWindowKey] ? "window" : "desktop", 1);
@@ -371,7 +378,7 @@ void ApplyOptions(NSUserDefaults* d) {
     setenv("RECOMP_OUTPUT_CURVE", curve, 1);
   else
     unsetenv("RECOMP_OUTPUT_CURVE");
-  setenv("MTL_HUD_ENABLED", [d boolForKey:kHudKey] ? "1" : "0", 1);
+  ApplyLauncherHud(d);
   setenv("GTAIV_SKIP_INTRO", [d boolForKey:kSkipIntroKey] ? "1" : "0", 1);
   // Render targets made larger (RECOMP_RT_BOOST): the shadow maps (the
   // cascades' atlas 8192x2048, 2048 and 1024 maps), the reflections (512

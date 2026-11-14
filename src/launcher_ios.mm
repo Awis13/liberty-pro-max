@@ -394,9 +394,6 @@ bool IosPhoneDisplay(std::string* modes) {
 void RunIosLauncher(std::vector<std::string>* launcher_args) {
   @autoreleasepool {
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
-#if !TARGET_OS_TV
-    setenv("MTL_HUD_ENABLED","1",1);  // load support before cache inspection; game layer follows the setting
-#endif
     RegisterDefaults(d);
 #if TARGET_OS_TV
     // Apple TV: no settings screen yet; its own defaults (1920x1080, SMAA,
@@ -422,6 +419,7 @@ void RunIosLauncher(std::vector<std::string>* launcher_args) {
       [d setBool:YES forKey:@"FixDrawDistance"];
       [d setBool:YES forKey:@"IosDefaultsV2"];
     }
+    ApplyLauncherHud(d);
 
     // The app's window scene (SDL's UIKit startup may connect it a moment
     // after calling main); a window outside a scene is never shown.

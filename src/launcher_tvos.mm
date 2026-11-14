@@ -41,7 +41,7 @@ bool g_play = false;
 
 NSString* GraphicsHint() {
   return @"Lower resolutions keep 60 fps steadier in busy streets. SMAA smooths edges cheaply; TAA also "
-         @"steadies wires, fences and leaves.";
+         @"steadies wires, fences and leaves. Relaunch the app after changing Performance overlay.";
 }
 
 }  // namespace

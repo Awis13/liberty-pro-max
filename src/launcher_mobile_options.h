@@ -80,6 +80,7 @@ inline int MobileFrameLimit(NSInteger choice, int refresh) {
 }
 inline void ApplyMobileOptions(NSUserDefaults* d, bool tv, int refresh) {
   ApplyOptions(d);
+  ApplyLauncherHud(d);
   // The TV launcher already used Metal to inspect/prewarm the cache.
   // The game layer therefore applies this explicit setting as well as
   // the launch-time MTL_HUD_ENABLED environment variable.

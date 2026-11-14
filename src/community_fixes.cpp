@@ -76,7 +76,10 @@
 //     back behind the car faster (a camera turn speed of 3), but
 //     not while the mouse moves it;
 //   GTAIV_MOUSE_CAMERA_DELAY: on foot the camera does not swing back behind
-//     Niko for 2 s after the mouse moved it.
+//     Niko for 2 s after the mouse moved it;
+//   GTAIV_ALLOW_CONVERTED_SAVES: allows loading saves made with other
+//     versions of GTA IV, converted using GTASnP, or downgraded (bypasses
+//     CRC32, block size, and bytes read checks; ZolikaPatch parity).
 
 #include <cmath>
 #include <cstdint>
@@ -695,6 +698,38 @@ void hook_00A81108(Ctx& c) {  // divss xmm0, xmm2; movss [esp+BC], xmm0
   const float v = CarCameraReturn(c, Lane0(c.xmm[0]), Lane0(c.xmm[2]));
   SetLane0(c.xmm[0], v);
   WrF32(c.esp + 0xBC, v);
+}
+
+// Savegame loading checks: allow loading converted, downgraded, or transferred
+// saves without CRC32 mismatch or size header mismatch (ZolikaPatch parity).
+// 0061EDB3: cmp [eax], bl; jne: savegame block CRC32 check
+void hook_0061EDB3(Ctx& c) {
+  static const bool on = OptionOn("GTAIV_ALLOW_CONVERTED_SAVES", true);
+  if (on) {
+    CmpFlags<1>(c, 0, 0);
+  } else {
+    CmpFlags<1>(c, c.ebx & 0xFF, Rd8(c.eax));
+  }
+}
+
+// 0085B189: cmp al, bl; jne: save file size check against header block size
+void hook_0085B189(Ctx& c) {
+  static const bool on = OptionOn("GTAIV_ALLOW_CONVERTED_SAVES", true);
+  if (on) {
+    CmpFlags<1>(c, 1, 0);
+  } else {
+    CmpFlags<1>(c, c.eax & 0xFF, c.ebx & 0xFF);
+  }
+}
+
+// 0085B450: cmp edx, [eax+4]; jne: total bytes read check against file size
+void hook_0085B450(Ctx& c) {
+  static const bool on = OptionOn("GTAIV_ALLOW_CONVERTED_SAVES", true);
+  if (on) {
+    CmpFlags<4>(c, 0, 0);
+  } else {
+    CmpFlags<4>(c, c.edx, Rd32(c.eax + 4));
+  }
 }
 
 }  // namespace recomp::gen

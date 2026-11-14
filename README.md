@@ -403,7 +403,7 @@ off there. Not yet: gyro aiming.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-106 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
+107 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
 
 #### High frame rates
 
@@ -507,6 +507,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 | Weapon recoil with the mouse as with a gamepad | on |
 | Health from a save at most a full bar (trainer saves) | on |
 | Saves made with Games for Windows Live can be loaded (checked by their own sum) | on |
+| Allow loading converted, downgraded, and transferred saves | on |
 | Saving from the phone works in vehicles | on |
 | Radio keeps playing after cutscenes | on |
 | Cars do not swerve under trains | on |

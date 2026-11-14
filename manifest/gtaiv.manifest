@@ -569,6 +569,9 @@ hook 007D44F9 007D44FC   # date: not back a day after death/arrest/respray
 hook 0040F152 0040F159   # -nomemrestrict as if given
 hook 007CBB52 007CBB5A   # CTimer: time step floor 1 ms
 hook 008F0071 008F0078   # helicopters: 770 m ceiling (option, off)
+hook 0061EDB3 0061EDB5   # savegame: bypass CRC32 check (GTAIV_ALLOW_CONVERTED_SAVES)
+hook 0085B189 0085B18B   # savegame: bypass file size check against header
+hook 0085B450 0085B453   # savegame: bypass total bytes read check
 # The community's high frame rate fixes (src/high_fps_fixes.cpp).
 hook 009252C4 009252C9   # CPhysics::Update: pre-simulation step >= 1/150 s
 hook 009252FC 00925301   # CPhysics::Update: post-simulation step >= 1/150 s

@@ -115,8 +115,8 @@ texture quality too, can be chosen without a `commandline.txt`: the
 launcher gives the game `-norestrictions -availablevidmem 2047` itself. A
 `commandline.txt` in the game folder is still read, on every device, after
 those two, so its own values win (another `-availablevidmem`, say); only
-the resolution chosen in the iPad and iPhone launcher, and the Apple TV's
-fixed 1920x1080, win over its `-width` and `-height`. Only the game
+the resolution chosen in the iPad, iPhone or Apple TV launcher wins over
+its `-width` and `-height`. Only the game
 folder's own `commandline.txt` is read, not one inside a mod or the
 `update` folder. Files it takes in with `@name` are read from the game
 folder too; the installer copies only `commandline.txt` itself to the iPad,
@@ -168,14 +168,21 @@ After the Mac install, with the Apple TV paired:
 ./install-ios.sh --tv YOUR_TEAM_ID
 ```
 
-The same steps as for the iPad, built for tvOS. The app has no settings
-screen: it starts the game at 1920×1080 with SMAA at 60 fps. The A15 cannot
-sample the game's DXT textures, so they are decoded on upload and take
-several times their size: keep the game's texture quality at its default,
+The same steps as for the iPad, built for tvOS. Before gameplay, a native
+launcher offers Game, Graphics, Fixes and Extras tabs, with a shared Play
+button. Defaults remain 1920×1080 with SMAA and no software frame limit;
+Graphics also offers 1280×720 and 1600×900. The episodes are on by default
+and can be changed in Extras. Their folders are copied with the game's.
+The A15 cannot sample the game's DXT textures, so they are decoded on upload
+and take several times their size: keep texture quality at its default,
 or the Apple TV's 2.1 GB per app runs out. The log is `log.txt` in the
-app's Library/Caches (`devicectl`). The episodes are on there (with no
-settings screen, nothing could turn them on), and their folders are copied
-with the game's.
+app's Library/Caches (`devicectl`).
+
+If a copy is interrupted, run the uploader again with the same state file
+to resume it. Play warns when the transfer marker is not ready. After the
+transfer has stopped, **Try Existing Files** can start an existing install
+without removing the marker; incomplete game files may still fail to load.
+The recovery action is unavailable when `GTAIV.exe` is missing or empty.
 
 The app's icon is made on your Mac from the logo in your own game files,
 as on the iPad.
@@ -184,7 +191,7 @@ as on the iPad.
 
 ### Compiling shaders on iPhone and iPad
 
-On iPhone and iPad, Compile Shaders is the last Game option. It prepares missing recorded pipelines with a full-screen progress dialog and Cancel, and locks the launcher until compilation and archive writes finish. Progress separates shader-function work from a fixed pipeline total, completed work survives cancellation, and a ready cache disables the row. An empty cache asks you to play first. Performance overlay continues to follow its setting after cache inspection initializes Metal.
+On iPhone and iPad, Compile Shaders is the last Game option. It prepares missing recorded pipelines with a full-screen progress dialog and Cancel, and locks the launcher until compilation and archive writes finish. Progress separates shader-function work from a fixed pipeline total, completed work survives cancellation, and a ready cache disables the row. An empty cache asks you to play first. Metal HUD support is enabled only when Performance overlay is on; enabling it after cache inspection may require relaunching the app.
 
 ### Saves on every device
 
@@ -229,8 +236,8 @@ and the reason: another version's save, or a damaged one.
 ### The episodes
 
 The episodes are off until you turn them on: "The episodes" on the launcher's
-**Extras** tab (in its Extras section on the iPad and iPhone; the Apple TV, with
-no settings screen yet, has them on). Then, if your game folder has the `TLAD`
+**Extras** tab (in its Extras section on the iPad and iPhone). The Apple TV
+has them on by default and offers the same switch in Extras. Then, if your game folder has the `TLAD`
 and `TBoGT` folders, The Lost and Damned and The Ballad of Gay Tony work: the
 game opens with its own screen to choose what to play. Their saves sit with
 IV's, in the same slots. With the episodes off their saves are kept, and
@@ -244,7 +251,7 @@ them (the game itself stays 1.0.8.0). With the `TLAD` and `TBoGT` folders of
 the standalone Episodes from Liberty City (Steam depot 12221) the game shows no
 episodes; those Steam gives with `download_depot 12210 12212` work. If a list
 is missing, the launcher says so by "The episodes" (Mac, iPad, iPhone), and so
-does the log; on the Apple TV, which has no settings screen, only the log does.
+does the log; on the Apple TV, missing episode lists are reported in the log.
 
 With the episodes on and "Continue from the last save" on, the game goes on
 from your newest save, in the game it was made in (IV or an episode). With no
@@ -275,8 +282,8 @@ The game speaks the language your Mac, iPad, iPhone or Apple TV is set to
 Spanish or Russian. Any other language gives the game in English, as before.
 To keep the game in English on a system in another language, choose
 **Language: English** on the launcher's General tab (on the iPad and iPhone,
-turn off "Game in the device's language"); the Apple TV, with no settings
-screen yet, always follows the system. The game's own Language option, in its
+turn off "Game in the device's language"). On Apple TV, the same switch
+is in the Game tab. The game's own Language option, in its
 menus, is kept in its settings (`SETTINGS.CFG`): a language chosen there wins
 over the system's and the launcher's from then on, until you choose the
 system's language there again (or the game starts with the system set to the
@@ -353,7 +360,7 @@ before `install-ios.sh` to have them on the iPad, iPhone or Apple TV too.
 
 ## Fixes and options
 
-Apple TV now opens a remote-friendly launcher with Game, Graphics, Fixes and Extras tabs. Its existing settings persist between launches; the title and Play button stay fixed while tabs change. Compile Shaders is the last Game option. It prepares pipelines recorded by earlier runs, shows shader-function and pipeline progress separately, and supports cancellation with saved work retained. Play stays locked until compilation and archive writes finish. A ready cache disables the action; an empty cache asks you to play first. Previously unseen pipelines may still compile during gameplay. Performance overlay follows its saved setting even after the launcher has initialized Metal.
+Apple TV now opens a remote-friendly launcher with Game, Graphics, Fixes and Extras tabs. Its existing settings persist between launches; the title and Play button stay fixed while tabs change. Compile Shaders is the last Game option. It prepares pipelines recorded by earlier runs, shows shader-function and pipeline progress separately, and supports cancellation with saved work retained. Play stays locked until compilation and archive writes finish. A ready cache disables the action; an empty cache asks you to play first. Previously unseen pipelines may still compile during gameplay. Metal HUD support is enabled only when Performance overlay is on; enabling it after cache inspection may require relaunching the app.
 
 The Mac's launcher has three tabs. **General**: the game folder, full screen
 or a window (on a display with a notch, also the whole screen), vertical sync,
@@ -403,14 +410,14 @@ colour and the triggers are freed. The game's own vibration (engine, crashes,
 gunfire) is the game's, as on any pad, with or without the option. The
 option is new and has not been tried on every setup yet: the code handles the
 pad by cable and by Bluetooth on the Mac, and through the system's controller
-support on the iPad and iPhone. The Apple TV has no settings screen, so it is
-off there. Not yet: gyro aiming.
+support on the iPad and iPhone. On Apple TV, it can be enabled in Extras
+for supported controllers. Not yet: gyro aiming.
 
 <details>
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-106 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
+106 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen, and Apple TV has Fixes and Extras tabs). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
 
 #### High frame rates
 
@@ -555,7 +562,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 
 #### Extras
 
-This port's own additions, on the launcher's Extras tab (a section of their own on the iPad and iPhone). The Apple TV, with no settings screen, has the episodes on.
+This port's own additions, on the launcher's Extras tab (a section of their own on the iPad and iPhone). The Apple TV enables the episodes by default; its Extras tab can change this.
 
 | Option | Default |
 |---|---|
@@ -588,8 +595,8 @@ keyboard lighting, graphics API choice and plugin loaders have nothing to do.
 - iPad: busy streets need the game's view and detail distances lowered for a steady 60 fps.
 - iPhone: best with a controller or a keyboard (the touch controls are the
   iPad's, small on a phone); which models have enough memory is not known yet.
-- Apple TV: no settings screen yet; high texture quality does not
-  fit its memory (DXT decoded on upload).
+- Apple TV: high texture quality does not fit its memory (DXT decoded
+  on upload). The launcher offers tested resolutions up to 1920×1080.
 - MetalFX temporal upscaling costs about 5 ms a frame at 3440×1440 output,
   more than it saves in this game; TAA at native resolution is the default.
 - A few seconds of stutter right after loading, while the city streams in.

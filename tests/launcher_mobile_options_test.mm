@@ -22,6 +22,8 @@ int main() {
     check(language,"TV shares language selector");
     check(kTvResolutions[2].w == 1920 && kTvResolutions[2].h == 1080,"TV index maps to 1080p");
     for (const auto& r : kTvResolutions) check(r.w * 9 == r.h * 16,"TV modes are 16:9");
+    check(kTvResolutions.size() == 3,"TV offers only the three supported modes");
+    for (const auto& r : kTvResolutions) check(r.w <= 1920 && r.h <= 1080,"untested 4K mode is not offered");
     for (NSInteger i = 0; i < MobileFixCount(true); i++)
       check(![MobileFix(i,true).key isEqual:@"SaveSync"],"no unsupported iCloud save sync on TV");
     [d setInteger:1 forKey:kTvResolutionKey];
@@ -37,6 +39,7 @@ int main() {
           "TV HUD selection reaches the layer even after Metal initialized in the launcher");
     [d setBool:NO forKey:kHudKey];
     ApplyMobileOptions(d,true,60);
+    check(getenv("MTL_HUD_ENABLED") == nullptr,"HUD Off leaves Metal opt-in unset");
     check(getenv("RECOMP_METAL_HUD") && std::strcmp(getenv("RECOMP_METAL_HUD"),"0") == 0,
           "TV HUD Off explicitly disables the layer overlay");
     check(std::strcmp(getenv("GTAIV_SYSTEM_LANGUAGE"),"1") == 0,"system language setting reaches runtime");
@@ -75,8 +78,15 @@ int main() {
     [NSFileManager.defaultManager createDirectoryAtPath:install withIntermediateDirectories:YES attributes:nil error:nil];
     NSString* status = [install stringByAppendingPathComponent:@".gtaiv-transfer-status"];
     check(!MobileTransferInProgress(install),"existing manual installs need no transfer marker");
+    check(!MobileTransferRecoveryAvailable(install),"cannot recover without an executable");
     [@"copying\n" writeToFile:status atomically:YES encoding:NSUTF8StringEncoding error:nil];
     check(MobileTransferInProgress(install),"partial transfer blocks Play");
+    NSString* exe = [install stringByAppendingPathComponent:@"GTAIV.exe"];
+    [@"" writeToFile:exe atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    check(!MobileTransferRecoveryAvailable(install),"empty executable cannot be used for recovery");
+    [@"existing game executable" writeToFile:exe atomically:YES encoding:NSUTF8StringEncoding error:nil];
+    check(MobileTransferRecoveryAvailable(install),"interrupted transfer can explicitly try existing files");
+    check(MobileTransferInProgress(install),"recovery inspection keeps the uploader marker for resuming");
     [@"" writeToFile:status atomically:YES encoding:NSUTF8StringEncoding error:nil];
     check(MobileTransferInProgress(install),"truncated marker blocks Play");
     [@"ready\n" writeToFile:status atomically:YES encoding:NSUTF8StringEncoding error:nil];

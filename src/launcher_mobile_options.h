@@ -10,7 +10,7 @@ NSString* const kIosFrameLimitKey = @"IosFrameLimit";
 NSString* const kTvResolutionKey = @"TvResolution";
 NSString* const kTvFrameLimitKey = @"TvFrameLimit";
 struct TvResolution { int w, h; };
-constexpr std::array<TvResolution,4> kTvResolutions = {{{1280,720},{1600,900},{1920,1080},{3840,2160}}};
+constexpr std::array<TvResolution,3> kTvResolutions = {{{1280,720},{1600,900},{1920,1080}}};
 inline NSString* MobileResolutionKey(bool tv) { return tv ? kTvResolutionKey : kIosResolutionKey; }
 inline NSString* MobileFrameLimitKey(bool tv) { return tv ? kTvFrameLimitKey : kIosFrameLimitKey; }
 // ios_push_game marks an interrupted or ongoing copy; installations made
@@ -21,6 +21,14 @@ inline bool MobileTransferInProgress(NSString* gameRoot) {
   NSString* status = [NSString stringWithContentsOfFile:path encoding:NSUTF8StringEncoding error:nil];
   return ![[status stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]
       isEqualToString:@"ready"];
+}
+// Only offer the explicit recovery action when there is an executable to
+// try. This does not claim the remaining payload is complete or remove the
+// marker: a resumed uploader still owns its copying/ready transition.
+inline bool MobileTransferRecoveryAvailable(NSString* gameRoot) {
+  NSString* path = [gameRoot stringByAppendingPathComponent:@"GTAIV.exe"];
+  NSDictionary* attributes = [NSFileManager.defaultManager attributesOfItemAtPath:path error:nil];
+  return [attributes[NSFileType] isEqual:NSFileTypeRegular] && [attributes[NSFileSize] unsignedLongLongValue] > 0;
 }
 inline NSArray* MobileGameRows(bool tv) {
   NSMutableArray* rows = [NSMutableArray array];
@@ -36,6 +44,7 @@ inline NSArray* MobileGraphicsRows(bool tv, NSArray* resolutions) {
     @[@"Resolution",MobileResolutionKey(tv),resolutions],
     @[@"Anti-aliasing",kAntiAliasingKey,@[@"Off",@"SMAA",@"TAA"]],
     @[@"Sharpening",kTaaSharpeningKey,@[@"Off",@"Low",@"Medium",@"High"]],
+    @[@"Console gamma",kConsoleGammaKey,@[@"Off",@"Xbox 360",@"PS3"]],
     @[@"Frame limit",MobileFrameLimitKey(tv),@[@"60",@"40",@"30",@"Off"]],
     @[@"Shadows",kShadowsKey,@[@"Game's",@"High"]],
     @[@"Reflections",kReflectionsKey,@[@"Game's",@"High"]],

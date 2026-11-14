@@ -10,16 +10,13 @@
 
 #include <algorithm>
 #include <array>
-#include <atomic>
 #include <cstring>
 #include <cstdio>
-#include <memory>
-#include <mutex>
 #include <string>
 #include <vector>
 
 #include "launcher_mobile_options.h"
-#include "runtime/gfx/prewarm.h"
+#include "launcher_shader_preparation.h"
 
 namespace {
 
@@ -28,20 +25,10 @@ struct Resolution {
   int w, h;
   NSString* title;
 };
-const std::array<Resolution, 4> kIpadResolutions = {{
-    {1536, 1152, @"1536×1152"},
-    {1792, 1344, @"1792×1344"},
-    {2048, 1536, @"2048×1536"},
-    {2732, 2048, @"2732×2048"},
-}};
-
-bool IsPhone() { return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPhone; }
-
-// The resolutions the launcher offers. On an iPhone they are also the
-// display modes the game is given besides the usual ones (IosPhoneDisplay).
-const std::array<Resolution, 4>& Resolutions() {
+// Display modes supported by the TV launcher.
+const std::array<Resolution, kTvResolutions.size()>& Resolutions() {
   static const auto tv = [] {
-    std::array<Resolution,4> result;
+    std::array<Resolution,kTvResolutions.size()> result;
     for (size_t i = 0; i < result.size(); ++i) {
       const auto r = kTvResolutions[i];
       result[i] = {r.w,r.h,[NSString stringWithFormat:@"%d×%d",r.w,r.h]};
@@ -74,12 +61,12 @@ static void UpdateTvActionButton(UIButton* button) {
 
 @interface LpmLauncher : UIViewController <UITableViewDataSource, UITableViewDelegate>
 @property(strong) UITableView* table;
-@property(strong) UIButton* playButton;
 @property(strong) NSIndexPath* lastFocusedRow;
 @property NSInteger displayedSection;
 @property(copy) NSString* shaderNote;
 @property BOOL shaderCompileEnabled;
 - (UITableViewCell*)tvCell:(NSIndexPath*)ip;
+- (void)startGame;
 
 
 @end
@@ -149,16 +136,21 @@ typedef NS_ENUM(NSInteger, LpmSection) { kGame, kExtrasSection, kGraphics, kFixe
   NSString* root = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject
       stringByAppendingPathComponent:@"game"];
   if (MobileTransferInProgress(root)) {
-    UIAlertController* alert = [UIAlertController alertControllerWithTitle:@"Installation in progress"
-        message:@"The game files are still being copied. Please wait for the transfer to finish before playing."
+    UIAlertController* alert = [UIAlertController alertControllerWithTitle:@"Game-data transfer incomplete"
+        message:@"The last transfer has not reported completion. If it is still running, wait. If it stopped, resume it from your Mac, or try the files already installed. An incomplete installation may fail to start."
         preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    __weak LpmLauncher* weak = self;
+    UIAlertAction* recover = [UIAlertAction actionWithTitle:@"Try Existing Files" style:UIAlertActionStyleDefault
+        handler:^(UIAlertAction* action) { [weak startGame]; }];
+    recover.enabled = MobileTransferRecoveryAvailable(root);
+    [alert addAction:recover];
     [self presentViewController:alert animated:YES completion:nil];
     return;
   }
-  [_d synchronize];
-  g_play = true;
+  [self startGame];
 }
+- (void)startGame { [_d synchronize]; g_play = true; }
 
 // ---- rows
 
@@ -169,13 +161,6 @@ typedef NS_ENUM(NSInteger, LpmSection) { kGame, kExtrasSection, kGraphics, kFixe
 - (NSString*)tableView:(UITableView*)t titleForHeaderInSection:(NSInteger)s {
   // The native tab bar already names the visible section.
   return nil;
-  switch (s) {
-    case kGame: return @"Game";
-    case kExtrasSection: return @"Extras";
-    case kGraphics: return @"Graphics";
-    case kFixesSection: return @"Fixes";
-    default: return @"FusionFix shaders";
-  }
 }
 
 - (NSString*)tableView:(UITableView*)t titleForFooterInSection:(NSInteger)s {
@@ -351,12 +336,6 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
 
 
 
-struct TvShaderTask {
-  std::atomic<bool> cancel{false}, queued{false};
-  std::mutex statusMutex;
-  recomp::gfx::PrewarmStatus status;
-};
-
 @interface LpmShaderProgress : UIViewController
 @property(strong) UILabel* status;
 @property(strong) UIProgressView* progress;
@@ -421,9 +400,8 @@ struct TvShaderTask {
 @property(strong) NSLayoutConstraint* panelTop;
 @property(strong) NSLayoutConstraint* panelBottom;
 @property(copy) NSArray<UIView*>* launchPanelViews;
-@property recomp::gfx::PrewarmCacheState shaderCacheState;
-@property BOOL checkingShaderCache;
-@property(copy) NSString* shaderMessage;
+@property(strong) LpmShaderPreparation* shaderPreparation;
+@property(strong) LpmShaderProgress* shaderProgress;
 @property(strong) UIFocusGuide* tabAccessGuide;
 @property(strong) NSLayoutConstraint* tabGuideRight;
 @property(strong) NSLayoutConstraint* tabGuideTop;
@@ -431,11 +409,12 @@ struct TvShaderTask {
 @property BOOL receivedFocus;
 @end
 
-@implementation LpmTvLauncher {
-  std::shared_ptr<TvShaderTask> _shaderTask;
-}
+@implementation LpmTvLauncher
 - (void)viewDidLoad {
   [super viewDidLoad];
+  self.shaderPreparation = [LpmShaderPreparation new];
+  __weak LpmTvLauncher* weak = self;
+  self.shaderPreparation.changed = ^{ [weak updateShaderControls]; };
   self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
   self.view.backgroundColor = UIColor.blackColor;
   UIImageView* logo = [[UIImageView alloc] initWithImage:[UIImage imageWithContentsOfFile:
@@ -517,7 +496,7 @@ struct TvShaderTask {
     [self.launchGuide.topAnchor constraintEqualToAnchor:brand.topAnchor],
     [self.launchGuide.bottomAnchor constraintEqualToAnchor:brand.bottomAnchor],
   ]];
-  [self refreshShaderCache];
+  [self.shaderPreparation refresh];
 }
 
 - (void)viewDidLayoutSubviews {
@@ -558,125 +537,47 @@ struct TvShaderTask {
   }
 }
 - (void)play:(id)sender {
-  if (_shaderTask) return;
+  if (self.shaderPreparation.running) return;
   [(LpmLauncher*)self.selectedViewController play:sender];
 }
 - (void)updateShaderControls {
-  using State = recomp::gfx::PrewarmCacheState;
+  self.playButton.enabled = !self.shaderPreparation.running;
+  UpdateTvActionButton(self.playButton);
   for (LpmLauncher* page in self.viewControllers) {
     if (page.displayedSection != kGame || !page.isViewLoaded) continue;
-    NSString* note = @"Shader compilation unavailable.";
-    BOOL enabled = NO;
-    if (self.checkingShaderCache) note = @"Checking shader cache…";
-    else if (_shaderTask) note = @"Compiling shaders…";
-    else if (self.shaderCacheState == State::Ready) note = @"All cached shaders are compiled.";
-    else if (self.shaderCacheState == State::Empty) note = @"Play the game to record shaders first.";
-    else if (self.shaderCacheState == State::Needed) {
-      note = self.shaderMessage ?: @"Some cached shaders need compilation.";
-      enabled = YES;
-    }
-    page.shaderNote = note;
-    page.shaderCompileEnabled = enabled;
+    page.shaderNote = self.shaderPreparation.note;
+    page.shaderCompileEnabled = self.shaderPreparation.canCompile;
     [page refreshTvRows];
   }
-}
-- (void)refreshShaderCache {
-  self.checkingShaderCache = YES;
-  [self updateShaderControls];
-  __weak LpmTvLauncher* weakSelf = self;
-  dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0), ^{
-    recomp::gfx::PrewarmCacheState state;
-    @autoreleasepool { state = recomp::gfx::InspectPrewarmCache(); }
-    using State = recomp::gfx::PrewarmCacheState;
-    std::fprintf(stderr,"launcher: shader cache: %s\n",state == State::Ready ? "ready" :
-        state == State::Needed ? "needs compilation" : state == State::Empty ? "empty" : "unavailable");
-    dispatch_async(dispatch_get_main_queue(), ^{
-      LpmTvLauncher* launcher = weakSelf;
-      if (!launcher) return;
-      launcher.shaderCacheState = state;
-      launcher.checkingShaderCache = NO;
-      [launcher updateShaderControls];
-    });
-  });
+  if (!self.shaderProgress) return;
+  if (!self.shaderPreparation.running) {
+    [self dismissViewControllerAnimated:YES completion:^{
+      self.shaderProgress = nil;
+      [self setNeedsFocusUpdate];
+    }];
+    return;
+  }
+  const auto status = self.shaderPreparation.status;
+  using Phase = recomp::gfx::PrewarmStatus::Phase;
+  NSString* detail = status.phase == Phase::Shaders
+      ? [NSString stringWithFormat:@"Preparing shader functions: %zu / %zu",status.functions_done,status.functions_total]
+      : status.phase == Phase::Saving ? @"Saving compiled pipelines…"
+      : status.phase == Phase::Complete ? @"Checking saved pipelines…" : @"Compiling remaining pipelines…";
+  self.shaderProgress.status.text = self.shaderPreparation.cancelling ? self.shaderPreparation.note
+      : [NSString stringWithFormat:@"Pipelines prepared: %zu / %zu\n%@",status.pipelines_ready,status.pipelines_total,detail];
+  self.shaderProgress.progress.progress = status.pipelines_total ? float(status.pipelines_ready) / status.pipelines_total : 0;
+  self.shaderProgress.cancelButton.enabled = !self.shaderPreparation.cancelling;
 }
 - (void)compileShaders:(id)sender {
-  if (_shaderTask || self.checkingShaderCache || self.shaderCacheState != recomp::gfx::PrewarmCacheState::Needed) return;
-  auto task = std::make_shared<TvShaderTask>();
-  _shaderTask = task;
-  [self updateShaderControls];
-  LpmShaderProgress* dialog = [LpmShaderProgress new];
-  dialog.modalPresentationStyle = UIModalPresentationFullScreen;
-  dialog.modalInPresentation = YES;
-  dialog.cancelHandler = ^{ task->cancel = true; };
-  __weak LpmTvLauncher* weakSelf = self;
-  __weak LpmShaderProgress* weakDialog = dialog;
-  [self presentViewController:dialog animated:YES completion:^{
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY,0), ^{
-      recomp::gfx::PrewarmResult result;
-      recomp::gfx::PrewarmCacheState cacheState;
-      @autoreleasepool {
-        recomp::gfx::PrewarmArchiveLimits limits;
-        limits.workers = 1;
-        limits.max_unsaved = 64;
-        limits.drain_on_close = true;
-        result = recomp::gfx::PrewarmCaches(nullptr, task->cancel, {}, limits,
-            [task,weakDialog](const recomp::gfx::PrewarmStatus& status) {
-          { std::lock_guard<std::mutex> lock(task->statusMutex); task->status = status; }
-          if (task->queued.exchange(true)) return;
-          dispatch_async(dispatch_get_main_queue(), ^{
-            task->queued = false;
-            if (task->cancel.load()) return;
-            LpmShaderProgress* progress = weakDialog;
-            recomp::gfx::PrewarmStatus status;
-            { std::lock_guard<std::mutex> lock(task->statusMutex); status = task->status; }
-            using Phase = recomp::gfx::PrewarmStatus::Phase;
-            NSString* detail = status.phase == Phase::Shaders
-                ? [NSString stringWithFormat:@"Preparing shader functions: %zu / %zu",
-                    status.functions_done,status.functions_total]
-                : status.phase == Phase::Saving ? @"Saving compiled pipelines…"
-                : status.phase == Phase::Complete ? @"Checking saved pipelines…"
-                : @"Compiling remaining pipelines…";
-            progress.status.text = [NSString stringWithFormat:@"Pipelines prepared: %zu / %zu\n%@",
-                status.pipelines_ready,status.pipelines_total,detail];
-            progress.progress.progress = status.pipelines_total
-                ? float(status.pipelines_ready) / float(status.pipelines_total) : 0;
-          });
-        });
-        cacheState = recomp::gfx::InspectPrewarmCache();
-      }
-      // The worker and archive writer have finished before the launcher
-      // becomes usable again. Gameplay never overlaps compilation.
-      dispatch_async(dispatch_get_main_queue(), ^{
-        LpmTvLauncher* launcher = weakSelf;
-        if (!launcher) return;
-        launcher.shaderCacheState = cacheState;
-        launcher.shaderMessage = result == recomp::gfx::PrewarmResult::Cancelled
-            ? @"Cancelled. Some cached shaders still need compilation."
-            : result == recomp::gfx::PrewarmResult::Busy ? @"Shader cache is in use. Try again later."
-            : result == recomp::gfx::PrewarmResult::Incomplete
-                ? @"Some pipelines could not be compiled or saved. Try again; see log for details." : nil;
-        [launcher dismissViewControllerAnimated:YES completion:^{
-          launcher->_shaderTask.reset();
-          [launcher updateShaderControls];
-          [launcher setNeedsFocusUpdate];
-        }];
-      });
-    });
-  }];
+  if (!self.shaderPreparation.canCompile || self.shaderProgress) return;
+  self.shaderProgress = [LpmShaderProgress new];
+  self.shaderProgress.modalPresentationStyle = UIModalPresentationFullScreen;
+  self.shaderProgress.modalInPresentation = YES;
+  __weak LpmTvLauncher* weak = self;
+  self.shaderProgress.cancelHandler = ^{ [weak.shaderPreparation cancel]; };
+  [self presentViewController:self.shaderProgress animated:YES completion:^{ [weak.shaderPreparation start]; }];
 }
 @end
-
-// main.cpp: whether this is an iPhone, and then its resolutions as a
-// display mode list ("WxH,WxH,...").
-bool IosPhoneDisplay(std::string* modes) {
-  if (!IsPhone()) return false;
-  modes->clear();
-  for (const Resolution& r : Resolutions()) {
-    if (!modes->empty()) *modes += ',';
-    *modes += std::to_string(r.w) + 'x' + std::to_string(r.h);
-  }
-  return true;
-}
 
 // main.cpp (iPad, iPhone, Apple TV): the launcher until Play, then the
 // options into the environment; the game's resolution goes on its command
@@ -686,11 +587,7 @@ void RunIosLauncher(std::vector<std::string>* launcher_args) {
   @autoreleasepool {
     NSUserDefaults* d = NSUserDefaults.standardUserDefaults;
     RegisterMobileDefaults(d,TARGET_OS_TV);
-    // Metal reads HUD support at its first device creation, including
-    // the launcher's read-only cache inspection. Load that support now;
-    // the game's layer explicitly enables or disables the overlay from
-    // the final saved choice after Play (RECOMP_METAL_HUD).
-    setenv("MTL_HUD_ENABLED", "1", 1);
+    ApplyLauncherHud(d);
 
     // The app's window scene (SDL's UIKit startup may connect it a moment
     // after calling main); a window outside a scene is never shown.

@@ -193,6 +193,7 @@ const Fix kFixes[] = {
     {@"RouteIndicators", "GTAIV_TURN_INDICATORS_ROUTE", @"Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand)", false, true},
     {@"PadIcons", "GTAIV_PAD_ICONS", @"Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder)", false, true},
     {@"PadFeedback", "GTAIV_PAD_FEEDBACK", @"DualSense: adaptive triggers when driving and with a gun in hand, light bar flashes red and blue while wanted", false, true},
+    {@"SpatialAudio", "GTAIV_SPATIAL_AUDIO", @"Spatial Audio: the game's 5.1 sound around your head, with head tracking on AirPods", true, true},
     {@"PhoneCheats", "GTAIV_PHONE_CHEATS", @"Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100)", false, true},
     {@"PlayerFullDamage", "GTAIV_PLAYER_FULL_DAMAGE", @"Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5", false, true},
 };
@@ -223,15 +224,21 @@ inline const Fix& ShownFix(NSInteger row) {
     if (IpadFixShown(f) && row-- == 0) return f;
   return kFixes[0];
 }
-// The Extras tab (Mac) and section (iPad, iPhone).
+// The Extras section of the iPad and iPhone (launcher_ios.mm): the Mac's
+// Extras tab but Spatial Audio, which only the Mac renders (on the iPad
+// and iPhone the system spatialises the game's stereo itself; main.cpp
+// keeps it off there whatever is stored).
+inline bool IpadExtraShown(const Fix& f) {
+  return f.extra && ![f.key isEqualToString:@"SpatialAudio"];
+}
 inline NSInteger ExtraCount() {
   NSInteger n = 0;
-  for (const Fix& f : kFixes) n += f.extra;
+  for (const Fix& f : kFixes) n += IpadExtraShown(f);
   return n;
 }
 inline const Fix& ExtraAt(NSInteger row) {
   for (const Fix& f : kFixes)
-    if (f.extra && row-- == 0) return f;
+    if (IpadExtraShown(f) && row-- == 0) return f;
   return kFixes[0];
 }
 

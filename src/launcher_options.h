@@ -378,7 +378,7 @@ void ApplyOptions(NSUserDefaults* d) {
     setenv("RECOMP_OUTPUT_CURVE", curve, 1);
   else
     unsetenv("RECOMP_OUTPUT_CURVE");
-  ApplyLauncherHud(d);
+  setenv("MTL_HUD_ENABLED", [d boolForKey:kHudKey] ? "1" : "0", 1);
   setenv("GTAIV_SKIP_INTRO", [d boolForKey:kSkipIntroKey] ? "1" : "0", 1);
   // Render targets made larger (RECOMP_RT_BOOST): the shadow maps (the
   // cascades' atlas 8192x2048, 2048 and 1024 maps), the reflections (512

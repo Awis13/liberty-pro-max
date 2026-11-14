@@ -211,7 +211,7 @@ typedef NS_ENUM(NSInteger, LpmSection) { kGame, kExtrasSection, kGraphics, kFixe
 - (NSString*)tableView:(UITableView*)t titleForFooterInSection:(NSInteger)s {
   if (s == kGraphics)
     return @"Lower resolutions keep 60 fps steadier in busy streets. SMAA smooths edges cheaply; TAA also "
-           @"steadies wires, fences and leaves.";
+           @"steadies wires, fences and leaves. Relaunch the app after changing Performance overlay.";
   // An episode's folder the game will not take, if the game's folder
   // (main.cpp: Documents/game) has one.
   if (s == kExtrasSection)
@@ -449,6 +449,7 @@ void RunIosLauncher(std::vector<std::string>* launcher_args) {
     window.rootViewController = nil;
 
     ApplyOptions(d);
+    ApplyLauncherHud(d);
     // The Mac's vsync choice does not apply: here the flag only makes a
     // frame wait for the display's next refresh (there is no tearing to
     // turn on), also with the frame limit off.

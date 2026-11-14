@@ -44,6 +44,38 @@ NSString* const kSkipIntroKey = @"SkipIntro";
 NSString* const kContinueKey = @"ContinueLastSave";
 // The game in the system's language (YES) or always in English (NO).
 NSString* const kSystemLanguageKey = @"SystemLanguage";
+// The Mac, iPhone and iPad launchers' explicit choice; absent in older versions.
+NSString* const kGameLanguageKey = @"GameLanguage";
+inline NSArray<NSString*>* LauncherLanguageTitles() {
+  return @[ @"Same as the system", @"English", @"French", @"German", @"Italian", @"Spanish", @"Russian (Русский)" ];
+}
+inline NSString* LauncherLanguageCode(NSInteger index) {
+  return @[ @"system", @"en", @"fr", @"de", @"it", @"es", @"ru" ][std::clamp<NSInteger>(index, 0, 6)];
+}
+inline NSInteger LauncherLanguageIndex(NSUserDefaults* d) {
+  id saved = [d objectForKey:kGameLanguageKey];
+  if (!saved) return [d boolForKey:kSystemLanguageKey] ? 0 : 1;
+  for (NSInteger i = 0; i < 7; ++i)
+    if ([LauncherLanguageCode(i) isEqual:saved]) return i;
+  return 0;
+}
+// Called by the Mac, iPhone and iPad launchers after ApplyOptions. The marker lets an
+// explicit choice win over SETTINGS.CFG, and identifies an override to clear
+// if a relaunched launcher returns to following the system.
+inline void ApplyLauncherLanguage(NSUserDefaults* d) {
+  const NSInteger index = LauncherLanguageIndex(d);
+  if (index == 0) {
+    const char* previous = std::getenv("GTAIV_LAUNCHER_LANGUAGE");
+    if (previous && std::string(previous) == "1") unsetenv("GTAIV_LANG_ID");
+    unsetenv("GTAIV_LAUNCHER_LANGUAGE");
+    setenv("GTAIV_SYSTEM_LANGUAGE", "1", 1);
+    return;
+  }
+  static const char* const ids[] = {"", "0x0409", "0x040C", "0x0407", "0x0410", "0x0C0A", "0x0419"};
+  setenv("GTAIV_LANG_ID", ids[index], 1);
+  setenv("GTAIV_SYSTEM_LANGUAGE", "0", 1);
+  setenv("GTAIV_LAUNCHER_LANGUAGE", "1", 1);
+}
 // The player's mods (mods.cpp).
 NSString* const kModsKey = @"Mods";
 // Advanced: 0 the game's own, 1 high.

@@ -176,11 +176,11 @@ typedef NS_ENUM(NSInteger, LpmSection) { kGame, kExtrasSection, kGraphics, kFixe
   return nil;
 }
 
-// Game: (title, key, kind) rows; kind 0 a switch.
+// Game: (title, key) rows; switches except for the language menu.
 static NSArray* GameRows() {
   return @[
     @[ @"Touch controls (hidden with a controller)", kTouchKey ], @[ @"Continue from the last save", kContinueKey ], @[ @"Skip the start screens", kSkipIntroKey ],
-    @[ @"Game in the device's language (off: English)", kSystemLanguageKey ],
+    @[ @"Language", kGameLanguageKey ],
     @[ @"Mods", kModsKey ], @[ @"Fast loading", kFastLoadingKey ],
     @[ @"Stun punch on anyone", kStunPunchKey ], @[ @"Executions on anyone", kExecutionsKey ]
   ];
@@ -228,6 +228,38 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
       NSArray* row = GameRows()[ip.row];
       cell.textLabel.text = row[0];
       key = row[1];
+      if ([key isEqualToString:kGameLanguageKey]) {
+        const NSInteger selected = LauncherLanguageIndex(_d);
+        NSArray<NSString*>* titles = LauncherLanguageTitles();
+        UIButton* button = [UIButton buttonWithType:UIButtonTypeSystem];
+        UIButtonConfiguration* configuration = [UIButtonConfiguration plainButtonConfiguration];
+        configuration.title = titles[selected];
+        configuration.image = [UIImage systemImageNamed:@"chevron.down"];
+        configuration.imagePlacement = NSDirectionalRectEdgeTrailing;
+        configuration.imagePadding = 6;
+        button.configuration = configuration;
+        button.accessibilityIdentifier = kGameLanguageKey;
+        button.accessibilityLabel = @"Language";
+        button.accessibilityValue = titles[selected];
+        NSMutableArray<UIAction*>* actions = [NSMutableArray array];
+        __weak LpmLauncher* weakSelf = self;
+        for (NSInteger i = 0; i < NSInteger(titles.count); ++i) {
+          UIAction* action = [UIAction actionWithTitle:titles[i] image:nil identifier:nil handler:^(UIAction* action) {
+            LpmLauncher* controller = weakSelf;
+            if (!controller) return;
+            [controller->_d setObject:LauncherLanguageCode(i) forKey:kGameLanguageKey];
+            [controller.table reloadRowsAtIndexPaths:@[ip] withRowAnimation:UITableViewRowAnimationNone];
+          }];
+          action.state = i == selected ? UIMenuElementStateOn : UIMenuElementStateOff;
+          [actions addObject:action];
+        }
+        button.menu = [UIMenu menuWithTitle:@"Language" image:nil identifier:nil
+                                  options:UIMenuOptionsSingleSelection children:actions];
+        button.showsMenuAsPrimaryAction = YES;
+        [button sizeToFit];
+        cell.accessoryView = button;
+        return cell;
+      }
     } else {
       const Fix& f = ip.section == kExtrasSection ? ExtraAt(ip.row) : ShownFix(ip.row);
       // (On the iPad the saves go through iCloud Drive: save_cloud.mm.)
@@ -361,6 +393,7 @@ void RunIosLauncher(std::vector<std::string>* launcher_args) {
     window.rootViewController = nil;
 
     ApplyOptions(d);
+    ApplyLauncherLanguage(d);
     // The Mac's vsync choice does not apply: here the flag only makes a
     // frame wait for the display's next refresh (there is no tearing to
     // turn on), also with the frame limit off.

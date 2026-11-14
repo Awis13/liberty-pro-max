@@ -17,12 +17,16 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <vector>
 
 #include "game_args.h"
 #include "language.h"
 #include "option.h"
+#include "title_artwork.h"
+#include "runtime/lifted.h"
+#include "runtime/hle/kernel32_state.h"
 #include "runtime/log.h"
 #include "runtime/runtime.h"
 
@@ -83,9 +87,33 @@ void GtaivPadFeedbackExit();
 void GtaivShaderTokens(std::vector<uint32_t>& tokens);
 
 namespace {
-std::string ReadRedirect(const std::string& guest_path) {
+std::string ReadOverride(const std::string& guest_path) {
   std::string r = GtaivModsRedirect(guest_path);
   if (r.empty()) r = recomp::gen::UpdateFolderRedirect(guest_path);
+  return r;
+}
+
+// Probe the install/overlay without re-entering read_redirect. HostDirs
+// resolves parent components with the runtime's case-insensitive rules.
+bool GuestFileExists(const std::string& path) {
+  const size_t slash = path.find_last_of("/\\");
+  if (slash == std::string::npos) return false;
+  const std::string name = language::ArtworkPathKey(path.substr(slash + 1));
+  for (const std::string& dir : recomp::HostDirs(path.substr(0, slash))) {
+    std::error_code ec;
+    for (std::filesystem::directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
+      if (language::ArtworkPathKey(it->path().filename().string()) == name && it->is_regular_file(ec))
+        return true;
+    }
+  }
+  return false;
+}
+
+std::string ReadRedirect(const std::string& guest_path) {
+  std::string r = ReadOverride(guest_path);
+  if (!r.empty()) return r;
+  r = language::TitleArtworkRedirect(guest_path, recomp::Game().guest_dir, GuestFileExists, ReadOverride);
+  if (!r.empty()) recomp::WarnF("gtaiv: missing localized title artwork: %s; using %s\n", guest_path.c_str(), r.c_str());
   return r;
 }
 
@@ -255,9 +283,9 @@ int main(int argc, char** argv) {
     game.mac_fullscreen_space = !(n && *n == '1');
   }
 #endif
-  // The game in the system's language, unless the launcher's choice is
-  // English (GTAIV_SYSTEM_LANGUAGE=0). GTAIV_LANG_ID=0x0419 (the runtime's
-  // switch, for test runs) overrides both.
+  // The game in the system's language unless disabled by the launcher.
+  // GTAIV_LANG_ID (the launcher's explicit choice, or a diagnostic
+  // override such as 0x0419 for Russian) takes priority in the runtime.
   if (OptionOn("GTAIV_SYSTEM_LANGUAGE", true)) {
     std::string code;
     game.user_lang_id = SystemLangId(&code);

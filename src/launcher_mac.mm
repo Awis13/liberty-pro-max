@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "launcher_options.h"
+#include "save_paths.h"
 #include "runtime/gfx/prewarm.h"
 
 namespace {
@@ -82,8 +83,19 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
   // The newest saves from the player's iPad and Apple TV first.
   GtaivSyncSaves("before the game");
 
-  // The game's log: ~/Library/Logs/gtaiv.log unless given (main.cpp).
-  setenv("GTAIV_LOG", [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs/gtaiv.log"].fileSystemRepresentation, 0);
+  // The game's log: ~/Library/Logs/gtaiv.log unless given (main.cpp). The
+  // last runs' logs are kept beside it, gtaiv.1.log the run before, up to
+  // gtaiv.4.log: a crash's log is still there after the next start.
+  if (!std::getenv("GTAIV_LOG")) {
+    NSString* logs = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs"];
+    auto path = [&](int k) {
+      return std::string([logs stringByAppendingPathComponent:(k ? [NSString stringWithFormat:@"gtaiv.%d.log", k]
+                                                                 : @"gtaiv.log")]
+                             .fileSystemRepresentation);
+    };
+    for (int k = 3; k >= 0; k--) std::rename(path(k).c_str(), path(k + 1).c_str());
+    setenv("GTAIV_LOG", path(0).c_str(), 0);
+  }
 
   // A new instance of the app started by Launch Services, as a double click
   // would: macOS then treats the game as the game it is (Game Mode). Run
@@ -147,12 +159,15 @@ void StopPrewarm() {
 @property(strong) NSPopUpButton* antialiasing;
 @property(strong) NSPopUpButton* metalfxScale;
 @property(strong) NSPopUpButton* sharpening;
+@property(strong) NSPopUpButton* consoleGamma;
 @property(strong) NSButton* hud;
 @property(strong) NSButton* skipIntro;
 @property(strong) NSButton* continueSave;
 @property(strong) NSButton* overNotch;
 @property(strong) NSButton* mods;
 @property(strong) NSTextField* modsNote;
+@property(strong) NSTextField* episodesNote;
+@property(strong) NSGridRow* episodesNoteRow;
 @property(strong) NSTabView* tabs;
 @property(strong) NSPopUpButton* shadows;
 @property(strong) NSPopUpButton* reflections;
@@ -235,6 +250,8 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.sharpening = [self popup:@[ @"Off", @"Low", @"Medium", @"High" ]
                        selected:std::clamp<NSInteger>([d integerForKey:kTaaSharpeningKey], 0, 3)];
   [self antialiasingChanged:nil];
+  self.consoleGamma = [self popup:@[ @"Off", @"Xbox 360", @"PS3" ]
+                         selected:std::clamp<NSInteger>([d integerForKey:kConsoleGammaKey], 0, 2)];
   NSTextField* aaNote = [NSTextField
       wrappingLabelWithString:@"SMAA smooths edges cheaply. TAA also steadies wires, fences and leaves at little cost; "
                       @"MetalFX does it best and, below native resolution, also raises the frame rate. "
@@ -266,6 +283,8 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
                                "Your game folder is not changed."];
   self.modsNote.textColor = NSColor.secondaryLabelColor;
   self.modsNote.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+  // The folder the game reads its saves from (SGTA400 to SGTA414).
+  NSButton* savesFolder = [NSButton buttonWithTitle:@"Open Saves Folder" target:self action:@selector(openSaves:)];
 
   NSGridView* grid = [NSGridView gridViewWithViews:@[
     @[ [self label:@"Game folder:"], folderRow ],
@@ -277,6 +296,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ [self label:@"MetalFX resolution:"], self.metalfxScale ],
     @[ NSGridCell.emptyContentView, aaNote ],
     @[ [self label:@"Sharpening:"], self.sharpening ],
+    @[ [self label:@"Console gamma:"], self.consoleGamma ],
     @[ NSGridCell.emptyContentView, self.hud ],
     @[ [self label:@"Start:"], self.skipIntro ],
     @[ NSGridCell.emptyContentView, self.continueSave ],
@@ -284,6 +304,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ [self label:@"Mods:"], self.mods ],
     @[ NSGridCell.emptyContentView, modsFolder ],
     @[ NSGridCell.emptyContentView, self.modsNote ],
+    @[ [self label:@"Saves:"], savesFolder ],
   ]];
   grid.rowSpacing = 10;
   BOOL notch = NO;
@@ -312,8 +333,11 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.executions.state = [d boolForKey:kExecutionsKey] ? NSControlStateValueOn : NSControlStateValueOff;
   NSTextField* meleeNote = [NSTextField
       wrappingLabelWithString:@"Moves the game keeps for a few missions: sneak up unarmed (or with a pistol), lock on, attack."];
-  for (NSTextField* n : @[ aaNote, self.modsNote, meleeNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
-  for (NSTextField* n : @[ shadowNote, reflNote, fovNote, loadNote, meleeNote ]) {
+  // Under the episodes' option, only for a game folder with an episode's
+  // folder the game will not take (showFolder).
+  self.episodesNote = [NSTextField wrappingLabelWithString:@""];
+  for (NSTextField* n : @[ aaNote, self.modsNote, meleeNote, self.episodesNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
+  for (NSTextField* n : @[ shadowNote, reflNote, fovNote, loadNote, meleeNote, self.episodesNote ]) {
     n.textColor = NSColor.secondaryLabelColor;
     n.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
   }
@@ -349,6 +373,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
       b.lineBreakMode = NSLineBreakByWordWrapping;
       [b.widthAnchor constraintLessThanOrEqualToConstant:kWindowWidth - 100].active = YES;
       [extraRows addObject:@[ b ]];
+      if ([f.key isEqualToString:@"Episodes"]) [extraRows addObject:@[ self.episodesNote ]];
     } else if (AdvancedFixShown(f)) {
       [rows addObject:@[ fixesLabelled ? NSGridCell.emptyContentView : [self label:@"Fixes:"], b ]];
       fixesLabelled = YES;
@@ -356,6 +381,12 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   }
   NSGridView* extras = [NSGridView gridViewWithViews:extraRows];
   extras.rowSpacing = 10;
+  // The note is indented under its checkbox.
+  NSGridCell* noteCell = [extras cellForView:self.episodesNote];
+  self.episodesNoteRow = noteCell.row;
+  noteCell.xPlacement = NSGridCellPlacementNone;
+  noteCell.customPlacementConstraints =
+      @[ [self.episodesNote.leadingAnchor constraintEqualToAnchor:extras.leadingAnchor constant:20] ];
   NSGridView* adv = [NSGridView gridViewWithViews:rows];
   adv.rowSpacing = 10;
   adv.columnSpacing = 10;
@@ -479,6 +510,9 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.problem.stringValue = ok ? @"" : @"Choose the folder of your Grand Theft Auto IV (PC) install: the one with GTAIV.exe.";
   self.problem.hidden = ok;
   self.play.enabled = ok;
+  NSString* note = EpisodesNote(self.folder);
+  self.episodesNote.stringValue = note ?: @"";
+  self.episodesNoteRow.hidden = note == nil;
 }
 
 - (void)choose:(id)sender {
@@ -504,6 +538,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   Store(d, kAntiAliasingKey, @(self.antialiasing.indexOfSelectedItem));
   Store(d, kMetalFXScaleKey, @(self.metalfxScale.indexOfSelectedItem));
   Store(d, kTaaSharpeningKey, @(self.sharpening.indexOfSelectedItem));
+  Store(d, kConsoleGammaKey, @(self.consoleGamma.indexOfSelectedItem));
   Store(d, kHudKey, @(self.hud.state == NSControlStateValueOn));
   Store(d, kSkipIntroKey, @(self.skipIntro.state == NSControlStateValueOn));
   Store(d, kContinueKey, @(self.continueSave.state == NSControlStateValueOn));
@@ -532,6 +567,15 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [NSFileManager.defaultManager createDirectoryAtPath:ModsFolder() withIntermediateDirectories:YES
                                            attributes:nil error:nil];
   [NSWorkspace.sharedWorkspace openURL:[NSURL fileURLWithPath:ModsFolder()]];
+}
+
+// The saves' folder of the profile the game reads (save_paths.h), made if
+// the game has not run yet.
+- (void)openSaves:(id)sender {
+  NSString* saves = [[DataFolder() stringByAppendingPathComponent:@(save_paths::kSavesRel)]
+      stringByAppendingPathComponent:@(std::string(save_paths::kGameProfile).c_str())];
+  [NSFileManager.defaultManager createDirectoryAtPath:saves withIntermediateDirectories:YES attributes:nil error:nil];
+  [NSWorkspace.sharedWorkspace openURL:[NSURL fileURLWithPath:saves]];
 }
 
 // If the caches lack shaders earlier runs compiled: compiled again in the

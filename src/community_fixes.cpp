@@ -87,6 +87,7 @@
 #include "option.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
+#include "script_natives.h"
 #include "water_surface.h"
 
 namespace recomp::gen {
@@ -209,7 +210,7 @@ bool LodLights() {
 void hook_00CA1B79(Ctx& c) { c.ecx = LodLights() ? 0 : Rd32(0x00F60690); }  // mov ecx, [k]
 void hook_00CA1BDF(Ctx& c) { c.ecx -= LodLights() ? 0 : Rd32(0x00F60688); }  // sub ecx, [k]
 void hook_00CA1B4E(Ctx& c) {  // call 7F02B0; test al, al (jne: none drawn)
-  const uint8_t cutscene = LodLights() ? 0 : uint8_t(CallGuest(c, 0x007F02B0, {}));
+  const uint8_t cutscene = LodLights() ? 0 : uint8_t(CallGuest(c, natives::kCutsceneRunning, {}));
   TestFlags8(c, cutscene);
 }
 void hook_00C9FA5D(Ctx& c) {

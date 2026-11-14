@@ -40,7 +40,7 @@ For the iPad, the iPhone and the Apple TV, see [Install](#install).
 | **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048 (iPhone: half to all of its own screen), field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play** |
 | **Fixes built in** | about 100 fixes (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
-| **Extras** | the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, phone cheats, full damage | the same, in the settings screen's Extras section |
+| **Extras** | the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, DualSense triggers and light bar, phone cheats, full damage | the same, in the settings screen's Extras section |
 | **More options** | stun punch and executions on anyone, fast loading, continuing the last save, a mods folder, saves shared through iCloud Drive | the same |
 | **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
 
@@ -199,6 +199,33 @@ the Mac copies its saves to and from it at start and quit, over the cable
 or the network, when Xcode is installed. The launcher's "Saves synced"
 option turns both off.
 
+### Saves from elsewhere
+
+A save from another PC, or one downloaded (a completed story, say), goes into
+the folder the game reads its saves from. On the Mac the launcher's **Open
+Saves Folder** opens it:
+
+`~/Library/Application Support/gtaiv/drive_c/Documents and Settings/Player/Local Settings/Application Data/Rockstar Games/GTA IV/savegames/user_ee000000deadc0de`
+
+The game lists 15 slots there, files named `SGTA400` to `SGTA414` (no
+extension; `SGTA400` is the menu's first slot).
+
+A save loads when it is laid out as this version of the game (1.0.8.0) lays
+its own out, whether it was made with Games for Windows Live or without it.
+Which other versions of the game write that layout was not checked. A save
+made with Live carries a checksum only Live can read; the port checks the
+save's own sum of its data instead ("Saves made with Games for Windows Live
+can be loaded (checked by their own sum)", on by default).
+
+Saves of the Complete Edition (1.2.0.x) do not load: some of their blocks
+are larger and this version of the game cannot read them. Where a download
+offers saves for several versions, take the one for 1.0.8.0.
+
+A save that does not load gives the game's message ("Load failed. Please
+check your hard drive and try again.") and, in `~/Library/Logs/gtaiv.log`,
+lines starting `warning: gtaiv: save:` with the game's error code, the file
+and the reason: another version's save, or a damaged one.
+
 ### The episodes
 
 The episodes are off until you turn them on: "The episodes" on the launcher's
@@ -210,6 +237,14 @@ IV's, in the same slots. With the episodes off their saves are kept, and
 "Continue from the last save" goes on from your newest IV save instead, or
 starts a new IV game if you have none; turn the episodes on to continue an
 episode.
+
+The game shows an episode only if its folder has the episode's list of files,
+`TLAD/E1_List.txt` and `TBoGT/E2_List.txt`. The Complete Edition's folders have
+them (the game itself stays 1.0.8.0). With the `TLAD` and `TBoGT` folders of
+the standalone Episodes from Liberty City (Steam depot 12221) the game shows no
+episodes; those Steam gives with `download_depot 12210 12212` work. If a list
+is missing, the launcher says so by "The episodes" (Mac, iPad, iPhone), and so
+does the log; on the Apple TV, which has no settings screen, only the log does.
 
 With the episodes on and "Continue from the last save" on, the game goes on
 from your newest save, in the game it was made in (IV or an episode). With no
@@ -321,11 +356,14 @@ before `install-ios.sh` to have them on the iPad, iPhone or Apple TV too.
 The Mac's launcher has three tabs. **General**: the game folder, full screen
 or a window (on a display with a notch, also the whole screen), vertical sync,
 a frame limit (off, 30, 60 or 120 fps), anti-aliasing (TAA, SMAA, MetalFX)
-with the MetalFX resolution and sharpening, the performance overlay,
+with the MetalFX resolution and sharpening, the console gamma (off, the
+Xbox 360's or the PS3's contrast), the performance overlay,
 skipping the logo screens, continuing the last save, the game's language,
-and mods (**Open Mods Folder**). **Extras**: this port's own additions, the episodes, turn
-indicators, pad icons, phone cheats and full damage, each off until you turn
-it on, and the episodes' radio songs kept to their own episode, on.
+mods (**Open Mods Folder**) and the saves' folder (**Open Saves Folder**).
+**Extras**: this port's own additions, the episodes, turn indicators, pad
+icons, the DualSense's triggers and light bar, phone cheats and full damage,
+each off until you turn it on, and the episodes' radio songs kept to their
+own episode, on.
 **Advanced**: shadow and reflection resolution, field of view, fast loading,
 **Combat** (stun punch and executions on anyone), then every fix below, each
 a switch. Most fixes follow FusionFix's and ZolikaPatch's (by what they do;
@@ -334,7 +372,7 @@ their code is not used), some are this port's own.
 On the iPad and iPhone the settings screen has the same in sections: **Game**
 (touch controls, continuing the last save, skipping the start screens, the
 game's language, mods, fast loading, stun punch and executions on anyone), **Extras**, **Graphics**
-(resolution, anti-aliasing, sharpening, frame limit, shadows, reflections, field of view,
+(resolution, anti-aliasing, sharpening, console gamma, frame limit, shadows, reflections, field of view,
 the performance overlay) and **Fixes**.
 
 **Pad icons** need the other pads' button pictures, which the game does not
@@ -345,11 +383,32 @@ the same names with a prefix: `XBONE_` (Xbox One and Series), `PS3_`, `PS4_`,
 used. The game's own `pc/textures/buttons_360.wtd` has only the Xbox 360 set,
 so without such a file the option changes nothing.
 
+**DualSense** (the PlayStation 5 pad; other pads are left alone): with the
+option on, the triggers and the light bar follow the game.
+
+| When | Left trigger | Right trigger | Light bar |
+|---|---|---|---|
+| Menus, the pause menu, cutscenes | free | free | the pad's own colour |
+| Driving (not helicopters) | brake: pushes back | accelerate: pushes back lightly; shakes for a moment on a gear change | the pad's own colour |
+| On foot with a gun in hand, not shooting | free | fire: pushes back from early in its travel, then gives way with a click, differently for pistols, submachine guns, rifles, shotguns, sniper rifles and heavy weapons | the pad's own colour |
+| Shooting (as the game counts shots, not the trigger) | free | vibrates low in its travel: submachine guns and rifles as long as they fire, at about their rate of fire; pistols, shotguns, sniper rifles and rocket launchers one short kick a shot (shotguns and sniper rifles the strongest); released, the click again | the pad's own colour |
+| On foot with fists, a melee or a thrown weapon | free | free | the pad's own colour |
+| Wanted, while playing | as above | as above | flashes red and blue, faster from three stars |
+
+The light bar is not touched until you are first wanted; when the stars are
+gone, in the pause menu and when the game quits it goes back to the pad's own
+colour and the triggers are freed. The game's own vibration (engine, crashes,
+gunfire) is the game's, as on any pad, with or without the option. The
+option is new and has not been tried on every setup yet: the code handles the
+pad by cable and by Bluetooth on the Mac, and through the system's controller
+support on the iPad and iPhone. The Apple TV has no settings screen, so it is
+off there. Not yet: gyro aiming.
+
 <details>
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-103 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
+106 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
 
 #### High frame rates
 
@@ -432,6 +491,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 | Rain lit as on consoles (visible at night) | on |
 | Police helicopter searchlights do not flicker | on |
 | The Night Shadows setting changes how sharp night shadows are | on |
+| Street lamps keep the shadows of people and cars when the camera turns or cars drive by | on |
 | Brake lights stay on while your car stands | off |
 | Keep bloom (glow around bright lights) | on |
 | Keep depth of field blur | on |
@@ -451,6 +511,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 |---|---|
 | Weapon recoil with the mouse as with a gamepad | on |
 | Health from a save at most a full bar (trainer saves) | on |
+| Saves made with Games for Windows Live can be loaded (checked by their own sum) | on |
 | Saving from the phone works in vehicles | on |
 | Radio keeps playing after cutscenes | on |
 | Cars do not swerve under trains | on |
@@ -502,6 +563,7 @@ This port's own additions, on the launcher's Extras tab (a section of their own 
 | Turn indicators by hand: [ and ] or bumpers, both for hazards (needs Turn indicators) | off |
 | Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand) | off |
 | Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder) | off |
+| DualSense: adaptive triggers when driving and with a gun in hand, light bar flashes red and blue while wanted | off |
 | Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100) | off |
 | Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5 | off |
 
@@ -512,8 +574,8 @@ This port's own additions, on the launcher's Extras tab (a section of their own 
 With turn indicators on, flick the left stick to set an indicator before a
 turn; flick the same way to turn it off.
 
-Not yet here from FusionFix: its ambient occlusion (SAO), console gamma, HDR
-output, depth effects through transparent surfaces (pre-alpha depth), MSAA in
+Not yet here from FusionFix: its ambient occlusion (SAO), the console gamma's
+dithered variant and its brightness change, HDR output, depth effects through transparent surfaces (pre-alpha depth), MSAA in
 reflections, camera sensitivity ranges and ragdoll on demand. The episodes'
 vehicles and weapons in IV are not here yet. On a Mac, FusionFix's raw input,
 keyboard lighting, graphics API choice and plugin loaders have nothing to do.

@@ -11,6 +11,8 @@
 #include <cstdlib>
 #include <string>
 
+#include "episode_files.h"
+
 namespace {
 
 NSString* const kFolderKey = @"GameFolder";
@@ -36,6 +38,14 @@ inline const char* SharpnessFor(NSInteger level) {
 // Whether an anti-aliasing choice (kAntiAliasingKey) is sharpened: TAA and
 // both MetalFX upscales are; off and SMAA are not (their option greyed).
 inline bool SharpeningApplies(NSInteger aa) { return aa >= 2 && aa <= 4; }
+// The console gamma: 0 off, 1 the Xbox 360's
+// (sRGB decoded, BT.709 encoded), 2 the PS3's (a power of 1.2), the
+// runtime's RECOMP_OUTPUT_CURVE for each (nullptr: none).
+NSString* const kConsoleGammaKey = @"ConsoleGamma";
+inline const char* OutputCurveFor(NSInteger mode) {
+  static const char* const kCurves[] = {nullptr, "bt709", "1.2"};
+  return kCurves[std::clamp<NSInteger>(mode, 0, 2)];
+}
 NSString* const kHudKey = @"PerformanceOverlay";
 NSString* const kSkipKey = @"SkipLauncher";
 NSString* const kSkipIntroKey = @"SkipIntro";
@@ -84,6 +94,7 @@ const Fix kFixes[] = {
     {@"HideCursorOnPad", "GTAIV_HIDE_CURSOR_ON_PAD", @"Menu cursor hidden while playing with a gamepad"},
     {@"ReticleHealth", "GTAIV_RETICLE_HEALTH", @"Target health on the reticle with the mouse"},
     {@"SaveHealthCap", "GTAIV_SAVE_HEALTH_CAP", @"Health from a save at most a full bar (trainer saves)"},
+    {@"SaveLiveChecksum", "GTAIV_SAVE_LIVE_CHECKSUM", @"Saves made with Games for Windows Live can be loaded (checked by their own sum)"},
     {@"SaveSync", "GTAIV_SAVE_SYNC", @"Saves synced with your iPad, iPhone and Apple TV at start and quit (Apple TV: needs Xcode)"},
     {@"RadarZoomDelay", "GTAIV_RADAR_ZOOM_DELAY", @"Radar stays zoomed out for 3 seconds"},
     {@"TrainLanes", "GTAIV_TRAIN_LANES", @"Cars do not swerve under trains"},
@@ -122,6 +133,7 @@ const Fix kFixes[] = {
     {@"RainLighting", "GTAIV_RAIN_LIGHTING", @"Rain lit as on consoles (visible at night)"},
     {@"HeliSearchlights", "GTAIV_HELI_SEARCHLIGHTS", @"Police helicopter searchlights do not flicker"},
     {@"NightShadowResolution", "GTAIV_NIGHT_SHADOW_RESOLUTION", @"The Night Shadows setting changes how sharp night shadows are"},
+    {@"NightShadowStable", "GTAIV_NIGHT_SHADOW_STABLE", @"Street lamps keep the shadows of people and cars when the camera turns or cars drive by"},
     {@"CenteredCarCamera", "GTAIV_CENTERED_CAR_CAMERA", @"Car camera centred behind the car", false},
     {@"CenteredFootCamera", "GTAIV_CENTERED_FOOT_CAMERA", @"On-foot camera centred behind the player", false},
     {@"BrakeLightsStopped", "GTAIV_BRAKE_LIGHTS_STOPPED", @"Brake lights stay on while your car stands", false},
@@ -180,6 +192,7 @@ const Fix kFixes[] = {
     {@"TurnIndicatorsManual", "GTAIV_TURN_INDICATORS_MANUAL", @"Turn indicators by hand: [ and ] or bumpers, both for hazards (needs Turn indicators)", false, true},
     {@"RouteIndicators", "GTAIV_TURN_INDICATORS_ROUTE", @"Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand)", false, true},
     {@"PadIcons", "GTAIV_PAD_ICONS", @"Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder)", false, true},
+    {@"PadFeedback", "GTAIV_PAD_FEEDBACK", @"DualSense: adaptive triggers when driving and with a gun in hand, light bar flashes red and blue while wanted", false, true},
     {@"PhoneCheats", "GTAIV_PHONE_CHEATS", @"Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100)", false, true},
     {@"PlayerFullDamage", "GTAIV_PLAYER_FULL_DAMAGE", @"Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5", false, true},
 };
@@ -222,6 +235,36 @@ inline const Fix& ExtraAt(NSInteger row) {
   return kFixes[0];
 }
 
+// Whether a file is in a game folder (`rel` below it, with backslashes, as
+// episode_files.h asks), names without case, as the game finds its files.
+// The folder itself only: not the mods or the update folder.
+inline bool GameFolderHasFile(NSString* dir, const std::string& rel) {
+  NSFileManager* fm = NSFileManager.defaultManager;
+  NSString* at = dir;
+  if (!at.length) return false;
+  for (NSString* part in [@(rel.c_str()) componentsSeparatedByString:@"\\"]) {
+    NSString* found = nil;
+    for (NSString* name in [fm contentsOfDirectoryAtPath:at error:nil])
+      if ([name caseInsensitiveCompare:part] == NSOrderedSame) {
+        found = name;
+        break;
+      }
+    if (!found) return false;
+    at = [at stringByAppendingPathComponent:found];
+  }
+  BOOL folder = NO;
+  return [fm fileExistsAtPath:at isDirectory:&folder] && !folder;
+}
+
+// The note by the episodes' option, for a game folder with an episode's
+// folder the game will not take (setup2.xml and no list of the episode's
+// files: episode_files.h); nil when there is none.
+inline NSString* EpisodesNote(NSString* game_dir) {
+  const std::string note = episode_files::MissingListNote(
+      episode_files::MissingLists([&](const std::string& rel) { return GameFolderHasFile(game_dir, rel); }));
+  return note.empty() ? nil : @(note.c_str());
+}
+
 // The options whose default went from on to off since the Mac launcher
 // stored every option on Play (the defaults too, so a stored "on" may be
 // the old default, not the player's choice): its one move to storing only
@@ -259,16 +302,20 @@ const ShaderChoice kShaderChoices[] = {
     {@"FFMotionBlur", "GTAIV_MOTION_BLUR", @"Motion blur:", @[ @"Off", @"1/8", @"1/4", @"1/2", @"Full" ], 2},
 };
 
-// The mods' folder (mods.cpp reads it from the port's data directory:
-// $XDG_DATA_HOME/gtaiv, else ~/Library/Application Support/gtaiv - the
-// runtime's DataDir).
-NSString* ModsFolder() {
+// The port's data directory: $XDG_DATA_HOME/gtaiv, else
+// ~/Library/Application Support/gtaiv - the runtime's DataDir.
+NSString* DataFolder() {
   NSString* root;
   if (const char* x = std::getenv("XDG_DATA_HOME"); x && *x)
     root = @(x);
   else
     root = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support"];
-  return [root stringByAppendingPathComponent:@"gtaiv/drive_c/mods"];
+  return [root stringByAppendingPathComponent:@"gtaiv"];
+}
+
+// The mods' folder (mods.cpp reads it from the port's data directory).
+NSString* ModsFolder() {
+  return [DataFolder() stringByAppendingPathComponent:@"drive_c/mods"];
 }
 
 // The defaults of every option (the player's choices override them).
@@ -320,6 +367,10 @@ void ApplyOptions(NSUserDefaults* d) {
     default: unsetenv("RECOMP_UPSCALER"); break;
   }
   setenv("RECOMP_SHARPNESS", SharpnessFor([d integerForKey:kTaaSharpeningKey]), 1);
+  if (const char* curve = OutputCurveFor([d integerForKey:kConsoleGammaKey]))
+    setenv("RECOMP_OUTPUT_CURVE", curve, 1);
+  else
+    unsetenv("RECOMP_OUTPUT_CURVE");
   setenv("MTL_HUD_ENABLED", [d boolForKey:kHudKey] ? "1" : "0", 1);
   setenv("GTAIV_SKIP_INTRO", [d boolForKey:kSkipIntroKey] ? "1" : "0", 1);
   // Render targets made larger (RECOMP_RT_BOOST): the shadow maps (the

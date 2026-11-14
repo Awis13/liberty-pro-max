@@ -75,6 +75,8 @@ namespace recomp::gen {
 std::string UpdateFolderRedirect(const std::string& guest_path);
 // ff_shaders.cpp: the current viewport's near and far planes.
 bool GtaivDepthPlanes(float* near_plane, float* far_plane);
+// pad_feedback.cpp: a DualSense's triggers freed as the game exits.
+void GtaivPadFeedbackExit();
 }  // namespace recomp::gen
 
 // shadows_lights.cpp: the game's own wrong shader bytecode corrected.
@@ -285,6 +287,7 @@ int main(int argc, char** argv) {
 #ifdef GTAIV_PGO_GENERATE
     WriteProfile();
 #endif
+    recomp::gen::GtaivPadFeedbackExit();
     GtaivCloudSavesFlush();
     GtaivSyncSaves("after the game");
   };
@@ -295,10 +298,16 @@ int main(int argc, char** argv) {
 #ifdef GTAIV_PGO_GENERATE
     WriteProfile();
 #endif
+    recomp::gen::GtaivPadFeedbackExit();
     GtaivCloudSavesFlush();
   };
-#elif defined(GTAIV_PGO_GENERATE)
-  game.before_exit = WriteProfile;
+#else
+  game.before_exit = [] {
+#ifdef GTAIV_PGO_GENERATE
+    WriteProfile();
+#endif
+    recomp::gen::GtaivPadFeedbackExit();
+  };
 #endif
 #if defined(__APPLE__) && !TARGET_OS_TV
   // The newest saves from iCloud before the game reads any (save_cloud.mm).

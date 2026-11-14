@@ -1,7 +1,8 @@
 // launcher_options (src/launcher_options.h): the Extras, their defaults,
 // the lists they stay out of, what the Mac launcher clears once when it
-// moves to storing only changed options, and the sharpening as the
-// runtime gets it.
+// moves to storing only changed options, the sharpening and the console
+// gamma as the runtime gets them, and the episodes' note for a game folder
+// on disk.
 
 #include "launcher_options.h"
 
@@ -30,7 +31,7 @@ const Fix* Find(NSString* key) {
 void TestExtras() {
   NSArray<NSString*>* want = @[
     @"Episodes", @"EpisodeRadioOwn", @"TurnIndicators", @"TurnIndicatorsManual", @"RouteIndicators", @"PadIcons",
-    @"PhoneCheats", @"PlayerFullDamage"
+    @"PadFeedback", @"PhoneCheats", @"PlayerFullDamage"
   ];
   EXPECT(ExtraCount() == NSInteger(want.count));
   for (NSInteger i = 0; i < ExtraCount() && i < NSInteger(want.count); i++) {
@@ -129,6 +130,34 @@ void TestSharpening() {
   [d removePersistentDomainForName:@"launcher_options_test.sharpening"];
 }
 
+// The console gamma: off by default (the variable unset), the Xbox 360's
+// curve (sRGB decoded, BT.709 encoded) or the PS3's (a power of 1.2) in
+// RECOMP_OUTPUT_CURVE whatever the anti-aliasing; out of range clamped.
+void TestConsoleGamma() {
+  NSUserDefaults* d = [[NSUserDefaults alloc] initWithSuiteName:@"launcher_options_test.gamma"];
+  [d removePersistentDomainForName:@"launcher_options_test.gamma"];
+  RegisterDefaults(d);
+  EXPECT([kConsoleGammaKey isEqualToString:@"ConsoleGamma"]);
+  EXPECT([d integerForKey:kConsoleGammaKey] == 0);
+  const char* want[] = {nullptr, "bt709", "1.2"};
+  for (NSInteger aa : {0, 1, 2, 3, 4})
+    for (NSInteger mode = 0; mode < 3; mode++) {
+      [d setInteger:aa forKey:kAntiAliasingKey];
+      [d setInteger:mode forKey:kConsoleGammaKey];
+      setenv("RECOMP_OUTPUT_CURVE", "stale", 1);
+      ApplyOptions(d);
+      const char* got = std::getenv("RECOMP_OUTPUT_CURVE");
+      EXPECT(want[mode] ? got && std::strcmp(got, want[mode]) == 0 : got == nullptr);
+    }
+  [d setInteger:9 forKey:kConsoleGammaKey];
+  ApplyOptions(d);
+  EXPECT(std::getenv("RECOMP_OUTPUT_CURVE") && std::strcmp(std::getenv("RECOMP_OUTPUT_CURVE"), "1.2") == 0);
+  [d setInteger:-1 forKey:kConsoleGammaKey];
+  ApplyOptions(d);
+  EXPECT(std::getenv("RECOMP_OUTPUT_CURVE") == nullptr);
+  [d removePersistentDomainForName:@"launcher_options_test.gamma"];
+}
+
 bool Has(NSArray* a, NSString* k) { return [a containsObject:k]; }
 
 // The one move to storing only changes: what earlier versions stored on
@@ -157,6 +186,42 @@ void TestClearedOnce() {
   EXPECT(!Has(ClearedOnce(@{}, defaults), @"Episodes"));
 }
 
+// The episodes' note for a game folder on disk: none for a folder without
+// episodes or with complete ones; for an episode's folder with setup2.xml
+// and no list, the folder and the file. Names are found without case.
+void TestEpisodesNote() {
+  NSFileManager* fm = NSFileManager.defaultManager;
+  // A throwaway folder in the current directory (the build directory under ctest).
+  NSString* game = [fm.currentDirectoryPath stringByAppendingPathComponent:@"launcher_options_test.game"];
+  [fm removeItemAtPath:game error:nil];
+  auto file = [&](NSString* rel) {
+    NSString* path = [game stringByAppendingPathComponent:rel];
+    [fm createDirectoryAtPath:path.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:nil error:nil];
+    EXPECT([fm createFileAtPath:path contents:[NSData data] attributes:nil]);
+  };
+  auto says = [](NSString* note, NSString* what) { return note && [note rangeOfString:what].location != NSNotFound; };
+  EXPECT(EpisodesNote(nil) == nil);
+  EXPECT(EpisodesNote(@"") == nil);
+  EXPECT(EpisodesNote(game) == nil);  // no such folder
+  file(@"GTAIV.exe");
+  EXPECT(EpisodesNote(game) == nil);  // no episodes
+  file(@"TLAD/setup2.xml");
+  NSString* note = EpisodesNote(game);
+  EXPECT(says(note, @"TLAD") && says(note, @"E1_List.txt") && !says(note, @"E2_List.txt"));
+  // A folder of that name is not the file.
+  [fm createDirectoryAtPath:[game stringByAppendingPathComponent:@"TLAD/E1_List.txt"] withIntermediateDirectories:YES attributes:nil error:nil];
+  EXPECT(EpisodesNote(game) != nil);
+  [fm removeItemAtPath:[game stringByAppendingPathComponent:@"TLAD/E1_List.txt"] error:nil];
+  file(@"TLAD/e1_list.TXT");  // without case
+  EXPECT(EpisodesNote(game) == nil);
+  file(@"tbogt/SETUP2.XML");  // without case
+  note = EpisodesNote(game);
+  EXPECT(says(note, @"TBoGT") && says(note, @"E2_List.txt") && !says(note, @"E1_List.txt"));
+  file(@"tbogt/E2_List.txt");
+  EXPECT(EpisodesNote(game) == nil);
+  [fm removeItemAtPath:game error:nil];
+}
+
 }  // namespace
 
 int main() {
@@ -166,6 +231,8 @@ int main() {
     TestDefaults();
     TestClearedOnce();
     TestSharpening();
+    TestConsoleGamma();
+    TestEpisodesNote();
     TestTvDefaults();
   }
   if (g_failures) return 1;

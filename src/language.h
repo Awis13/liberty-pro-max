@@ -116,18 +116,19 @@ inline uint32_t StartLanguage(uint32_t stored_lookup, uint32_t stored, uint32_t 
 // The files the game needs in Russian, found (through the mods and the
 // update folder, as the game reads them) or not: IV's text, fonts (the
 // textures and fonts_r.dat, its letters' widths) and title screen, and with
-// the episodes on, for each episode whose folder is there, its text and its
-// title screen (in IV's folder).
+// the episodes on, for each episode that is installed (episode_files.h: one
+// the game takes; a folder it will not take needs nothing), its text and
+// its title screen (in IV's folder).
 struct RussianFiles {
   bool text = false;           // common/text/russian.gxt
   bool font = false;           // pc/textures/fonts_r.wtd
   bool streamed_font = false;  // pc/textures/fonts_r_streamed_1.wtd
   bool font_data = false;      // common/data/fonts_r.dat
   bool title = false;          // pc/textures/title_offline_ru.wtd
-  bool tlad = false;           // TLAD/common/text/american.gxt (the episode is there)
+  bool tlad = false;           // TLAD is installed
   bool tlad_text = false;      // TLAD/common/text/russian.gxt
   bool tlad_title = false;     // pc/textures/title_offline_e1_ru.wtd
-  bool tbogt = false;          // TBoGT/common/text/american.gxt
+  bool tbogt = false;          // TBoGT is installed
   bool tbogt_text = false;     // TBoGT/common/text/russian.gxt
   bool tbogt_title = false;    // pc/textures/title_offline_e2_ru.wtd
 };

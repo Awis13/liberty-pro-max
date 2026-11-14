@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import tempfile
 from concurrent.futures import ThreadPoolExecutor
 
 ENTRIES = [".rpf_key", "commandline.txt", "GTAIV.exe", "GTAIV.exe.cfg", "index.bin",
@@ -92,6 +93,20 @@ def main():
     lock = threading.Lock()
     failed = []
 
+    def transfer_status(value):
+        # Keep Play from starting the TV game against an incomplete copy.
+        # Leave "copying" in place on errors so the same STATE can resume.
+        with tempfile.TemporaryDirectory(prefix="gtaiv-transfer-") as directory:
+            marker = os.path.join(directory, ".gtaiv-transfer-status")
+            with open(marker, "w") as f:
+                f.write(value + "\n")
+            subprocess.run(["xcrun", "devicectl", "device", "copy", "to", "--device", device,
+                            "--domain-type", "appDataContainer", "--domain-identifier", app,
+                            "--source", marker, "--destination", f"{dest}/.gtaiv-transfer-status",
+                            "--timeout", "120"], check=True, capture_output=True, text=True)
+
+    transfer_status("copying")
+
     def send(job):
         item, size = job
         if failed:
@@ -120,6 +135,7 @@ def main():
     if failed:
         print(failed[0], flush=True)
         sys.exit(1)
+    transfer_status("ready")
     print("DONE", flush=True)
 
 

@@ -327,13 +327,20 @@ void RegisterDefaults(NSUserDefaults* d) {
   [d registerDefaults:defaults];
 }
 
-// The Apple TV's defaults over those (launcher_ios.mm): it has no settings
-// screen yet, so they are what it plays with. 1920x1080 with SMAA, no
+// The Apple TV's defaults over those (launcher_tvos.mm): its settings
+// screen preserves these earlier defaults: 1920x1080 with SMAA, no
 // performance overlay, the graphics menu's settings applied from the start,
 // and the episodes on, as before they were off by default elsewhere: off,
 // nothing there could turn them on. The phone cheats stay off.
 inline NSDictionary* TvDefaults() {
   return @{kAntiAliasingKey : @1, kHudKey : @NO, @"FixDrawDistance" : @YES, @"Episodes" : @YES};
+}
+
+// Apply before cache inspection can create the first Metal device. Opt in
+// only when requested; turning the option off removes our environment flag.
+inline void ApplyLauncherHud(NSUserDefaults* d) {
+  if ([d boolForKey:kHudKey]) setenv("MTL_HUD_ENABLED", "1", 1);
+  else unsetenv("MTL_HUD_ENABLED");
 }
 
 // The options as the game reads them: environment variables of this process.

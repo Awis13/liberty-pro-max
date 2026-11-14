@@ -3,6 +3,10 @@ import importlib.util
 import os
 from pathlib import Path
 import tempfile
+import contextlib
+import io
+import subprocess
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -81,6 +85,37 @@ class TransferPlanTests(unittest.TestCase):
             self.assertEqual(self.plan("pc"), [
                 ("pc/data/content", 4), ("pc/data/zero", 0)
             ])
+
+    def run_transfer(self, fail=False):
+        (self.root / "GTAIV.exe").write_bytes(b"game")
+        events = []
+
+        def copy(command, **kwargs):
+            source = Path(command[command.index("--source") + 1])
+            destination = command[command.index("--destination") + 1]
+            if destination.endswith("/.gtaiv-transfer-status"):
+                events.append(source.read_text().strip())
+                return subprocess.CompletedProcess(command, 0, "", "")
+            events.append("payload")
+            return subprocess.CompletedProcess(command, 1 if fail else 0, "", "copy failed" if fail else "")
+
+        with patch.object(upload.sys, "argv", ["ios_push_game.py", str(self.root), "device", "app"]), \
+             patch.dict(os.environ, {"STATE": str(self.root / "state"), "DEST": "Library/Caches/game", "PARALLEL": "1"}), \
+             patch.object(upload.shutil, "disk_usage", return_value=SimpleNamespace(free=1 << 40)), \
+             patch.object(upload.subprocess, "run", side_effect=copy), \
+             contextlib.redirect_stdout(io.StringIO()):
+            if fail:
+                with self.assertRaises(SystemExit):
+                    upload.main()
+            else:
+                upload.main()
+        return events
+
+    def test_transfer_marks_ready_only_after_payload(self):
+        self.assertEqual(self.run_transfer(), ["copying", "payload", "ready"])
+
+    def test_failed_transfer_leaves_play_blocked(self):
+        self.assertEqual(self.run_transfer(fail=True), ["copying", "payload"])
 
 
 if __name__ == "__main__":

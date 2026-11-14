@@ -25,6 +25,7 @@
 #include "runtime/lifted.h"
 #include "runtime/log.h"
 #include "runtime/runtime.h"
+#include "script_natives.h"
 
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
@@ -39,8 +40,9 @@ void MainLoopWaitRender(Ctx& c);  // perf.cpp: 008A1860's lifted body, timed
 
 namespace {
 
-constexpr gaddr kFindNative = 0x00626AF0;    // esi: the hash; returns the handler
-constexpr gaddr kFindPlayerPed = 0x007CD230;  // the player's CPed, 0 while none
+using natives::kFindPlayerPed;
+using natives::kOut;
+using natives::kSize;
 
 enum : uint32_t {
   GET_PLAYER_ID = 0x62E319C6,
@@ -60,10 +62,6 @@ enum : uint32_t {
   GET_INTERIOR_FROM_CHAR = 0x028227F7,
 };
 
-// The scripts' call context (iv-sdk IVNativeCallContext) and what follows
-// it, in guest stack space below the caller's.
-constexpr uint32_t kCtx = 0x00, kArgs = 0x60, kOut = 0xA0, kSize = 0xC0;
-
 uint32_t Bits(float f) {
   uint32_t u;
   std::memcpy(&u, &f, 4);
@@ -78,21 +76,12 @@ float Float(uint32_t u) {
 
 // Calls native `hash` with 4-byte arguments; returns its first result.
 uint32_t Native(Ctx& c, uint32_t base, uint32_t hash, std::initializer_list<uint32_t> args) {
-  c.esi = hash;
-  const gaddr fn = gaddr(CallGuest(c, kFindNative, {}));
+  const gaddr fn = natives::Find(c, hash);
   if (!fn) {
     WarnF("gtaiv: bench: no native %08X\n", hash);
     return 0;
   }
-  const uint32_t ctx = base + kCtx, stack = base + kArgs;
-  std::memset(GPtr(ctx), 0, kOut);
-  Wr32(ctx + 0x00, stack);  // results
-  Wr32(ctx + 0x04, uint32_t(args.size()));
-  Wr32(ctx + 0x08, stack);  // arguments
-  uint32_t i = 0;
-  for (uint32_t a : args) Wr32(stack + 4 * i++, a);
-  CallGuest(c, fn, {ctx});
-  return Rd32(stack);
+  return natives::Call(c, base, fn, args);
 }
 
 struct Scene {
@@ -138,11 +127,13 @@ bool PlayLogDue() {
 }  // namespace
 
 void GtaivPadIconsFrame();  // pad_icons.cpp
+void GtaivPadFeedbackFrame(Ctx& c);  // pad_feedback.cpp
 
 // The main loop's wait for the render thread (thiscall, no arguments).
 void f_008A1860(Ctx& c) {
   MainLoopWaitRender(c);
   GtaivPadIconsFrame();
+  GtaivPadFeedbackFrame(c);
 #if defined(TARGET_OS_IOS) && TARGET_OS_IOS && !TARGET_OS_TV
   // The touch controls' layout, a few times a second.
   static uint32_t touch_frames = 0;

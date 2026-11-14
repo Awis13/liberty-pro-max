@@ -30,7 +30,7 @@ const Fix* Find(NSString* key) {
 void TestExtras() {
   NSArray<NSString*>* want = @[
     @"Episodes", @"EpisodeRadioOwn", @"TurnIndicators", @"TurnIndicatorsManual", @"RouteIndicators", @"PadIcons",
-    @"PhoneCheats", @"PlayerFullDamage"
+    @"PadFeedback", @"PhoneCheats", @"PlayerFullDamage"
   ];
   EXPECT(ExtraCount() == NSInteger(want.count));
   for (NSInteger i = 0; i < ExtraCount() && i < NSInteger(want.count); i++) {

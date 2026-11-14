@@ -137,6 +137,7 @@ void TestConsoleGamma() {
   NSUserDefaults* d = [[NSUserDefaults alloc] initWithSuiteName:@"launcher_options_test.gamma"];
   [d removePersistentDomainForName:@"launcher_options_test.gamma"];
   RegisterDefaults(d);
+  EXPECT([kConsoleGammaKey isEqualToString:@"ConsoleGamma"]);
   EXPECT([d integerForKey:kConsoleGammaKey] == 0);
   const char* want[] = {nullptr, "bt709", "1.2"};
   for (NSInteger aa : {0, 1, 2, 3, 4})

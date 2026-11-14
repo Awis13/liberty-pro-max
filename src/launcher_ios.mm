@@ -194,6 +194,7 @@ static NSArray* GraphicsRows() {
     @[ @"Resolution", kIosResolutionKey, res ],
     @[ @"Anti-aliasing", kAntiAliasingKey, @[ @"Off", @"SMAA", @"TAA" ] ],
     @[ @"Sharpening", kTaaSharpeningKey, @[ @"Off", @"Low", @"Medium", @"High" ] ],
+    @[ @"Console gamma", kConsoleGammaKey, @[ @"Off", @"Xbox 360", @"PS3" ] ],
     @[ @"Frame limit", kIosFrameLimitKey, @[ @"60", @"40", @"30", @"Off" ] ],
     @[ @"Shadows", kShadowsKey, @[ @"Game's", @"High" ] ],
     @[ @"Reflections", kReflectionsKey, @[ @"Game's", @"High" ] ],

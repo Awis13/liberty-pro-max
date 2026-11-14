@@ -38,7 +38,7 @@ inline const char* SharpnessFor(NSInteger level) {
 // Whether an anti-aliasing choice (kAntiAliasingKey) is sharpened: TAA and
 // both MetalFX upscales are; off and SMAA are not (their option greyed).
 inline bool SharpeningApplies(NSInteger aa) { return aa >= 2 && aa <= 4; }
-// The console gamma (FusionFix's, by its idea): 0 off, 1 the Xbox 360's
+// The console gamma: 0 off, 1 the Xbox 360's
 // (sRGB decoded, BT.709 encoded), 2 the PS3's (a power of 1.2), the
 // runtime's RECOMP_OUTPUT_CURVE for each (nullptr: none).
 NSString* const kConsoleGammaKey = @"ConsoleGamma";

@@ -353,7 +353,7 @@ The Mac's launcher has three tabs. **General**: the game folder, full screen
 or a window (on a display with a notch, also the whole screen), vertical sync,
 a frame limit (off, 30, 60 or 120 fps), anti-aliasing (TAA, SMAA, MetalFX)
 with the MetalFX resolution and sharpening, the console gamma (off, the
-Xbox 360's or the PS3's contrast, as FusionFix's), the performance overlay,
+Xbox 360's or the PS3's contrast), the performance overlay,
 skipping the logo screens, continuing the last save, the game's language,
 mods (**Open Mods Folder**) and the saves' folder (**Open Saves Folder**).
 **Extras**: this port's own additions, the episodes, turn indicators, pad
@@ -368,7 +368,7 @@ their code is not used), some are this port's own.
 On the iPad and iPhone the settings screen has the same in sections: **Game**
 (touch controls, continuing the last save, skipping the start screens, the
 game's language, mods, fast loading, stun punch and executions on anyone), **Extras**, **Graphics**
-(resolution, anti-aliasing, sharpening, frame limit, shadows, reflections, field of view,
+(resolution, anti-aliasing, sharpening, console gamma, frame limit, shadows, reflections, field of view,
 the performance overlay) and **Fixes**.
 
 **Pad icons** need the other pads' button pictures, which the game does not
@@ -570,8 +570,8 @@ This port's own additions, on the launcher's Extras tab (a section of their own 
 With turn indicators on, flick the left stick to set an indicator before a
 turn; flick the same way to turn it off.
 
-Not yet here from FusionFix: its ambient occlusion (SAO), HDR
-output, depth effects through transparent surfaces (pre-alpha depth), MSAA in
+Not yet here from FusionFix: its ambient occlusion (SAO), the console gamma's
+dithered variant and its brightness change, HDR output, depth effects through transparent surfaces (pre-alpha depth), MSAA in
 reflections, camera sensitivity ranges and ragdoll on demand. The episodes'
 vehicles and weapons in IV are not here yet. On a Mac, FusionFix's raw input,
 keyboard lighting, graphics API choice and plugin loaders have nothing to do.

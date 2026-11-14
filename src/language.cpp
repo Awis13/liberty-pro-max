@@ -62,6 +62,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "episode_files.h"
 #include "hook_util.h"
 #include "language.h"
 #include "option.h"
@@ -115,10 +116,10 @@ bool Russian() {
     f.font_data = HasFile("common\\data\\fonts_r.dat");
     f.title = HasFile("pc\\textures\\title_offline_ru.wtd");
     if (OptionOn("GTAIV_EPISODES", false)) {
-      f.tlad = HasFile("TLAD\\common\\text\\american.gxt");
+      f.tlad = EpisodeInstalled(episode_files::kTLAD);
       f.tlad_text = HasFile("TLAD\\common\\text\\russian.gxt");
       f.tlad_title = HasFile("pc\\textures\\title_offline_e1_ru.wtd");
-      f.tbogt = HasFile("TBoGT\\common\\text\\american.gxt");
+      f.tbogt = EpisodeInstalled(episode_files::kTBoGT);
       f.tbogt_text = HasFile("TBoGT\\common\\text\\russian.gxt");
       f.tbogt_title = HasFile("pc\\textures\\title_offline_e2_ru.wtd");
     }

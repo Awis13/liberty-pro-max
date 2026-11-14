@@ -38,6 +38,7 @@ if(TARGET gtaiv_lifted)
   add_executable(gtaiv src/main.cpp src/game_args.cpp src/language.cpp src/paul.cpp src/integrity.cpp src/diagnostics.cpp src/widescreen.cpp src/crt_math.cpp
     src/bench.cpp src/fixes.cpp src/jobs.cpp src/options.cpp src/perf.cpp src/episodes.cpp src/mods.cpp src/threads.cpp src/native.cpp src/pad_icons.cpp
     src/saves.cpp
+    src/pad_feedback.cpp
     src/community_fixes.cpp
     src/high_fps_fixes.cpp
     src/update_folder.cpp
@@ -139,12 +140,23 @@ if(GTAIV_TESTS AND NOT RECOMP_IOS)
     target_link_options(gtaiv_save_file_test PRIVATE -fsanitize=address,undefined)
   endif()
   add_test(NAME save_file COMMAND gtaiv_save_file_test)
+  add_executable(gtaiv_night_shadow_slots_test tests/night_shadow_slots_test.cpp)
+  target_include_directories(gtaiv_night_shadow_slots_test PRIVATE src)
+  target_compile_features(gtaiv_night_shadow_slots_test PRIVATE cxx_std_20)
+  add_test(NAME night_shadow_slots COMMAND gtaiv_night_shadow_slots_test)
   add_executable(gtaiv_language_test tests/language_test.cpp)
   target_include_directories(gtaiv_language_test PRIVATE src)
   add_test(NAME language COMMAND gtaiv_language_test)
   add_executable(gtaiv_water_surface_test tests/water_surface_test.cpp)
   target_include_directories(gtaiv_water_surface_test PRIVATE src)
   add_test(NAME water_surface COMMAND gtaiv_water_surface_test)
+  # (With x86recomp's pad_effects.h, a plain header.)
+  add_executable(gtaiv_pad_feedback_test tests/pad_feedback_test.cpp)
+  target_include_directories(gtaiv_pad_feedback_test PRIVATE src "${X86RECOMP_DIR}/src")
+  add_test(NAME pad_feedback COMMAND gtaiv_pad_feedback_test)
+  add_executable(gtaiv_episode_files_test tests/episode_files_test.cpp)
+  target_include_directories(gtaiv_episode_files_test PRIVATE src)
+  add_test(NAME episode_files COMMAND gtaiv_episode_files_test)
   # The tools' Python tests (tests/test_*.py), so that ctest runs them too.
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)

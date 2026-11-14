@@ -23,6 +23,7 @@
 #include <vector>
 
 #include "hook_util.h"
+#include "night_shadow_slots.h"
 #include "option.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
@@ -121,6 +122,38 @@ void hook_008CB242(Ctx& c) {
 // cascades, 008CC106, pass 0; the local lights' phases, 00C53xxx, -1);
 // pop ebp; je past lists 0 and 1. For a local light they are drawn here
 // with "wd_local", all their entities (last argument -1, as the game's).
+// The night shadows' slots held steady (night_shadow_slots.h; GTAIV_NIGHT_
+// SHADOW_STABLE=0: as the game had them).
+namespace {
+bool NightShadowsStable() {
+  static const bool on = OptionOn("GTAIV_NIGHT_SHADOW_STABLE", true);
+  return on;
+}
+}  // namespace
+// 008C4550: movss xmm3, [00F3E174] (-8.0), the step from the camera to the
+// point the lights are ranked from: 0, the camera itself.
+void hook_008C45CA(Ctx& c) { LoadSs(c.xmm[3], NightShadowsStable() ? 0.0f : RdF32(0x00F3E174)); }
+// 008C4550: mov [esp+2C], edx, as a light (its record at esi + eax) with its
+// distance in xmm1 goes into the ranking: a light that held a slot in the
+// frame before competes at kHeldShare of it.
+void hook_008C499A(Ctx& c) {
+  Wr32(c.esp + 0x2C, c.edx);
+  if (!NightShadowsStable()) return;
+  namespace ns = night_shadow_slots;
+  uint32_t ids[ns::kSlots];
+  for (int k = 0; k < ns::kSlots; k++) ids[k] = Rd32(ns::kSlotTable + uint32_t(k) * ns::kSlotStride + ns::kSlotId);
+  const uint32_t id = Rd32(c.esi + c.eax + 0x60);
+  if (ns::Held(id, ids)) SetLane0(c.xmm[1], ns::RankDistance(Lane0(c.xmm[1]), true));
+}
+
+// 008C32B0 (cdecl: the fresh light's flags, the ranking place's): which of
+// the two the place keeps (night_shadow_slots.h's Priority), the cars' lights
+// and the others even when steady.
+void f_008C32B0(Ctx& c) {
+  c.eax = night_shadow_slots::Priority(Rd32(c.esp + 4), Rd32(c.esp + 8), NightShadowsStable());
+  c.esp += 4;  // ret
+}
+
 void hook_0095AEE9(Ctx& c) {
   const uint8_t cascade = Rd8(c.esp + 0x13);
   if (!cascade && VehicleNightShadows()) {

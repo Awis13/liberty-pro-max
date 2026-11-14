@@ -37,6 +37,7 @@ recomp_add_lifted(gtaiv_lifted "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 if(TARGET gtaiv_lifted)
   add_executable(gtaiv src/main.cpp src/game_args.cpp src/language.cpp src/paul.cpp src/integrity.cpp src/diagnostics.cpp src/widescreen.cpp src/crt_math.cpp
     src/bench.cpp src/fixes.cpp src/jobs.cpp src/options.cpp src/perf.cpp src/episodes.cpp src/mods.cpp src/threads.cpp src/native.cpp src/pad_icons.cpp
+    src/saves.cpp
     src/pad_feedback.cpp
     src/community_fixes.cpp
     src/high_fps_fixes.cpp
@@ -131,6 +132,14 @@ if(GTAIV_TESTS AND NOT RECOMP_IOS)
   add_executable(gtaiv_save_paths_test tests/save_paths_test.cpp)
   target_include_directories(gtaiv_save_paths_test PRIVATE src)
   add_test(NAME save_paths COMMAND gtaiv_save_paths_test)
+  add_executable(gtaiv_save_file_test tests/save_file_test.cpp)
+  target_include_directories(gtaiv_save_file_test PRIVATE src)
+  # Reads past a buffer's end fail the test (not with MSVC).
+  if(NOT MSVC)
+    target_compile_options(gtaiv_save_file_test PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=undefined)
+    target_link_options(gtaiv_save_file_test PRIVATE -fsanitize=address,undefined)
+  endif()
+  add_test(NAME save_file COMMAND gtaiv_save_file_test)
   add_executable(gtaiv_night_shadow_slots_test tests/night_shadow_slots_test.cpp)
   target_include_directories(gtaiv_night_shadow_slots_test PRIVATE src)
   target_compile_features(gtaiv_night_shadow_slots_test PRIVATE cxx_std_20)

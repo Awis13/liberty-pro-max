@@ -195,6 +195,33 @@ the Mac copies its saves to and from it at start and quit, over the cable
 or the network, when Xcode is installed. The launcher's "Saves synced"
 option turns both off.
 
+### Saves from elsewhere
+
+A save from another PC, or one downloaded (a completed story, say), goes into
+the folder the game reads its saves from. On the Mac the launcher's **Open
+Saves Folder** opens it:
+
+`~/Library/Application Support/gtaiv/drive_c/Documents and Settings/Player/Local Settings/Application Data/Rockstar Games/GTA IV/savegames/user_ee000000deadc0de`
+
+The game lists 15 slots there, files named `SGTA400` to `SGTA414` (no
+extension; `SGTA400` is the menu's first slot).
+
+A save loads when it is laid out as this version of the game (1.0.8.0) lays
+its own out, whether it was made with Games for Windows Live or without it.
+Which other versions of the game write that layout was not checked. A save
+made with Live carries a checksum only Live can read; the port checks the
+save's own sum of its data instead ("Saves made with Games for Windows Live
+can be loaded (checked by their own sum)", on by default).
+
+Saves of the Complete Edition (1.2.0.x) do not load: some of their blocks
+are larger and this version of the game cannot read them. Where a download
+offers saves for several versions, take the one for 1.0.8.0.
+
+A save that does not load gives the game's message ("Load failed. Please
+check your hard drive and try again.") and, in `~/Library/Logs/gtaiv.log`,
+lines starting `warning: gtaiv: save:` with the game's error code, the file
+and the reason: another version's save, or a damaged one.
+
 ### The episodes
 
 The episodes are off until you turn them on: "The episodes" on the launcher's
@@ -327,10 +354,11 @@ or a window (on a display with a notch, also the whole screen), vertical sync,
 a frame limit (off, 30, 60 or 120 fps), anti-aliasing (TAA, SMAA, MetalFX)
 with the MetalFX resolution and sharpening, the performance overlay,
 skipping the logo screens, continuing the last save, the game's language,
-and mods (**Open Mods Folder**). **Extras**: this port's own additions, the episodes, turn
-indicators, pad icons, the DualSense's triggers and light bar, phone cheats
-and full damage, each off until you turn it on, and the episodes' radio songs
-kept to their own episode, on.
+mods (**Open Mods Folder**) and the saves' folder (**Open Saves Folder**).
+**Extras**: this port's own additions, the episodes, turn indicators, pad
+icons, the DualSense's triggers and light bar, phone cheats and full damage,
+each off until you turn it on, and the episodes' radio songs kept to their
+own episode, on.
 **Advanced**: shadow and reflection resolution, field of view, fast loading,
 **Combat** (stun punch and executions on anyone), then every fix below, each
 a switch. Most fixes follow FusionFix's and ZolikaPatch's (by what they do;
@@ -375,7 +403,7 @@ off there. Not yet: gyro aiming.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-105 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
+106 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
 
 #### High frame rates
 
@@ -478,6 +506,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 |---|---|
 | Weapon recoil with the mouse as with a gamepad | on |
 | Health from a save at most a full bar (trainer saves) | on |
+| Saves made with Games for Windows Live can be loaded (checked by their own sum) | on |
 | Saving from the phone works in vehicles | on |
 | Radio keeps playing after cutscenes | on |
 | Cars do not swerve under trains | on |

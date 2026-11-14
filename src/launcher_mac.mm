@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "launcher_options.h"
+#include "save_paths.h"
 #include "runtime/gfx/prewarm.h"
 
 namespace {
@@ -279,6 +280,8 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
                                "Your game folder is not changed."];
   self.modsNote.textColor = NSColor.secondaryLabelColor;
   self.modsNote.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+  // The folder the game reads its saves from (SGTA400 to SGTA414).
+  NSButton* savesFolder = [NSButton buttonWithTitle:@"Open Saves Folder" target:self action:@selector(openSaves:)];
 
   NSGridView* grid = [NSGridView gridViewWithViews:@[
     @[ [self label:@"Game folder:"], folderRow ],
@@ -297,6 +300,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ [self label:@"Mods:"], self.mods ],
     @[ NSGridCell.emptyContentView, modsFolder ],
     @[ NSGridCell.emptyContentView, self.modsNote ],
+    @[ [self label:@"Saves:"], savesFolder ],
   ]];
   grid.rowSpacing = 10;
   BOOL notch = NO;
@@ -558,6 +562,15 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [NSFileManager.defaultManager createDirectoryAtPath:ModsFolder() withIntermediateDirectories:YES
                                            attributes:nil error:nil];
   [NSWorkspace.sharedWorkspace openURL:[NSURL fileURLWithPath:ModsFolder()]];
+}
+
+// The saves' folder of the profile the game reads (save_paths.h), made if
+// the game has not run yet.
+- (void)openSaves:(id)sender {
+  NSString* saves = [[DataFolder() stringByAppendingPathComponent:@(save_paths::kSavesRel)]
+      stringByAppendingPathComponent:@(std::string(save_paths::kGameProfile).c_str())];
+  [NSFileManager.defaultManager createDirectoryAtPath:saves withIntermediateDirectories:YES attributes:nil error:nil];
+  [NSWorkspace.sharedWorkspace openURL:[NSURL fileURLWithPath:saves]];
 }
 
 // If the caches lack shaders earlier runs compiled: compiled again in the

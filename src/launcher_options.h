@@ -86,6 +86,7 @@ const Fix kFixes[] = {
     {@"HideCursorOnPad", "GTAIV_HIDE_CURSOR_ON_PAD", @"Menu cursor hidden while playing with a gamepad"},
     {@"ReticleHealth", "GTAIV_RETICLE_HEALTH", @"Target health on the reticle with the mouse"},
     {@"SaveHealthCap", "GTAIV_SAVE_HEALTH_CAP", @"Health from a save at most a full bar (trainer saves)"},
+    {@"SaveLiveChecksum", "GTAIV_SAVE_LIVE_CHECKSUM", @"Saves made with Games for Windows Live can be loaded (checked by their own sum)"},
     {@"SaveSync", "GTAIV_SAVE_SYNC", @"Saves synced with your iPad, iPhone and Apple TV at start and quit (Apple TV: needs Xcode)"},
     {@"RadarZoomDelay", "GTAIV_RADAR_ZOOM_DELAY", @"Radar stays zoomed out for 3 seconds"},
     {@"TrainLanes", "GTAIV_TRAIN_LANES", @"Cars do not swerve under trains"},
@@ -293,16 +294,20 @@ const ShaderChoice kShaderChoices[] = {
     {@"FFMotionBlur", "GTAIV_MOTION_BLUR", @"Motion blur:", @[ @"Off", @"1/8", @"1/4", @"1/2", @"Full" ], 2},
 };
 
-// The mods' folder (mods.cpp reads it from the port's data directory:
-// $XDG_DATA_HOME/gtaiv, else ~/Library/Application Support/gtaiv - the
-// runtime's DataDir).
-NSString* ModsFolder() {
+// The port's data directory: $XDG_DATA_HOME/gtaiv, else
+// ~/Library/Application Support/gtaiv - the runtime's DataDir.
+NSString* DataFolder() {
   NSString* root;
   if (const char* x = std::getenv("XDG_DATA_HOME"); x && *x)
     root = @(x);
   else
     root = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Application Support"];
-  return [root stringByAppendingPathComponent:@"gtaiv/drive_c/mods"];
+  return [root stringByAppendingPathComponent:@"gtaiv"];
+}
+
+// The mods' folder (mods.cpp reads it from the port's data directory).
+NSString* ModsFolder() {
+  return [DataFolder() stringByAppendingPathComponent:@"drive_c/mods"];
 }
 
 // The defaults of every option (the player's choices override them).

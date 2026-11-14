@@ -1,0 +1,16 @@
+--- a/src/runtime/gfx/metal_device.mm
++++ b/src/runtime/gfx/metal_device.mm
+@@ -1255,6 +1255,13 @@
+ 
+   void Present() override {
+     std::lock_guard<std::recursive_mutex> l(mu_);
++    // Diagnostic-only: alternate paths without restarting the process.
++    if (std::getenv("RECOMP_TEST_DEPTH_AB")) {
++      const bool enabled = int(ProcessSeconds() / 10) % 2;
++      if (enabled != sampled_depth_)
++        std::fprintf(stderr, "gfx: test sampled-depth phase %d at process %.3f s\n", int(enabled), ProcessSeconds());
++      sampled_depth_ = enabled;
++    }
+     {
+       FirstScene();
+       EndBoostLate();

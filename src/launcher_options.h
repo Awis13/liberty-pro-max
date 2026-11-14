@@ -38,6 +38,14 @@ inline const char* SharpnessFor(NSInteger level) {
 // Whether an anti-aliasing choice (kAntiAliasingKey) is sharpened: TAA and
 // both MetalFX upscales are; off and SMAA are not (their option greyed).
 inline bool SharpeningApplies(NSInteger aa) { return aa >= 2 && aa <= 4; }
+// The console gamma (FusionFix's, by its idea): 0 off, 1 the Xbox 360's
+// (sRGB decoded, BT.709 encoded), 2 the PS3's (a power of 1.2), the
+// runtime's RECOMP_OUTPUT_CURVE for each (nullptr: none).
+NSString* const kConsoleGammaKey = @"ConsoleGamma";
+inline const char* OutputCurveFor(NSInteger mode) {
+  static const char* const kCurves[] = {nullptr, "bt709", "1.2"};
+  return kCurves[std::clamp<NSInteger>(mode, 0, 2)];
+}
 NSString* const kHudKey = @"PerformanceOverlay";
 NSString* const kSkipKey = @"SkipLauncher";
 NSString* const kSkipIntroKey = @"SkipIntro";
@@ -359,6 +367,10 @@ void ApplyOptions(NSUserDefaults* d) {
     default: unsetenv("RECOMP_UPSCALER"); break;
   }
   setenv("RECOMP_SHARPNESS", SharpnessFor([d integerForKey:kTaaSharpeningKey]), 1);
+  if (const char* curve = OutputCurveFor([d integerForKey:kConsoleGammaKey]))
+    setenv("RECOMP_OUTPUT_CURVE", curve, 1);
+  else
+    unsetenv("RECOMP_OUTPUT_CURVE");
   setenv("MTL_HUD_ENABLED", [d boolForKey:kHudKey] ? "1" : "0", 1);
   setenv("GTAIV_SKIP_INTRO", [d boolForKey:kSkipIntroKey] ? "1" : "0", 1);
   // Render targets made larger (RECOMP_RT_BOOST): the shadow maps (the

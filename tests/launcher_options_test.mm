@@ -1,7 +1,8 @@
 // launcher_options (src/launcher_options.h): the Extras, their defaults,
 // the lists they stay out of, what the Mac launcher clears once when it
-// moves to storing only changed options, the sharpening as the runtime
-// gets it, and the episodes' note for a game folder on disk.
+// moves to storing only changed options, the sharpening and the console
+// gamma as the runtime gets them, and the episodes' note for a game folder
+// on disk.
 
 #include "launcher_options.h"
 
@@ -129,6 +130,33 @@ void TestSharpening() {
   [d removePersistentDomainForName:@"launcher_options_test.sharpening"];
 }
 
+// The console gamma: off by default (the variable unset), the Xbox 360's
+// curve (sRGB decoded, BT.709 encoded) or the PS3's (a power of 1.2) in
+// RECOMP_OUTPUT_CURVE whatever the anti-aliasing; out of range clamped.
+void TestConsoleGamma() {
+  NSUserDefaults* d = [[NSUserDefaults alloc] initWithSuiteName:@"launcher_options_test.gamma"];
+  [d removePersistentDomainForName:@"launcher_options_test.gamma"];
+  RegisterDefaults(d);
+  EXPECT([d integerForKey:kConsoleGammaKey] == 0);
+  const char* want[] = {nullptr, "bt709", "1.2"};
+  for (NSInteger aa : {0, 1, 2, 3, 4})
+    for (NSInteger mode = 0; mode < 3; mode++) {
+      [d setInteger:aa forKey:kAntiAliasingKey];
+      [d setInteger:mode forKey:kConsoleGammaKey];
+      setenv("RECOMP_OUTPUT_CURVE", "stale", 1);
+      ApplyOptions(d);
+      const char* got = std::getenv("RECOMP_OUTPUT_CURVE");
+      EXPECT(want[mode] ? got && std::strcmp(got, want[mode]) == 0 : got == nullptr);
+    }
+  [d setInteger:9 forKey:kConsoleGammaKey];
+  ApplyOptions(d);
+  EXPECT(std::getenv("RECOMP_OUTPUT_CURVE") && std::strcmp(std::getenv("RECOMP_OUTPUT_CURVE"), "1.2") == 0);
+  [d setInteger:-1 forKey:kConsoleGammaKey];
+  ApplyOptions(d);
+  EXPECT(std::getenv("RECOMP_OUTPUT_CURVE") == nullptr);
+  [d removePersistentDomainForName:@"launcher_options_test.gamma"];
+}
+
 bool Has(NSArray* a, NSString* k) { return [a containsObject:k]; }
 
 // The one move to storing only changes: what earlier versions stored on
@@ -202,6 +230,7 @@ int main() {
     TestDefaults();
     TestClearedOnce();
     TestSharpening();
+    TestConsoleGamma();
     TestEpisodesNote();
     TestTvDefaults();
   }

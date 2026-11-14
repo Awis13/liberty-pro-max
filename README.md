@@ -352,7 +352,8 @@ before `install-ios.sh` to have them on the iPad, iPhone or Apple TV too.
 The Mac's launcher has three tabs. **General**: the game folder, full screen
 or a window (on a display with a notch, also the whole screen), vertical sync,
 a frame limit (off, 30, 60 or 120 fps), anti-aliasing (TAA, SMAA, MetalFX)
-with the MetalFX resolution and sharpening, the performance overlay,
+with the MetalFX resolution and sharpening, the console gamma (off, the
+Xbox 360's or the PS3's contrast, as FusionFix's), the performance overlay,
 skipping the logo screens, continuing the last save, the game's language,
 mods (**Open Mods Folder**) and the saves' folder (**Open Saves Folder**).
 **Extras**: this port's own additions, the episodes, turn indicators, pad
@@ -569,7 +570,7 @@ This port's own additions, on the launcher's Extras tab (a section of their own 
 With turn indicators on, flick the left stick to set an indicator before a
 turn; flick the same way to turn it off.
 
-Not yet here from FusionFix: its ambient occlusion (SAO), console gamma, HDR
+Not yet here from FusionFix: its ambient occlusion (SAO), HDR
 output, depth effects through transparent surfaces (pre-alpha depth), MSAA in
 reflections, camera sensitivity ranges and ragdoll on demand. The episodes'
 vehicles and weapons in IV are not here yet. On a Mac, FusionFix's raw input,

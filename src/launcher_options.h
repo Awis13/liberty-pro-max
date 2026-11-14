@@ -11,6 +11,8 @@
 #include <cstdlib>
 #include <string>
 
+#include "episode_files.h"
+
 namespace {
 
 NSString* const kFolderKey = @"GameFolder";
@@ -122,6 +124,7 @@ const Fix kFixes[] = {
     {@"RainLighting", "GTAIV_RAIN_LIGHTING", @"Rain lit as on consoles (visible at night)"},
     {@"HeliSearchlights", "GTAIV_HELI_SEARCHLIGHTS", @"Police helicopter searchlights do not flicker"},
     {@"NightShadowResolution", "GTAIV_NIGHT_SHADOW_RESOLUTION", @"The Night Shadows setting changes how sharp night shadows are"},
+    {@"NightShadowStable", "GTAIV_NIGHT_SHADOW_STABLE", @"Street lamps keep the shadows of people and cars when the camera turns or cars drive by"},
     {@"CenteredCarCamera", "GTAIV_CENTERED_CAR_CAMERA", @"Car camera centred behind the car", false},
     {@"CenteredFootCamera", "GTAIV_CENTERED_FOOT_CAMERA", @"On-foot camera centred behind the player", false},
     {@"BrakeLightsStopped", "GTAIV_BRAKE_LIGHTS_STOPPED", @"Brake lights stay on while your car stands", false},
@@ -221,6 +224,36 @@ inline const Fix& ExtraAt(NSInteger row) {
   for (const Fix& f : kFixes)
     if (f.extra && row-- == 0) return f;
   return kFixes[0];
+}
+
+// Whether a file is in a game folder (`rel` below it, with backslashes, as
+// episode_files.h asks), names without case, as the game finds its files.
+// The folder itself only: not the mods or the update folder.
+inline bool GameFolderHasFile(NSString* dir, const std::string& rel) {
+  NSFileManager* fm = NSFileManager.defaultManager;
+  NSString* at = dir;
+  if (!at.length) return false;
+  for (NSString* part in [@(rel.c_str()) componentsSeparatedByString:@"\\"]) {
+    NSString* found = nil;
+    for (NSString* name in [fm contentsOfDirectoryAtPath:at error:nil])
+      if ([name caseInsensitiveCompare:part] == NSOrderedSame) {
+        found = name;
+        break;
+      }
+    if (!found) return false;
+    at = [at stringByAppendingPathComponent:found];
+  }
+  BOOL folder = NO;
+  return [fm fileExistsAtPath:at isDirectory:&folder] && !folder;
+}
+
+// The note by the episodes' option, for a game folder with an episode's
+// folder the game will not take (setup2.xml and no list of the episode's
+// files: episode_files.h); nil when there is none.
+inline NSString* EpisodesNote(NSString* game_dir) {
+  const std::string note = episode_files::MissingListNote(
+      episode_files::MissingLists([&](const std::string& rel) { return GameFolderHasFile(game_dir, rel); }));
+  return note.empty() ? nil : @(note.c_str());
 }
 
 // The options whose default went from on to off since the Mac launcher

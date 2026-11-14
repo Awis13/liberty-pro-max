@@ -8,10 +8,15 @@
 //   GTAIV_BENCH=log: only the player's position and heading every 2 s
 //   (logged after placing too).
 //
+// And, unless GTAIV_PLAY_LOG=0, every 5 s of play a line in the game's log
+// with where the player is, on foot or in a car, the time of day and the
+// interior: a crash report then says where it happened.
+//
 // Natives are looked up and called as ScriptHook does (iv-sdk,
 // CTheScripts::FindNativeAddress and NativeInvoke), from the main loop,
 // right after it has waited for the render thread (008A1860).
 
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -53,6 +58,8 @@ enum : uint32_t {
   FORCE_WEATHER_NOW = 0x63737D31,
   IS_CHAR_IN_ANY_CAR = 0x71184DA3,
   IS_PAUSE_MENU_ACTIVE = 0x6C4568A7,
+  GET_TIME_OF_DAY = 0x384B3876,
+  GET_INTERIOR_FROM_CHAR = 0x028227F7,
 };
 
 uint32_t Bits(float f) {
@@ -98,6 +105,25 @@ const Scene& Config() {
   return s;
 }
 
+// The play log (GTAIV_PLAY_LOG, on unless 0).
+bool PlayLog() {
+  static const bool on = [] {
+    const char* e = std::getenv("GTAIV_PLAY_LOG");
+    return !(e && *e == '0');
+  }();
+  return on;
+}
+
+// Whether 5 s have passed since the last play log line.
+bool PlayLogDue() {
+  using Clock = std::chrono::steady_clock;
+  static Clock::time_point last{};
+  const Clock::time_point now = Clock::now();
+  if (now - last < std::chrono::seconds(5)) return false;
+  last = now;
+  return true;
+}
+
 }  // namespace
 
 void GtaivPadIconsFrame();  // pad_icons.cpp
@@ -136,7 +162,7 @@ void f_008A1860(Ctx& c) {
   }
 #endif
   const Scene& s = Config();
-  if (!s.log && s.x == 0 && s.y == 0) return;
+  if (!s.log && s.x == 0 && s.y == 0 && !PlayLog()) return;
 
   // Frames since the player first existed: the scene is set up once the
   // world has settled after loading.
@@ -144,9 +170,10 @@ void f_008A1860(Ctx& c) {
   static bool placed = false;
   const uint32_t eax = c.eax, ebx = c.ebx, esi = c.esi, edi = c.edi, ebp = c.ebp;
   const uint32_t esp = c.esp;
+  const bool bench = s.log || s.x != 0 || s.y != 0;
   if (!CallGuest(c, kFindPlayerPed, {})) {
     frames = 0;
-  } else if (++frames >= 120) {
+  } else if (++frames >= 120 && (bench || PlayLogDue())) {
     c.esp -= kSize;
     const uint32_t base = uint32_t(c.esp) & ~0xFu;
     c.esp = base;
@@ -154,7 +181,20 @@ void f_008A1860(Ctx& c) {
         Native(c, base, CONVERT_INT_TO_PLAYERINDEX, {Native(c, base, GET_PLAYER_ID, {})});
     Native(c, base, GET_PLAYER_CHAR, {player, base + kOut});
     const uint32_t ped = Rd32(base + kOut);
-    if (!s.log && !placed) {
+    if (PlayLog() && (!bench || PlayLogDue())) {
+      Native(c, base, GET_CHAR_COORDINATES, {ped, base + kOut, base + kOut + 4, base + kOut + 8});
+      Native(c, base, GET_CHAR_HEADING, {ped, base + kOut + 12});
+      const bool car = (Native(c, base, IS_CHAR_IN_ANY_CAR, {ped}) & 0xFF) != 0;
+      const float x = Float(Rd32(base + kOut)), y = Float(Rd32(base + kOut + 4)), z = Float(Rd32(base + kOut + 8)),
+                  h = Float(Rd32(base + kOut + 12));
+      Native(c, base, GET_TIME_OF_DAY, {base + kOut, base + kOut + 4});
+      const uint32_t hour = Rd32(base + kOut), minute = Rd32(base + kOut + 4);
+      Native(c, base, GET_INTERIOR_FROM_CHAR, {ped, base + kOut});
+      WarnF("gtaiv: play: at %.1f,%.1f,%.1f heading %.0f, %s, %02u:%02u, interior %u\n", x, y, z, h,
+            car ? "in a car" : "on foot", hour, minute, Rd32(base + kOut));
+    }
+    if (!bench) {
+    } else if (!s.log && !placed) {
       placed = true;
       if (s.hour >= 0) Native(c, base, FORCE_TIME_OF_DAY, {uint32_t(s.hour), 0});
       if (s.weather >= 0) Native(c, base, FORCE_WEATHER_NOW, {uint32_t(s.weather)});

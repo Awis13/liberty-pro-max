@@ -3,18 +3,23 @@
 // registry (0088F080) after Live's list of downloaded content, and with one
 // found opens with its own screen to choose what to play.
 //
-//   GTAIV_EPISODES (off by default): the game finds the episodes it has
-//     the folders of.
+//   GTAIV_EPISODES (off by default): the game finds the episodes that are
+//     installed in their folders (episode_files.h: setup2.xml and the
+//     episode's list of files; a folder without the list is named in the
+//     log).
 //   GTAIV_EPISODE_RADIO_OWN: an episode's radio songs play only in that
 //     episode, not in IV or the other episode (on by default).
 //   Always on, IV too: native 2C89A1F9, which the Complete Edition scripts
 //     call, registered and answering 0.
+#include <sys/stat.h>
+
 #include <cstring>
-#include <filesystem>
 #include <string>
 
+#include "episode_files.h"
 #include "hook_util.h"
 #include "option.h"
+#include "runtime/hle/kernel32_state.h"
 #include "runtime/lifted.h"
 #include "runtime/log.h"
 #include "runtime/runtime.h"
@@ -33,6 +38,24 @@ bool EpisodesOn() {
   static const bool on = OptionOn("GTAIV_EPISODES", false);
   return on;
 }
+
+namespace {
+
+// Whether a file below the game's folder is there, looked for as the game's
+// own open finds it: through the mods and the update folder, names without
+// case (HostPath).
+bool HasGameFile(const std::string& rel) {
+  struct stat st;
+  const std::string host = HostPath(Game().guest_dir + "\\" + rel);
+  return stat(host.c_str(), &st) == 0 && S_ISREG(st.st_mode);
+}
+
+// An episode's files as they are in its folder (episode_files.h).
+episode_files::State EpisodeFiles(uint32_t episode) { return episode_files::Find(episode, HasGameFile); }
+
+}  // namespace
+
+bool EpisodeInstalled(uint32_t episode) { return episode_files::Installed(episode, HasGameFile); }
 
 namespace {
 
@@ -100,19 +123,30 @@ void f_008906B0(Ctx& c) {
 }
 
 // thiscall (mask, out): the install folder of the episode in the mask (2
-// TLAD, 4 TBoGT) if it is there; al: whether it is.
+// TLAD, 4 TBoGT), from the registry. Its caller (0088F440) does not read
+// al: it goes on with whatever is in out (empty when nothing was written)
+// and takes the folder only if it opens the episode's list in it. Here the
+// folder is given only for an installed episode (episode_files.h), so the
+// game takes every folder it is given; one with setup2.xml and no list is
+// named in the log, once, and not given.
 void f_0088F080(Ctx& c) {
   if (!EpisodesOn()) return f_0088F080_lifted(c);
   const uint32_t mask = Rd32(c.esp + 4);
   const uint32_t out = Rd32(c.esp + 8);
-  const char* folder = mask & 2 ? "TLAD" : mask & 4 ? "TBoGT" : nullptr;
-  std::error_code ec;
-  const bool there =
-      folder && std::filesystem::exists(std::filesystem::path(g_proc->game_dir) / folder / "setup2.xml", ec);
+  const uint32_t episode = episode_files::EpisodeOfMask(mask);
+  const episode_files::State state = EpisodeFiles(episode);
+  const bool there = state == episode_files::State::kInstalled;
   if (there) {
-    const std::string dir = Game().guest_dir + "\\" + folder;
+    const std::string dir = Game().guest_dir + "\\" + episode_files::Folder(episode);
     for (size_t i = 0; i <= dir.size(); i++) Wr8(out + uint32_t(i), uint8_t(dir[i]));
     WarnF("gtaiv: episodes: %s\n", dir.c_str());
+  } else if (state == episode_files::State::kNoList) {
+    static bool said[3];
+    if (!said[episode]) {
+      said[episode] = true;
+      WarnF("gtaiv: episodes: the %s folder has no %s, so the game will not show that episode\n",
+            episode_files::Folder(episode), episode_files::ListName(episode));
+    }
   }
   c.eax = (c.eax & ~0xFFu) | (there ? 1u : 0u);
   c.esp += 12;  // ret 8

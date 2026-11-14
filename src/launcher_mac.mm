@@ -82,8 +82,19 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
   // The newest saves from the player's iPad and Apple TV first.
   GtaivSyncSaves("before the game");
 
-  // The game's log: ~/Library/Logs/gtaiv.log unless given (main.cpp).
-  setenv("GTAIV_LOG", [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs/gtaiv.log"].fileSystemRepresentation, 0);
+  // The game's log: ~/Library/Logs/gtaiv.log unless given (main.cpp). The
+  // last runs' logs are kept beside it, gtaiv.1.log the run before, up to
+  // gtaiv.4.log: a crash's log is still there after the next start.
+  if (!std::getenv("GTAIV_LOG")) {
+    NSString* logs = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs"];
+    auto path = [&](int k) {
+      return std::string([logs stringByAppendingPathComponent:(k ? [NSString stringWithFormat:@"gtaiv.%d.log", k]
+                                                                 : @"gtaiv.log")]
+                             .fileSystemRepresentation);
+    };
+    for (int k = 3; k >= 0; k--) std::rename(path(k).c_str(), path(k + 1).c_str());
+    setenv("GTAIV_LOG", path(0).c_str(), 0);
+  }
 
   // A new instance of the app started by Launch Services, as a double click
   // would: macOS then treats the game as the game it is (Game Mode). Run
@@ -153,6 +164,8 @@ void StopPrewarm() {
 @property(strong) NSButton* overNotch;
 @property(strong) NSButton* mods;
 @property(strong) NSTextField* modsNote;
+@property(strong) NSTextField* episodesNote;
+@property(strong) NSGridRow* episodesNoteRow;
 @property(strong) NSTabView* tabs;
 @property(strong) NSPopUpButton* shadows;
 @property(strong) NSPopUpButton* reflections;
@@ -312,8 +325,11 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.executions.state = [d boolForKey:kExecutionsKey] ? NSControlStateValueOn : NSControlStateValueOff;
   NSTextField* meleeNote = [NSTextField
       wrappingLabelWithString:@"Moves the game keeps for a few missions: sneak up unarmed (or with a pistol), lock on, attack."];
-  for (NSTextField* n : @[ aaNote, self.modsNote, meleeNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
-  for (NSTextField* n : @[ shadowNote, reflNote, fovNote, loadNote, meleeNote ]) {
+  // Under the episodes' option, only for a game folder with an episode's
+  // folder the game will not take (showFolder).
+  self.episodesNote = [NSTextField wrappingLabelWithString:@""];
+  for (NSTextField* n : @[ aaNote, self.modsNote, meleeNote, self.episodesNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
+  for (NSTextField* n : @[ shadowNote, reflNote, fovNote, loadNote, meleeNote, self.episodesNote ]) {
     n.textColor = NSColor.secondaryLabelColor;
     n.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
   }
@@ -349,6 +365,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
       b.lineBreakMode = NSLineBreakByWordWrapping;
       [b.widthAnchor constraintLessThanOrEqualToConstant:kWindowWidth - 100].active = YES;
       [extraRows addObject:@[ b ]];
+      if ([f.key isEqualToString:@"Episodes"]) [extraRows addObject:@[ self.episodesNote ]];
     } else if (AdvancedFixShown(f)) {
       [rows addObject:@[ fixesLabelled ? NSGridCell.emptyContentView : [self label:@"Fixes:"], b ]];
       fixesLabelled = YES;
@@ -356,6 +373,12 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   }
   NSGridView* extras = [NSGridView gridViewWithViews:extraRows];
   extras.rowSpacing = 10;
+  // The note is indented under its checkbox.
+  NSGridCell* noteCell = [extras cellForView:self.episodesNote];
+  self.episodesNoteRow = noteCell.row;
+  noteCell.xPlacement = NSGridCellPlacementNone;
+  noteCell.customPlacementConstraints =
+      @[ [self.episodesNote.leadingAnchor constraintEqualToAnchor:extras.leadingAnchor constant:20] ];
   NSGridView* adv = [NSGridView gridViewWithViews:rows];
   adv.rowSpacing = 10;
   adv.columnSpacing = 10;
@@ -479,6 +502,9 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.problem.stringValue = ok ? @"" : @"Choose the folder of your Grand Theft Auto IV (PC) install: the one with GTAIV.exe.";
   self.problem.hidden = ok;
   self.play.enabled = ok;
+  NSString* note = EpisodesNote(self.folder);
+  self.episodesNote.stringValue = note ?: @"";
+  self.episodesNoteRow.hidden = note == nil;
 }
 
 - (void)choose:(id)sender {

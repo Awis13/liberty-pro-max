@@ -169,6 +169,10 @@ typedef NS_ENUM(NSInteger, LpmSection) { kGame, kExtrasSection, kGraphics, kFixe
   if (s == kGraphics)
     return @"Lower resolutions keep 60 fps steadier in busy streets. SMAA smooths edges cheaply; TAA also "
            @"steadies wires, fences and leaves.";
+  // An episode's folder the game will not take, if the game's folder
+  // (main.cpp: Documents/game) has one.
+  if (s == kExtrasSection)
+    return EpisodesNote([NSHomeDirectory() stringByAppendingPathComponent:@"Documents/game"]);
   return nil;
 }
 

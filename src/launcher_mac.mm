@@ -159,6 +159,7 @@ void StopPrewarm() {
 @property(strong) NSPopUpButton* antialiasing;
 @property(strong) NSPopUpButton* metalfxScale;
 @property(strong) NSPopUpButton* sharpening;
+@property(strong) NSPopUpButton* consoleGamma;
 @property(strong) NSButton* hud;
 @property(strong) NSButton* skipIntro;
 @property(strong) NSButton* continueSave;
@@ -249,6 +250,8 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.sharpening = [self popup:@[ @"Off", @"Low", @"Medium", @"High" ]
                        selected:std::clamp<NSInteger>([d integerForKey:kTaaSharpeningKey], 0, 3)];
   [self antialiasingChanged:nil];
+  self.consoleGamma = [self popup:@[ @"Off", @"Xbox 360", @"PS3" ]
+                         selected:std::clamp<NSInteger>([d integerForKey:kConsoleGammaKey], 0, 2)];
   NSTextField* aaNote = [NSTextField
       wrappingLabelWithString:@"SMAA smooths edges cheaply. TAA also steadies wires, fences and leaves at little cost; "
                       @"MetalFX does it best and, below native resolution, also raises the frame rate. "
@@ -293,6 +296,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ [self label:@"MetalFX resolution:"], self.metalfxScale ],
     @[ NSGridCell.emptyContentView, aaNote ],
     @[ [self label:@"Sharpening:"], self.sharpening ],
+    @[ [self label:@"Console gamma:"], self.consoleGamma ],
     @[ NSGridCell.emptyContentView, self.hud ],
     @[ [self label:@"Start:"], self.skipIntro ],
     @[ NSGridCell.emptyContentView, self.continueSave ],
@@ -534,6 +538,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   Store(d, kAntiAliasingKey, @(self.antialiasing.indexOfSelectedItem));
   Store(d, kMetalFXScaleKey, @(self.metalfxScale.indexOfSelectedItem));
   Store(d, kTaaSharpeningKey, @(self.sharpening.indexOfSelectedItem));
+  Store(d, kConsoleGammaKey, @(self.consoleGamma.indexOfSelectedItem));
   Store(d, kHudKey, @(self.hud.state == NSControlStateValueOn));
   Store(d, kSkipIntroKey, @(self.skipIntro.state == NSControlStateValueOn));
   Store(d, kContinueKey, @(self.continueSave.state == NSControlStateValueOn));

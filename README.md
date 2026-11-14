@@ -182,6 +182,10 @@ as on the iPad.
 
 ## Using it
 
+### Compiling shaders on iPhone and iPad
+
+On iPhone and iPad, Compile Shaders is the last Game option. It prepares missing recorded pipelines with a full-screen progress dialog and Cancel, and locks the launcher until compilation and archive writes finish. Progress separates shader-function work from a fixed pipeline total, completed work survives cancellation, and a ready cache disables the row. An empty cache asks you to play first. Metal HUD support is enabled only when Performance overlay is on. Enabling it after cache inspection may require relaunching the app.
+
 ### Saves on every device
 
 With iCloud Drive on, the iPad and the iPhone keep a copy of every save in

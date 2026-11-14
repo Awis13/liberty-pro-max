@@ -255,6 +255,16 @@ int main(int argc, char** argv) {
     game.mac_fullscreen_space = !(n && *n == '1');
   }
 #endif
+  // Spatial Audio (spatial_audio.cpp): the Mac's only (elsewhere the
+  // runtime has no spatial output), on unless the launcher or the player
+  // set GTAIV_SPATIAL_AUDIO=0. The runtime takes exactly "1" for on; it
+  // is given the port's reading of the option, so that the two agree (a
+  // bare start without the launcher included).
+#if defined(__APPLE__) && !GTAIV_IOS
+  setenv("GTAIV_SPATIAL_AUDIO", OptionOn("GTAIV_SPATIAL_AUDIO", true) ? "1" : "0", 1);
+#else
+  setenv("GTAIV_SPATIAL_AUDIO", "0", 1);
+#endif
   // The game in the system's language, unless the launcher's choice is
   // English (GTAIV_SYSTEM_LANGUAGE=0). GTAIV_LANG_ID=0x0419 (the runtime's
   // switch, for test runs) overrides both.

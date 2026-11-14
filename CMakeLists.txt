@@ -39,6 +39,7 @@ if(TARGET gtaiv_lifted)
     src/bench.cpp src/fixes.cpp src/jobs.cpp src/options.cpp src/perf.cpp src/episodes.cpp src/mods.cpp src/threads.cpp src/native.cpp src/pad_icons.cpp
     src/saves.cpp
     src/pad_feedback.cpp
+    src/spatial_audio.cpp
     src/community_fixes.cpp
     src/high_fps_fixes.cpp
     src/update_folder.cpp
@@ -154,6 +155,9 @@ if(GTAIV_TESTS AND NOT RECOMP_IOS)
   add_executable(gtaiv_pad_feedback_test tests/pad_feedback_test.cpp)
   target_include_directories(gtaiv_pad_feedback_test PRIVATE src "${X86RECOMP_DIR}/src")
   add_test(NAME pad_feedback COMMAND gtaiv_pad_feedback_test)
+  add_executable(gtaiv_spatial_audio_test tests/spatial_audio_test.cpp)
+  target_include_directories(gtaiv_spatial_audio_test PRIVATE src)
+  add_test(NAME spatial_audio COMMAND gtaiv_spatial_audio_test)
   add_executable(gtaiv_episode_files_test tests/episode_files_test.cpp)
   target_include_directories(gtaiv_episode_files_test PRIVATE src)
   add_test(NAME episode_files COMMAND gtaiv_episode_files_test)

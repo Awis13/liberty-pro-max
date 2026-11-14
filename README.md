@@ -353,7 +353,7 @@ so without such a file the option changes nothing.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-103 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
+104 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
 
 #### High frame rates
 
@@ -436,6 +436,7 @@ Its mission and model fixes need its update folder in the game folder. Its shade
 | Rain lit as on consoles (visible at night) | on |
 | Police helicopter searchlights do not flicker | on |
 | The Night Shadows setting changes how sharp night shadows are | on |
+| Street lamps keep the shadows of people and cars when the camera turns or cars drive by | on |
 | Brake lights stay on while your car stands | off |
 | Keep bloom (glow around bright lights) | on |
 | Keep depth of field blur | on |

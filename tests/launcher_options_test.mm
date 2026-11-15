@@ -28,12 +28,12 @@ const Fix* Find(NSString* key) {
 }
 
 // The iPad's and iPhone's Extras, in the order shown: off, but the
-// episodes' own radio songs. Spatial Audio is an extra of the Mac's only,
-// on by default.
+// episodes' own radio songs and local achievements. Spatial Audio is an
+// extra of the Mac's only, on by default.
 void TestExtras() {
   NSArray<NSString*>* want = @[
     @"Episodes", @"EpisodeRadioOwn", @"TurnIndicators", @"TurnIndicatorsManual", @"RouteIndicators", @"PadIcons",
-    @"PadFeedback", @"PhoneCheats", @"PlayerFullDamage"
+    @"PadFeedback", @"PhoneCheats", @"PlayerFullDamage", @"Achievements", @"AchievementVehicleTest"
   ];
   const Fix* spatial = Find(@"SpatialAudio");
   EXPECT(spatial && spatial->extra && spatial->on && !spatial->hidden);
@@ -42,7 +42,7 @@ void TestExtras() {
   for (NSInteger i = 0; i < ExtraCount() && i < NSInteger(want.count); i++) {
     const Fix& f = ExtraAt(i);
     EXPECT([f.key isEqualToString:want[i]]);
-    EXPECT(f.on == [f.key isEqualToString:@"EpisodeRadioOwn"]);
+    EXPECT(f.on == ([f.key isEqualToString:@"EpisodeRadioOwn"] || [f.key isEqualToString:@"Achievements"]));
     EXPECT(!f.hidden);
   }
 }

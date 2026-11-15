@@ -10,9 +10,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <string>
 #include <vector>
 
+#include "achievements.h"
 #include "launcher_options.h"
 
 namespace {
@@ -73,6 +75,9 @@ bool g_play = false;
 }  // namespace
 
 #if !TARGET_OS_TV
+@interface LpmAchievements : UIViewController <UITableViewDataSource, UITableViewDelegate>
+@end
+
 @interface LpmLauncher : UIViewController <UITableViewDataSource, UITableViewDelegate>
 @property(strong) UITableView* table;
 @end
@@ -206,7 +211,7 @@ static NSArray* GraphicsRows() {
 - (NSInteger)tableView:(UITableView*)t numberOfRowsInSection:(NSInteger)s {
   switch (s) {
     case kGame: return GameRows().count;
-    case kExtrasSection: return ExtraCount();
+    case kExtrasSection: return ExtraCount() + 1;  // the last row opens the list
     case kGraphics: return GraphicsRows().count;
     case kFixesSection: return ShownFixCount();
     default: return std::size(kShaderChoices);
@@ -223,6 +228,12 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
   cell.selectionStyle = UITableViewCellSelectionStyleNone;
   cell.backgroundColor = [UIColor colorWithWhite:0.11 alpha:1];
   cell.textLabel.numberOfLines = 0;
+  if (ip.section == kExtrasSection && ip.row == ExtraCount()) {
+    cell.textLabel.text = @"Achievements";
+    cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
+    return cell;
+  }
   NSString* key;
   if (ip.section == kGame || ip.section == kExtrasSection || ip.section == kFixesSection) {
     if (ip.section == kGame) {
@@ -271,6 +282,14 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
   return cell;
 }
 
+- (void)tableView:(UITableView*)t didSelectRowAtIndexPath:(NSIndexPath*)ip {
+  if (ip.section != kExtrasSection || ip.row != ExtraCount()) return;
+  [t deselectRowAtIndexPath:ip animated:YES];
+  LpmAchievements* list = [LpmAchievements new];
+  list.modalPresentationStyle = UIModalPresentationPageSheet;
+  [self presentViewController:list animated:YES completion:nil];
+}
+
 - (void)switched:(UISwitch*)sw {
   [_d setBool:sw.on forKey:sw.accessibilityIdentifier];
 }
@@ -284,6 +303,203 @@ static NSInteger AaValue(NSInteger seg) { return seg == 1 ? 1 : seg == 2 ? 3 : 0
     [_d setBool:seg.selectedSegmentIndex == 1 forKey:key];
   else
     [_d setInteger:seg.selectedSegmentIndex forKey:key];
+}
+
+@end
+
+@implementation LpmAchievements {
+  NSMutableArray<NSDictionary*>* _groups;
+  UILabel* _summary;
+  UITableView* _table;
+  UISegmentedControl* _filter;
+  UIButton* _style;
+  UIButton* _place;
+  NSUserDefaults* _d;
+}
+
+- (void)viewDidLoad {
+  [super viewDidLoad];
+  _d = NSUserDefaults.standardUserDefaults;
+  self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+  self.view.backgroundColor = UIColor.blackColor;
+  _summary = [UILabel new];
+  _summary.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
+  _summary.textColor = UIColor.whiteColor;
+  _summary.numberOfLines = 0;
+  _summary.translatesAutoresizingMaskIntoConstraints = NO;
+  _style = [UIButton buttonWithType:UIButtonTypeSystem];
+  _style.translatesAutoresizingMaskIntoConstraints = NO;
+  [_style addTarget:self action:@selector(cycleStyle:) forControlEvents:UIControlEventTouchUpInside];
+  _place = [UIButton buttonWithType:UIButtonTypeSystem];
+  _place.translatesAutoresizingMaskIntoConstraints = NO;
+  [_place addTarget:self action:@selector(cyclePlace:) forControlEvents:UIControlEventTouchUpInside];
+  _filter = [[UISegmentedControl alloc] initWithItems:@[ @"All", @"Unlocked", @"Locked" ]];
+  _filter.selectedSegmentIndex = 0;
+  _filter.translatesAutoresizingMaskIntoConstraints = NO;
+  [_filter addTarget:self action:@selector(reload) forControlEvents:UIControlEventValueChanged];
+  _table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStyleInsetGrouped];
+  _table.dataSource = self;
+  _table.delegate = self;
+  _table.backgroundColor = UIColor.blackColor;
+  _table.translatesAutoresizingMaskIntoConstraints = NO;
+  UIButton* close = [UIButton buttonWithType:UIButtonTypeSystem];
+  [close setTitle:@"Done" forState:UIControlStateNormal];
+  close.translatesAutoresizingMaskIntoConstraints = NO;
+  [close addTarget:self action:@selector(close:) forControlEvents:UIControlEventTouchUpInside];
+  UIButton* reset = [UIButton buttonWithType:UIButtonTypeSystem];
+  [reset setTitle:@"Reset" forState:UIControlStateNormal];
+  reset.translatesAutoresizingMaskIntoConstraints = NO;
+  [reset addTarget:self action:@selector(reset:) forControlEvents:UIControlEventTouchUpInside];
+  for (UIView* v in @[ close, _style, _place, _filter, _summary, _table, reset ]) [self.view addSubview:v];
+  UILayoutGuide* g = self.view.safeAreaLayoutGuide;
+  [NSLayoutConstraint activateConstraints:@[
+    [close.topAnchor constraintEqualToAnchor:g.topAnchor constant:8],
+    [close.trailingAnchor constraintEqualToAnchor:g.trailingAnchor constant:-20],
+    [_style.topAnchor constraintEqualToAnchor:close.bottomAnchor constant:4],
+    [_style.leadingAnchor constraintEqualToAnchor:g.leadingAnchor constant:24],
+    [_place.topAnchor constraintEqualToAnchor:_style.bottomAnchor constant:4],
+    [_place.leadingAnchor constraintEqualToAnchor:g.leadingAnchor constant:24],
+    [_filter.topAnchor constraintEqualToAnchor:_place.bottomAnchor constant:8],
+    [_filter.leadingAnchor constraintEqualToAnchor:g.leadingAnchor constant:24],
+    [_filter.trailingAnchor constraintEqualToAnchor:g.trailingAnchor constant:-24],
+    [_summary.topAnchor constraintEqualToAnchor:_filter.bottomAnchor constant:8],
+    [_summary.leadingAnchor constraintEqualToAnchor:g.leadingAnchor constant:24],
+    [_summary.trailingAnchor constraintEqualToAnchor:g.trailingAnchor constant:-24],
+    [_table.topAnchor constraintEqualToAnchor:_summary.bottomAnchor constant:8],
+    [_table.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+    [_table.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+    [_table.bottomAnchor constraintEqualToAnchor:reset.topAnchor constant:-8],
+    [reset.centerXAnchor constraintEqualToAnchor:g.centerXAnchor],
+    [reset.bottomAnchor constraintEqualToAnchor:g.bottomAnchor constant:-12],
+  ]];
+  [self showStyle];
+  [self showPlace];
+  [self reload];
+}
+
+- (void)showStyle {
+  const NSInteger i = AchievementStyleIndex([_d stringForKey:kAchievementStyleKey]);
+  [_style setTitle:[NSString stringWithFormat:@"Style: %@", AchievementStyleTitles()[i]] forState:UIControlStateNormal];
+}
+
+- (void)cycleStyle:(id)sender {
+  NSInteger i = AchievementStyleIndex([_d stringForKey:kAchievementStyleKey]);
+  i = (i + 1) % NSInteger(AchievementStyleKeys().count);
+  [_d setObject:AchievementStyleKeys()[i] forKey:kAchievementStyleKey];
+  [self showStyle];
+}
+
+- (void)showPlace {
+  const NSInteger i = AchievementPositionIndex([_d stringForKey:kAchievementPositionKey]);
+  [_place setTitle:[NSString stringWithFormat:@"Position: %@", AchievementPositionTitles()[i]]
+          forState:UIControlStateNormal];
+}
+
+- (void)cyclePlace:(id)sender {
+  NSInteger i = AchievementPositionIndex([_d stringForKey:kAchievementPositionKey]);
+  i = (i + 1) % NSInteger(AchievementPositionKeys().count);
+  [_d setObject:AchievementPositionKeys()[i] forKey:kAchievementPositionKey];
+  [self showPlace];
+}
+
+- (void)reload {
+  const auto store = gtaiv::achievements::Store::Load(gtaiv::achievements::DefaultPath());
+  const auto all = gtaiv::achievements::Rows(store);
+  const NSInteger filter = _filter.selectedSegmentIndex;
+  NSMutableString* summary = [NSMutableString string];
+  _groups = [NSMutableArray new];
+  const gtaiv::achievements::Game order[] = {gtaiv::achievements::Game::iv, gtaiv::achievements::Game::tlad,
+                                             gtaiv::achievements::Game::tbogt, gtaiv::achievements::Game::unknown};
+  for (auto game : order) {
+    int total = 0, open = 0, points = 0, earned = 0;
+    NSMutableArray* items = [NSMutableArray new];
+    for (const auto& row : all) {
+      if (row.game != game) continue;
+      total++;
+      if (row.points > 0) points += row.points;
+      if (row.unlocked) {
+        open++;
+        if (row.points > 0) earned += row.points;
+      }
+      if (filter == 1 && !row.unlocked) continue;
+      if (filter == 2 && row.unlocked) continue;
+      NSString* when = @"";
+      if (row.unlocked && row.unlocked_at > 0)
+        when = [NSDateFormatter localizedStringFromDate:[NSDate dateWithTimeIntervalSince1970:row.unlocked_at]
+                                               dateStyle:NSDateFormatterMediumStyle
+                                               timeStyle:NSDateFormatterShortStyle];
+      NSString* side = row.points < 0 ? (row.unlocked ? @"Unlocked" : @"Locked")
+                                      : [NSString stringWithFormat:@"%d G", row.points];
+      if (row.unlocked && when.length) side = [side stringByAppendingFormat:@"\n%@", when];
+      else if (!row.unlocked) side = [side stringByAppendingString:@"\nLocked"];
+      [items addObject:@{@"name" : @(row.name.c_str()), @"detail" : @(row.description.c_str()), @"side" : side,
+                         @"on" : @(row.unlocked)}];
+    }
+    if (total == 0) continue;
+    NSString* title = game == gtaiv::achievements::Game::iv ? @"GTA IV"
+                      : game == gtaiv::achievements::Game::tlad ? @"The Lost and Damned"
+                      : game == gtaiv::achievements::Game::tbogt ? @"The Ballad of Gay Tony"
+                                                                : @"Other";
+    [summary appendFormat:@"%@: %d/%d, %d/%d G\n", title, open, total, earned, points];
+    if (items.count == 0) continue;
+    [_groups addObject:@{
+      @"title" : [NSString stringWithFormat:@"%@  %d/%d, %d/%d G", title, open, total, earned, points],
+      @"rows" : items,
+    }];
+  }
+  _summary.text = summary.length ? summary : @"No achievements in the table.";
+  [_table reloadData];
+}
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView*)t {
+  return _groups.count;
+}
+
+- (NSString*)tableView:(UITableView*)t titleForHeaderInSection:(NSInteger)s {
+  return _groups[s][@"title"];
+}
+
+- (NSInteger)tableView:(UITableView*)t numberOfRowsInSection:(NSInteger)s {
+  return [_groups[s][@"rows"] count];
+}
+
+- (UITableViewCell*)tableView:(UITableView*)t cellForRowAtIndexPath:(NSIndexPath*)ip {
+  UITableViewCell* cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:nil];
+  NSDictionary* row = _groups[ip.section][@"rows"][ip.row];
+  cell.backgroundColor = [UIColor colorWithWhite:0.11 alpha:1];
+  cell.textLabel.text = row[@"name"];
+  cell.textLabel.numberOfLines = 0;
+  cell.detailTextLabel.text = row[@"detail"];
+  cell.detailTextLabel.numberOfLines = 0;
+  cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
+  UILabel* side = [UILabel new];
+  side.text = row[@"side"];
+  side.numberOfLines = 0;
+  side.textAlignment = NSTextAlignmentRight;
+  side.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+  side.textColor = [row[@"on"] boolValue] ? [UIColor colorWithRed:0.93 green:0.84 blue:0.55 alpha:1] : UIColor.secondaryLabelColor;
+  [side sizeToFit];
+  cell.accessoryView = side;
+  cell.selectionStyle = UITableViewCellSelectionStyleNone;
+  return cell;
+}
+
+- (void)close:(id)sender {
+  [self dismissViewControllerAnimated:YES completion:nil];
+}
+
+- (void)reset:(id)sender {
+  UIAlertController* alert = [UIAlertController alertControllerWithTitle:@"Reset local achievements?"
+      message:@"This clears the list stored on this device. Save files are not changed. Achievements already earned in a save are not added back here until the game awards them again."
+      preferredStyle:UIAlertControllerStyleAlert];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+  [alert addAction:[UIAlertAction actionWithTitle:@"Reset" style:UIAlertActionStyleDestructive handler:^(UIAlertAction*) {
+    auto store = gtaiv::achievements::Store::Load(gtaiv::achievements::DefaultPath());
+    store.Clear();
+    if (!store.Save()) std::fprintf(stderr, "achievement: could not reset %s\n", store.path.c_str());
+    [self reload];
+  }]];
+  [self presentViewController:alert animated:YES completion:nil];
 }
 
 @end

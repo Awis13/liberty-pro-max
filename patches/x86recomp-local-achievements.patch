@@ -1,0 +1,365 @@
+diff --git a/src/runtime/gfx/gpu_device.cpp b/src/runtime/gfx/gpu_device.cpp
+index e655854..57e9e6f 100644
+--- a/src/runtime/gfx/gpu_device.cpp
++++ b/src/runtime/gfx/gpu_device.cpp
+@@ -29,6 +29,7 @@
+ #include <cstring>
+ #include <deque>
+ #include <map>
++#include <memory>
+ #include <mutex>
+ #include <set>
+ #include <tuple>
+@@ -1233,11 +1234,38 @@ void r_color0(inout vec4 c) {
+     si.num_uniform_buffers = 3;
+     sh.sh = SDL_CreateGPUShader(dev_, &si);
+     if (!sh.sh) FatalF("gfx: SDL_CreateGPUShader (translated): %s", SDL_GetError());
++    // Kept so a pass with no depth buffer can be given a copy that does not
++    // write gl_FragDepth (PixelShaderWithoutDepth). Apple's Metal, which
++    // SDL_GPU uses here, refuses a pipeline whose shader writes depth when
++    // the depth format is invalid. D3D9 ignores that write.
++    if (!vertex && prog.writes_depth) sh.source = std::make_shared<hlsl::Program>(prog);
+     ShaderId id = next_id_++;
+-    shaders_[id] = sh;
++    shaders_[id] = std::move(sh);
+     return id;
+   }
+ 
++  // The pixel shader `sid` for a pass without a depth buffer. Same rule as
++  // the Metal renderer (MetalDevice::PixelShaderWithoutDepth).
++  ShaderId PixelShaderWithoutDepth(ShaderId sid) {
++    auto it = shaders_.find(sid);
++    if (it == shaders_.end() || !it->second.source || !it->second.source->writes_depth) return sid;
++    if (it->second.without_depth) return it->second.without_depth;
++    hlsl::Program v = *it->second.source;
++    v.writes_depth = false;
++    std::string glsl;
++    size_t at = 0;
++    while (at < v.glsl.size()) {
++      size_t end = v.glsl.find('\n', at);
++      end = end == std::string::npos ? v.glsl.size() : end + 1;
++      if (v.glsl.find("gl_FragDepth", at) >= end) glsl.append(v.glsl, at, end - at);
++      at = end;
++    }
++    v.glsl = std::move(glsl);
++    const ShaderId vid = CreateShader(v);  // shaders_ may rehash; sid's node stays
++    shaders_.find(sid)->second.without_depth = vid;
++    return vid;
++  }
++
+   void DestroyShader(ShaderId id) override {
+     std::lock_guard<std::recursive_mutex> l(mu_);
+     auto it = shaders_.find(id);
+@@ -1291,7 +1319,18 @@ void r_color0(inout vec4 c) {
+     k.front = SDL_GPU_FRONTFACE_CLOCKWISE;
+     for (int i = 1; i < 4; i++) k.mask[i - 1] = i < pass_targets_ ? uint8_t(rs_[189 + i] & 0xF) : 0;
+     sc.key.vs = d.vs;
+-    sc.key.ps = d.ps;
++    // No depth buffer: a shader that writes depth cannot be paired with an
++    // invalid depth format (AGX: "depthAttachmentPixelFormat is not valid
++    // and shader writes to depth"). D3D9 ignores the write; the depth
++    // test is off too, because there is nothing to test against.
++    if (pass_depth_format_ == SDL_GPU_TEXTUREFORMAT_INVALID) {
++      sc.key.ps = PixelShaderWithoutDepth(d.ps);
++      k.depth_test = 0;
++      k.depth_write = 0;
++      k.stencil = 0;
++    } else {
++      sc.key.ps = d.ps;
++    }
+     if (k.blend && rs_[206]) {  // SEPARATEALPHABLENDENABLE
+       sc.key.src_a = uint8_t(BlendFactor(rs_[207], pass_alpha_));
+       sc.key.dst_a = uint8_t(BlendFactor(rs_[208], pass_alpha_));
+@@ -1507,6 +1546,8 @@ void r_color0(inout vec4 c) {
+     std::array<hlsl::ParamType, 16> sampler_type{};  // per register; Void if unused
+     uint32_t samplers = 0;  // highest register used + 1
+     uint32_t float_regs = 0;
++    std::shared_ptr<hlsl::Program> source;  // pixel shaders that write depth
++    ShaderId without_depth = 0;             // that shader with the write removed
+   };
+   struct BlitTex {
+     SDL_GPUTexture* tex;
+diff --git a/src/runtime/gfx/metal_device.mm b/src/runtime/gfx/metal_device.mm
+index 2902038..252011f 100644
+--- a/src/runtime/gfx/metal_device.mm
++++ b/src/runtime/gfx/metal_device.mm
+@@ -41,6 +41,8 @@
+ 
+ #include <SDL3/SDL.h>
+ #include <SDL3/SDL_metal.h>
++
++#include "achievement_overlay.h"
+ #include <TargetConditionals.h>
+ #include <pthread.h>
+ #include <sys/sysctl.h>
+@@ -1171,7 +1173,8 @@ class MetalDevice final : public Device {
+     EnsureFrame();
+     __unsafe_unretained id<MTLTexture> front = front_;
+     const int bw = bb_w_, bh = bb_h_;
+-    Rec([=, this] { Show(front, bw, bh); });
++    const bool scene = first_scene_;
++    Rec([=, this] { Show(front, bw, bh, 0, scene); });
+     EndFrame();
+   }
+ 
+@@ -1315,7 +1318,8 @@ class MetalDevice final : public Device {
+       // buffer, D3D9's flip (a discarded back buffer's contents after
+       // Present are undefined) instead of a full-size copy.
+       __unsafe_unretained id<MTLTexture> shown = smaa ? front : back;
+-      Rec([=, this] { Show(shown, bw, bh, t_present); });
++      const bool scene = first_scene_;
++      Rec([=, this] { Show(shown, bw, bh, t_present, scene); });
+       if (!smaa) std::swap(backbuffer_, front_);
+       presented_ = true;
+       if (perf_) {
+@@ -4506,12 +4510,72 @@ void main() {
+     [e drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
+   }
+ 
++  // Premultiplied RGBA on top of the frame (the achievement toast).
++  void DrawAlphaQuad(id<MTLRenderCommandEncoder> e, id<MTLTexture> src, float dw, float dh, const Rect& dr) {
++    PipeKey k;
++    std::memset(&k, 0, sizeof k);
++    k.vs = kQuadVs;
++    k.ps = kQuadPs;
++    k.color[0] = uint16_t(MTLPixelFormatBGRA8Unorm);
++    k.blend = 1;
++    k.src = k.src_a = uint8_t(MTLBlendFactorOne);
++    k.dst = k.dst_a = uint8_t(MTLBlendFactorOneMinusSourceAlpha);
++    k.mask[0] = MTLColorWriteMaskAll;
++    [e setRenderPipelineState:Pipeline(k)];
++    const float r[12] = {float(dr.left) / dw * 2 - 1, 1 - float(dr.top) / dh * 2,
++                         float(dr.right) / dw * 2 - 1, 1 - float(dr.bottom) / dh * 2,
++                         0, 0, 1, 1, 0, 0, 0, 0};
++    [e setVertexBytes:r length:sizeof r atIndex:0];
++    [e setFragmentBytes:r length:sizeof r atIndex:0];
++    [e setFragmentTexture:src atIndex:0];
++    [e setFragmentSamplerState:quad_sampler_[1] atIndex:0];
++    [e drawPrimitives:MTLPrimitiveTypeTriangleStrip vertexStart:0 vertexCount:4];
++  }
++
++  // Local achievement toast. The bitmap function is in this same renderer
++  // (not looked up in another dylib: that lookup failed quietly and the
++  // loading screen then never logged a toast). `scene` was captured when
++  // this frame was presented, after FirstScene().
++  void DrawAchievementOverlay(id<MTLRenderCommandEncoder> e, int pw, int ph, float scale, bool scene) {
++    static bool logged = false;
++    if (!logged) {
++      logged = true;
++      // Same channel as "gfx: first scene": stderr, which the launcher
++      // has pointed at ~/Library/Logs/gtaiv.log.
++      std::fprintf(stderr, "achievements: overlay active\n");
++      std::fflush(stderr);
++    }
++    GtaivToastBitmap bm{};
++    if (!gtaiv_achievement_overlay(pw, ph, scale, scene, &bm) || !bm.rgba || bm.width <= 0 || bm.height <= 0) return;
++    if (bm.y >= ph || bm.x >= pw || bm.y + bm.height <= 0 || bm.x + bm.width <= 0) return;
++    if (!toast_tex_ || toast_w_ != bm.width || toast_h_ != bm.height) {
++      MTLTextureDescriptor* td = [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:MTLPixelFormatRGBA8Unorm
++                                                                                     width:NSUInteger(bm.width)
++                                                                                    height:NSUInteger(bm.height)
++                                                                                 mipmapped:NO];
++      td.usage = MTLTextureUsageShaderRead;
++      td.storageMode = MTLStorageModeShared;
++      toast_tex_ = [dev_ newTextureWithDescriptor:td];
++      toast_w_ = bm.width;
++      toast_h_ = bm.height;
++      toast_serial_ = 0;
++    }
++    if (toast_serial_ != bm.serial) {
++      [toast_tex_ replaceRegion:MTLRegionMake2D(0, 0, NSUInteger(bm.width), NSUInteger(bm.height))
++                    mipmapLevel:0
++                      withBytes:bm.rgba
++                    bytesPerRow:NSUInteger(bm.width * 4)];
++      toast_serial_ = bm.serial;
++    }
++    DrawAlphaQuad(e, toast_tex_, float(pw), float(ph), Rect{bm.x, bm.y, bm.x + bm.width, bm.y + bm.height});
++  }
++
+   // On the encoding thread: the front buffer (bw x bh) to the window,
+   // scaled to fit with its aspect kept, black around it (FitRect). Not
+   // while the window cannot be seen.
+   // t_present: when the game called Present (CACurrentMediaTime), for the
+   // latency from that call to the display (0: not measured).
+-  void Show(__unsafe_unretained id<MTLTexture> front, int bw, int bh, double t_present = 0) {
++  void Show(__unsafe_unretained id<MTLTexture> front, int bw, int bh, double t_present = 0, bool scene = false) {
+     if (SDL_GetWindowFlags(window_) &
+         (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED | SDL_WINDOW_OCCLUDED))
+       return;
+@@ -4542,6 +4606,10 @@ void main() {
+     const bool same = r.right - r.left == bw && r.bottom - r.top == bh;
+     DrawQuad(e, MTLPixelFormatBGRA8Unorm, front, 0, float(bw), float(bh), {0, 0, bw, bh},
+              float(pw), float(ph), r, !same, output_curve_);
++    int lw = 0, lh = 0;
++    SDL_GetWindowSize(window_, &lw, &lh);
++    const float scale = lw > 0 ? std::max(1.f, float(pw) / float(lw)) : 1.f;
++    DrawAchievementOverlay(e, pw, ph, scale, scene);
+     [e endEncoding];
+     // When the display really showed it (what Metal's HUD graphs).
+     std::mutex* mu = &shown_mu_;
+@@ -4658,6 +4726,9 @@ void main() {
+   mutable std::recursive_mutex mu_;
+   SDL_Window* window_;
+   SDL_MetalView view_ = nullptr;
++  id<MTLTexture> toast_tex_ = nil;
++  int toast_w_ = 0, toast_h_ = 0;
++  uint64_t toast_serial_ = 0;
+   id<MTLDevice> dev_ = nil;
+   id<MTLCommandQueue> queue_ = nil;
+   CAMetalLayer* layer_ = nil;
+diff --git a/src/runtime/hle/xlive.cpp b/src/runtime/hle/xlive.cpp
+index f571501..a8631d4 100644
+--- a/src/runtime/hle/xlive.cpp
++++ b/src/runtime/hle/xlive.cpp
+@@ -27,6 +27,8 @@
+ #include "runtime/log.h"
+ #include "runtime/runtime.h"
+ 
++#include "achievements.h"
++
+ namespace recomp::hle {
+ namespace {
+ 
+@@ -91,6 +93,25 @@ struct Listener {
+ };
+ std::map<uint32_t, Listener> g_listeners;  // by event handle
+ 
++// XUserCreateAchievementEnumerator handles, so XEnumerate can tell them
++// from the empty friends and stats enumerations. One shot: the second
++// call returns no more items, as XEnumerate does.
++struct AchEnum {
++  uint32_t start = 0;
++  uint32_t count = 0;
++  bool used = false;
++};
++std::map<uint32_t, AchEnum> g_ach_enums;
++
++// UTF-16LE into the guest, including the null. `cap` is characters, not
++// counting the null. Returns the bytes written.
++uint32_t WriteWide(gaddr at, const std::string& text, uint32_t cap) {
++  const uint32_t n = std::min<uint32_t>(uint32_t(text.size()), cap);
++  for (uint32_t i = 0; i < n; i++) Wr16(at + i * 2, uint8_t(text[i]));
++  Wr16(at + n * 2, 0);
++  return (n + 1) * 2;
++}
++
+ bool Matches(uint32_t areas, uint32_t id) { return areas & (1u << ((id >> 25) & 0x3F)); }
+ 
+ // ---- profile settings -------------------------------------------------------
+@@ -269,17 +290,69 @@ HLE_NAMED("xlive.dll", "#5251", XCloseHandle, 1) {
+   {
+     std::lock_guard<std::mutex> l(g_mu);
+     g_listeners.erase(h);
++    g_ach_enums.erase(h);
+   }
+   return CloseHandleValue(h) ? 1 : 0;
+ }
+ 
+-// Every enumeration is empty.
++// Every enumeration is empty, except an achievement enumerator while local
++// achievements are on: that one returns the unlocked rows, strings packed
++// after them in the caller's buffer. A buffer smaller than the size reported
++// at create time is left empty rather than written past.
+ HLE_NAMED("xlive.dll", "#5256", XEnumerate, 5) {
++  const uint32_t h = uint32_t(Arg(c, 0));
++  const gaddr buf = Arg(c, 1);
++  const uint32_t cb = uint32_t(Arg(c, 2));
+   const gaddr pcount = Arg(c, 3), ov = Arg(c, 4);
+-  if (ov) return Complete(ov, kErrorNoMoreFiles, 0);
+-  if (!pcount) return kErrorInvalidParameter;
+-  Wr32(pcount, 0);
+-  return kErrorNoMoreFiles;
++  AchEnum en;
++  bool fresh = false;
++  {
++    std::lock_guard<std::mutex> l(g_mu);
++    auto it = g_ach_enums.find(h);
++    if (it != g_ach_enums.end()) {
++      en = it->second;
++      fresh = !it->second.used;
++      it->second.used = true;
++    }
++  }
++  auto none = [&] {
++    if (ov) return Complete(ov, kErrorNoMoreFiles, 0);
++    if (!pcount) return kErrorInvalidParameter;
++    Wr32(pcount, 0);
++    return kErrorNoMoreFiles;
++  };
++  if (!fresh || !gtaiv::achievements::Enabled()) return none();
++  const auto items = gtaiv::achievements::CurrentUnlocked(en.start, en.count);
++  if (items.empty()) return none();
++  const uint32_t bytes = gtaiv::achievements::EnumBufferBytes(uint32_t(items.size()));
++  if (!buf || cb < bytes) {
++    WarnF("xlive: achievement enumerate buffer is %u bytes, %u needed; returning none\n", cb, bytes);
++    return none();
++  }
++  std::memset(GPtr(buf), 0, bytes);
++  const uint32_t label_chars = gtaiv::achievements::EnumLabelChars();
++  const uint32_t desc_chars = gtaiv::achievements::EnumDescriptionChars();
++  gaddr str = buf + 36 * items.size();
++  for (size_t i = 0; i < items.size(); i++) {
++    const gaddr row = buf + 36 * i;
++    Wr32(row + 0, items[i].id);
++    Wr32(row + 4, str);
++    str += WriteWide(str, items[i].label, label_chars);
++    Wr32(row + 8, str);
++    str += WriteWide(str, items[i].description, desc_chars);
++    Wr32(row + 12, str);
++    str += WriteWide(str, items[i].description, desc_chars);
++    Wr32(row + 16, 0);  // image
++    Wr32(row + 20, uint32_t(std::max(0, items[i].points)));
++    uint32_t lo = 0, hi = 0;
++    gtaiv::achievements::UnixToFileTime(items[i].unlocked_at, &lo, &hi);
++    Wr32(row + 24, lo);
++    Wr32(row + 28, hi);
++    Wr32(row + 32, 1);  // XACHIEVEMENT_TYPE_COMPLETION; a set FILETIME means unlocked
++  }
++  if (ov) return Complete(ov, kErrorSuccess, uint32_t(items.size()));
++  if (pcount) Wr32(pcount, uint32_t(items.size()));
++  return kErrorSuccess;
+ }
+ 
+ // ---- XLive lifetime and rendering hooks --------------------------------------
+@@ -449,12 +522,37 @@ HLE_NAMED("xlive.dll", "#5314", XUserMuteListQuery, 4) {  // (user, XUID, PBOOL)
+ HLE_NAMED("xlive.dll", "#5276", XUserSetProperty, 4) { return 0; }
+ HLE_NAMED("xlive.dll", "#5277", XUserSetContext, 3) { return 0; }
+ HLE_NAMED("xlive.dll", "#5292", XUserSetContextEx, 4) { return Finish(Arg(c, 3), kErrorSuccess); }
+-HLE_NAMED("xlive.dll", "#5278", XUserWriteAchievements, 3) { return Finish(Arg(c, 2), kErrorSuccess); }
++// XUSER_ACHIEVEMENT is {uint32 user, uint32 id}. The id is the script index
++// (achievements.h). With the option off this is the old success-and-discard.
++HLE_NAMED("xlive.dll", "#5278", XUserWriteAchievements, 3) {
++  const uint32_t n = uint32_t(Arg(c, 0));
++  const gaddr list = Arg(c, 1);
++  if (gtaiv::achievements::Enabled() && list && n > 0 && n <= 64) {
++    for (uint32_t i = 0; i < n; i++) {
++      const uint32_t id = Rd32(list + i * 8 + 4);
++      if (id) gtaiv::achievements::RecordUnlock(id);
++    }
++  } else if (n > 64) {
++    WarnF("xlive: XUserWriteAchievements count %u left unread\n", n);
++  }
++  return Finish(Arg(c, 2), kErrorSuccess);
++}
+ 
+-// (title, user, XUID xuid, flags, start, count, pcbBuffer, phEnum)
++// (title, user, XUID xuid, flags, start, count, pcbBuffer, phEnum).
++// XUID takes two stack slots, so start is argument 5.
+ HLE_NAMED("xlive.dll", "#5280", XUserCreateAchievementEnumerator, 9) {
+-  if (gaddr p = Arg(c, 7)) Wr32(p, uint32_t(Arg(c, 6)) * 36);  // XACHIEVEMENT_DETAILS
+-  if (gaddr p = Arg(c, 8)) Wr32(p, DummyHandle());
++  const uint32_t start = uint32_t(Arg(c, 5));
++  const uint32_t count = uint32_t(Arg(c, 6));
++  // A wild count is left as the old stand-in (the struct size, no rows).
++  const bool on = gtaiv::achievements::Enabled() && count <= 128;
++  if (gaddr p = Arg(c, 7))
++    Wr32(p, on ? gtaiv::achievements::EnumBufferBytes(count) : count * 36);
++  const uint32_t handle = DummyHandle();
++  if (gaddr p = Arg(c, 8)) Wr32(p, handle);
++  if (on && handle) {
++    std::lock_guard<std::mutex> l(g_mu);
++    g_ach_enums[handle] = AchEnum{start, count, false};
++  }
+   return kErrorSuccess;
+ }
+ 

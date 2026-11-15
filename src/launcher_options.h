@@ -61,12 +61,36 @@ NSString* const kFastLoadingKey = @"FastLoading";
 NSString* const kFovKey = @"ExtraFieldOfView";  // 0-4: +0, +5, +10, +15, +20 degrees
 NSString* const kStunPunchKey = @"StunPunchAnywhere";
 NSString* const kExecutionsKey = @"ExecutionsAnywhere";
+// GTAIV_ACHIEVEMENT_STYLE. The titles are the launcher's; the keys are the env.
+NSString* const kAchievementStyleKey = @"AchievementStyle";
+inline NSArray<NSString*>* AchievementStyleTitles() {
+  return @[ @"Xbox 360 A", @"Xbox 360 B (silver)", @"Xbox 360 C (flat)", @"macOS glass", @"Rare gold", @"PlayStation 3", @"Steam" ];
+}
+inline NSArray<NSString*>* AchievementStyleKeys() {
+  return @[ @"xbox_a", @"xbox_b", @"xbox_c", @"xbox_d", @"xbox_e", @"ps3", @"steam" ];
+}
+inline NSInteger AchievementStyleIndex(NSString* key) {
+  const NSUInteger i = [AchievementStyleKeys() indexOfObject:key.lowercaseString ?: @""];
+  return i == NSNotFound ? 0 : NSInteger(i);
+}
+// GTAIV_ACHIEVEMENT_POSITION. Default keeps each style's own corner.
+NSString* const kAchievementPositionKey = @"AchievementPosition";
+inline NSArray<NSString*>* AchievementPositionTitles() {
+  return @[ @"Default", @"Top left", @"Top right", @"Bottom left", @"Bottom right", @"Top centre", @"Bottom centre" ];
+}
+inline NSArray<NSString*>* AchievementPositionKeys() {
+  return @[ @"default", @"top_left", @"top_right", @"bottom_left", @"bottom_right", @"top", @"bottom" ];
+}
+inline NSInteger AchievementPositionIndex(NSString* key) {
+  const NSUInteger i = [AchievementPositionKeys() indexOfObject:key.lowercaseString ?: @""];
+  return i == NSNotFound ? 0 : NSInteger(i);
+}
 
 // Advanced, the community's fixes (community_fixes.cpp, widescreen.cpp):
 // each a checkbox, on unless the player turns it off. Extras, the port's
 // own additions: a tab (Mac) and a section (iPad, iPhone) of their own,
 // off until the player turns them on (but for the episodes' own radio
-// songs, which only matter with the episodes on).
+// songs, Spatial Audio and local achievements, which are on).
 struct Fix {
   NSString* key;
   const char* env;
@@ -196,6 +220,8 @@ const Fix kFixes[] = {
     {@"SpatialAudio", "GTAIV_SPATIAL_AUDIO", @"Spatial Audio: the game's 5.1 sound around your head, with head tracking on AirPods", true, true},
     {@"PhoneCheats", "GTAIV_PHONE_CHEATS", @"Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100)", false, true},
     {@"PlayerFullDamage", "GTAIV_PLAYER_FULL_DAMAGE", @"Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5", false, true},
+    {@"Achievements", "GTAIV_ACHIEVEMENTS", @"Achievements (local)", true, true},
+    {@"AchievementVehicleTest", "GTAIV_ACHIEVEMENT_VEHICLE_TEST", @"Test: toast on entering a vehicle", false, true},
 };
 
 // The options that need the extended shaders (Fix::hidden): not shown, as
@@ -328,7 +354,7 @@ NSString* ModsFolder() {
 // The defaults of every option (the player's choices override them).
 void RegisterDefaults(NSUserDefaults* d) {
   NSMutableDictionary* defaults =
-      [NSMutableDictionary dictionaryWithDictionary:@{kHudKey : @YES, kTouchKey : @YES, kSkipIntroKey : @YES, kFastLoadingKey : @YES, kModsKey : @YES, kStunPunchKey : @YES, kExecutionsKey : @YES, kContinueKey : @YES, kSystemLanguageKey : @YES, kMetalFXScaleKey : @1, kTaaSharpeningKey : @2, kAntiAliasingKey : @3}];
+      [NSMutableDictionary dictionaryWithDictionary:@{kHudKey : @YES, kTouchKey : @YES, kSkipIntroKey : @YES, kFastLoadingKey : @YES, kModsKey : @YES, kStunPunchKey : @YES, kExecutionsKey : @YES, kContinueKey : @YES, kSystemLanguageKey : @YES, kMetalFXScaleKey : @1, kTaaSharpeningKey : @2, kAntiAliasingKey : @3, kAchievementStyleKey : @"xbox_a", kAchievementPositionKey : @"default"}];
   for (const Fix& f : kFixes) defaults[f.key] = @(f.on);
   for (const ShaderChoice& sc : kShaderChoices) defaults[sc.key] = @(sc.def);
   [d registerDefaults:defaults];
@@ -399,6 +425,10 @@ void ApplyOptions(NSUserDefaults* d) {
   setenv("GTAIV_STUN_PUNCH", [d boolForKey:kStunPunchKey] ? "1" : "0", 1);
   setenv("GTAIV_EXECUTIONS", [d boolForKey:kExecutionsKey] ? "1" : "0", 1);
   for (const Fix& f : kFixes) setenv(f.env, [d boolForKey:f.key] ? "1" : "0", 1);
+  setenv("GTAIV_ACHIEVEMENT_STYLE",
+         AchievementStyleKeys()[AchievementStyleIndex([d stringForKey:kAchievementStyleKey])].UTF8String, 1);
+  setenv("GTAIV_ACHIEVEMENT_POSITION",
+         AchievementPositionKeys()[AchievementPositionIndex([d stringForKey:kAchievementPositionKey])].UTF8String, 1);
   for (const ShaderChoice& sc : kShaderChoices) {
     const NSInteger v = std::clamp<NSInteger>([d integerForKey:sc.key], 0, NSInteger(sc.items.count) - 1);
     setenv(sc.env, std::to_string(v).c_str(), 1);

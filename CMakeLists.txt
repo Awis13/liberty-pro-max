@@ -31,6 +31,27 @@ set(RECOMP_LTO ON CACHE BOOL "ThinLTO of lifted code")
 set(RECOMP_SSE_HOST ON CACHE BOOL "Host SSE arithmetic in lifted code")
 add_subdirectory("${X86RECOMP_DIR}" x86recomp)
 
+# Local achievements live in this tree. The list and the toast bitmap are
+# in the Metal renderer (recomp_gfx), which draws them. xlive calls the
+# same library directly: a dlsym from the renderer into xlive was silent
+# when the symbol did not resolve, and then nothing was logged.
+if(TARGET recomp_gfx)
+  target_sources(recomp_gfx PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/achievements.cpp")
+  target_include_directories(recomp_gfx PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  if(APPLE)
+    target_sources(recomp_gfx PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src/achievement_overlay.mm")
+    target_link_libraries(recomp_gfx PRIVATE
+      "-framework CoreText" "-framework CoreGraphics" "-framework CoreFoundation"
+      "-framework AudioToolbox")
+  endif()
+endif()
+if(TARGET recomp_xlive)
+  target_include_directories(recomp_xlive PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/src")
+  if(TARGET recomp_gfx)
+    target_link_libraries(recomp_xlive PRIVATE recomp_gfx)
+  endif()
+endif()
+
 # The game: runtime + HLE + lifted code (generated/, produced by
 # recomp_lift from the user's own install; see README.md).
 recomp_add_lifted(gtaiv_lifted "${CMAKE_CURRENT_SOURCE_DIR}/generated")
@@ -158,6 +179,13 @@ if(GTAIV_TESTS AND NOT RECOMP_IOS)
   add_executable(gtaiv_spatial_audio_test tests/spatial_audio_test.cpp)
   target_include_directories(gtaiv_spatial_audio_test PRIVATE src)
   add_test(NAME spatial_audio COMMAND gtaiv_spatial_audio_test)
+  add_executable(gtaiv_achievements_test tests/achievements_test.cpp src/achievements.cpp)
+  target_include_directories(gtaiv_achievements_test PRIVATE src)
+  target_compile_features(gtaiv_achievements_test PRIVATE cxx_std_20)
+  if(NOT MSVC)
+    target_compile_options(gtaiv_achievements_test PRIVATE -Wall -Wextra)
+  endif()
+  add_test(NAME achievements COMMAND gtaiv_achievements_test)
   add_executable(gtaiv_episode_files_test tests/episode_files_test.cpp)
   target_include_directories(gtaiv_episode_files_test PRIVATE src)
   add_test(NAME episode_files COMMAND gtaiv_episode_files_test)

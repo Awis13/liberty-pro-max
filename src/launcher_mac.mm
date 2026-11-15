@@ -30,6 +30,8 @@
 #include <utility>
 #include <vector>
 
+#include "achievement_overlay.h"
+#include "achievements.h"
 #include "launcher_options.h"
 #include "save_paths.h"
 #include "runtime/gfx/prewarm.h"
@@ -148,7 +150,267 @@ void StopPrewarm() {
 
 }  // namespace
 
-@interface GtaivLauncher : NSObject <NSApplicationDelegate, NSWindowDelegate>
+// The Achievements tab: all 65, grouped by game, plus the toast style and
+// the vehicle-entry test. The on/off switch stays on Extras.
+@interface GtaivAchievementsTab : NSObject <NSTableViewDataSource, NSTableViewDelegate>
+@property(strong) NSView* view;
+@property(strong) NSPopUpButton* style;
+@property(strong) NSPopUpButton* place;
+@property(strong) NSImageView* preview;
+@property(strong) NSSegmentedControl* filter;
+@property(strong) NSTextField* summary;
+@property(strong) NSTableView* table;
+@property(strong) NSMutableArray<NSDictionary<NSString*, NSString*>*>* rows;
+@property int64_t seenMs;
+@end
+
+static NSString* AchievementGameTitle(gtaiv::achievements::Game game) {
+  switch (game) {
+    case gtaiv::achievements::Game::iv: return @"GTA IV";
+    case gtaiv::achievements::Game::tlad: return @"The Lost and Damned";
+    case gtaiv::achievements::Game::tbogt: return @"The Ballad of Gay Tony";
+    case gtaiv::achievements::Game::unknown: return @"Other";
+  }
+  return @"Other";
+}
+
+@implementation GtaivAchievementsTab
+
+- (void)buildWithDefaults:(NSUserDefaults*)d vehicleTest:(NSButton*)vehicleTest {
+  self.rows = [NSMutableArray new];
+  NSTextField* styleLabel = [NSTextField labelWithString:@"Achievement style:"];
+  self.style = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+  [self.style addItemsWithTitles:AchievementStyleTitles()];
+  [self.style selectItemAtIndex:AchievementStyleIndex([d stringForKey:kAchievementStyleKey])];
+  self.style.target = self;
+  self.style.action = @selector(styleChanged:);
+  NSStackView* styleRow = [NSStackView stackViewWithViews:@[ styleLabel, self.style ]];
+  NSTextField* placeLabel = [NSTextField labelWithString:@"Achievement position:"];
+  self.place = [[NSPopUpButton alloc] initWithFrame:NSZeroRect pullsDown:NO];
+  [self.place addItemsWithTitles:AchievementPositionTitles()];
+  [self.place selectItemAtIndex:AchievementPositionIndex([d stringForKey:kAchievementPositionKey])];
+  self.place.target = self;
+  self.place.action = @selector(placeChanged:);
+  NSStackView* placeRow = [NSStackView stackViewWithViews:@[ placeLabel, self.place ]];
+  self.preview = [NSImageView new];
+  self.preview.imageScaling = NSImageScaleProportionallyUpOrDown;
+  self.preview.imageAlignment = NSImageAlignCenter;
+  [self.preview setContentHuggingPriority:NSLayoutPriorityDefaultHigh forOrientation:NSLayoutConstraintOrientationVertical];
+  [self.preview.heightAnchor constraintEqualToConstant:82].active = YES;
+  [self.preview.widthAnchor constraintEqualToConstant:432].active = YES;
+  NSTextField* testNote = [NSTextField wrappingLabelWithString:
+      @"Off by default. Getting into a vehicle shows a toast with its name, in the style above. It is not saved."];
+  testNote.textColor = NSColor.secondaryLabelColor;
+  testNote.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+  testNote.preferredMaxLayoutWidth = 640;
+  self.filter = [NSSegmentedControl segmentedControlWithLabels:@[ @"All", @"Unlocked", @"Locked" ]
+                                                  trackingMode:NSSegmentSwitchTrackingSelectOne
+                                                        target:self
+                                                        action:@selector(reload)];
+  self.filter.selectedSegment = 0;
+  self.summary = [NSTextField wrappingLabelWithString:@""];
+  self.summary.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+  self.table = [[NSTableView alloc] initWithFrame:NSZeroRect];
+  self.table.usesAlternatingRowBackgroundColors = YES;
+  self.table.rowHeight = 36;
+  self.table.dataSource = self;
+  self.table.delegate = self;
+  NSTextFieldCell* wrapping = [NSTextFieldCell new];
+  wrapping.wraps = YES;
+  wrapping.scrollable = NO;
+  wrapping.lineBreakMode = NSLineBreakByWordWrapping;
+  wrapping.truncatesLastVisibleLine = YES;
+  for (NSArray* col in @[
+         @[ @"state", @"", @78 ],
+         @[ @"points", @"G", @36 ],
+         @[ @"name", @"Achievement", @170 ],
+         @[ @"detail", @"How", @250 ],
+         @[ @"when", @"Unlocked", @130 ],
+       ]) {
+    NSTableColumn* column = [[NSTableColumn alloc] initWithIdentifier:col[0]];
+    column.title = col[1];
+    column.width = [col[2] doubleValue];
+    column.dataCell = [wrapping copy];
+    [self.table addTableColumn:column];
+  }
+  NSScrollView* scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
+  scroll.hasVerticalScroller = YES;
+  scroll.documentView = self.table;
+  scroll.translatesAutoresizingMaskIntoConstraints = NO;
+  [scroll setContentHuggingPriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationVertical];
+  [scroll.heightAnchor constraintGreaterThanOrEqualToConstant:220].active = YES;
+  NSButton* reset = [NSButton buttonWithTitle:@"Reset…" target:self action:@selector(reset:)];
+  NSMutableArray<NSView*>* parts = [NSMutableArray arrayWithObjects:styleRow, placeRow, self.preview, nil];
+  if (vehicleTest) [parts addObject:vehicleTest];
+  [parts addObjectsFromArray:@[ testNote, self.filter, self.summary, scroll, reset ]];
+  NSStackView* all = [NSStackView stackViewWithViews:parts];
+  all.orientation = NSUserInterfaceLayoutOrientationVertical;
+  all.alignment = NSLayoutAttributeLeading;
+  all.spacing = 8;
+  all.edgeInsets = NSEdgeInsetsMake(4, 4, 4, 4);
+  all.translatesAutoresizingMaskIntoConstraints = NO;
+  [all setCustomSpacing:4 afterView:self.summary];
+  NSView* page = [NSView new];
+  [page addSubview:all];
+  [NSLayoutConstraint activateConstraints:@[
+    [all.leadingAnchor constraintEqualToAnchor:page.leadingAnchor],
+    [all.trailingAnchor constraintEqualToAnchor:page.trailingAnchor],
+    [all.topAnchor constraintEqualToAnchor:page.topAnchor],
+    [all.bottomAnchor constraintEqualToAnchor:page.bottomAnchor],
+    [self.summary.widthAnchor constraintEqualToAnchor:all.widthAnchor constant:-16],
+    [scroll.widthAnchor constraintEqualToAnchor:all.widthAnchor constant:-16],
+    [testNote.widthAnchor constraintEqualToAnchor:all.widthAnchor constant:-16],
+  ]];
+  self.view = page;
+  [self showPreview];
+  [self reload];
+}
+
+- (int64_t)fileMs {
+  NSString* path = @(gtaiv::achievements::DefaultPath().c_str());
+  NSDate* modified = [NSFileManager.defaultManager attributesOfItemAtPath:path error:nil][NSFileModificationDate];
+  return modified ? int64_t(modified.timeIntervalSince1970 * 1000.0) : 0;
+}
+
+- (void)showPreview {
+  GtaivToastBitmap bitmap{};
+  NSString* key = AchievementStyleKeys()[self.style.indexOfSelectedItem];
+  if (!gtaiv_achievement_preview(key.UTF8String, &bitmap) || !bitmap.rgba || bitmap.width < 1 || bitmap.height < 1) {
+    self.preview.image = nil;
+    return;
+  }
+  const int w = bitmap.width, h = bitmap.height;
+  std::vector<uint8_t> raw(size_t(w * h * 4));
+  const size_t stride = size_t(w) * 4;
+  // Same order as the in-game texture: the first row is the top.
+  gtaiv::achievements::CopyToastRows(bitmap.rgba, raw.data(), w, h);
+  CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+  CGContextRef ctx = CGBitmapContextCreate(raw.data(), size_t(w), size_t(h), 8, stride, space,
+                                           kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+  CGColorSpaceRelease(space);
+  if (!ctx) return;
+  CGImageRef image = CGBitmapContextCreateImage(ctx);
+  CGContextRelease(ctx);
+  if (!image) return;
+  self.preview.image = [[NSImage alloc] initWithCGImage:image size:NSMakeSize(w, h)];
+  CGImageRelease(image);
+}
+
+- (void)styleChanged:(id)sender {
+  NSString* key = AchievementStyleKeys()[self.style.indexOfSelectedItem];
+  [NSUserDefaults.standardUserDefaults setObject:key forKey:kAchievementStyleKey];
+  [self showPreview];
+}
+
+- (void)placeChanged:(id)sender {
+  NSString* key = AchievementPositionKeys()[self.place.indexOfSelectedItem];
+  [NSUserDefaults.standardUserDefaults setObject:key forKey:kAchievementPositionKey];
+}
+
+- (void)reload {
+  const auto store = gtaiv::achievements::Store::Load(gtaiv::achievements::DefaultPath());
+  const auto all = gtaiv::achievements::Rows(store);
+  const NSInteger filter = self.filter.selectedSegment;
+  NSMutableString* summary = [NSMutableString string];
+  [self.rows removeAllObjects];
+  const gtaiv::achievements::Game order[] = {gtaiv::achievements::Game::iv, gtaiv::achievements::Game::tlad,
+                                             gtaiv::achievements::Game::tbogt, gtaiv::achievements::Game::unknown};
+  for (auto game : order) {
+    int total = 0, open = 0, points = 0, earned = 0;
+    NSMutableArray<NSDictionary<NSString*, NSString*>*>* items = [NSMutableArray new];
+    for (const auto& row : all) {
+      if (row.game != game) continue;
+      total++;
+      if (row.points > 0) points += row.points;
+      if (row.unlocked) {
+        open++;
+        if (row.points > 0) earned += row.points;
+      }
+      if (filter == 1 && !row.unlocked) continue;
+      if (filter == 2 && row.unlocked) continue;
+      NSString* when = @"—";
+      if (row.unlocked && row.unlocked_at > 0)
+        when = [NSDateFormatter localizedStringFromDate:[NSDate dateWithTimeIntervalSince1970:row.unlocked_at]
+                                               dateStyle:NSDateFormatterMediumStyle
+                                               timeStyle:NSDateFormatterShortStyle];
+      [items addObject:@{
+        @"kind" : @"item",
+        @"state" : row.unlocked ? @"Unlocked" : @"Locked",
+        @"points" : row.points < 0 ? @"—" : [NSString stringWithFormat:@"%d", row.points],
+        @"name" : @(row.name.c_str()),
+        @"detail" : @(row.description.c_str()),
+        @"when" : when,
+      }];
+    }
+    if (total == 0) continue;
+    [summary appendFormat:@"%@: %d/%d unlocked, %d/%d G\n", AchievementGameTitle(game), open, total, earned, points];
+    if (items.count == 0) continue;
+    [self.rows addObject:@{
+      @"kind" : @"header",
+      @"state" : @"",
+      @"points" : @"",
+      @"name" : [NSString stringWithFormat:@"%@    %d/%d unlocked, %d/%d G", AchievementGameTitle(game), open, total,
+                                          earned, points],
+      @"detail" : @"",
+      @"when" : @"",
+    }];
+    [self.rows addObjectsFromArray:items];
+  }
+  self.summary.stringValue = summary.length ? summary : @"No achievements in the table.";
+  self.seenMs = [self fileMs];
+  [self.table reloadData];
+}
+
+- (void)refreshIfChanged {
+  const int64_t now = [self fileMs];
+  if (now != self.seenMs) [self reload];
+}
+
+- (void)reset:(id)sender {
+  NSAlert* alert = [NSAlert new];
+  alert.messageText = @"Reset local achievements?";
+  alert.informativeText = @"This clears the list stored on this Mac. Save files are not changed. "
+                          @"Achievements already earned in a save are not added back here until the game awards them again.";
+  [alert addButtonWithTitle:@"Reset"];
+  [alert addButtonWithTitle:@"Cancel"];
+  alert.alertStyle = NSAlertStyleWarning;
+  NSWindow* window = self.view.window;
+  void (^apply)(NSModalResponse) = ^(NSModalResponse response) {
+    if (response != NSAlertFirstButtonReturn) return;
+    auto store = gtaiv::achievements::Store::Load(gtaiv::achievements::DefaultPath());
+    store.Clear();
+    if (!store.Save()) {
+      std::fprintf(stderr, "achievement: could not reset %s\n", store.path.c_str());
+      return;
+    }
+    [self reload];
+  };
+  if (window)
+    [alert beginSheetModalForWindow:window completionHandler:apply];
+  else
+    apply([alert runModal]);
+}
+
+- (NSInteger)numberOfRowsInTableView:(NSTableView*)table {
+  return NSInteger(self.rows.count);
+}
+
+- (id)tableView:(NSTableView*)table objectValueForTableColumn:(NSTableColumn*)column row:(NSInteger)row {
+  return self.rows[NSUInteger(row)][column.identifier];
+}
+
+- (BOOL)tableView:(NSTableView*)table shouldSelectRow:(NSInteger)row {
+  return ![self.rows[NSUInteger(row)][@"kind"] isEqualToString:@"header"];
+}
+
+- (void)tableView:(NSTableView*)table willDisplayCell:(id)cell forTableColumn:(NSTableColumn*)column row:(NSInteger)row {
+  const BOOL header = [self.rows[NSUInteger(row)][@"kind"] isEqualToString:@"header"];
+  [cell setFont:header ? [NSFont boldSystemFontOfSize:NSFont.systemFontSize] : [NSFont systemFontOfSize:NSFont.smallSystemFontSize]];
+}
+
+@end
+
+@interface GtaivLauncher : NSObject <NSApplicationDelegate, NSWindowDelegate, NSTabViewDelegate>
 @property(strong) NSWindow* window;
 @property(strong) NSTextField* folderField;
 @property(strong) NSTextField* problem;
@@ -181,6 +443,7 @@ void StopPrewarm() {
 @property(strong) NSButton* play;
 @property(strong) NSTextField* preparing;
 @property(strong) NSStackView* stack;
+@property(strong) GtaivAchievementsTab* achievementsTab;
 @property(copy) NSString* folder;
 @property NSModalResponse response;
 @end
@@ -364,6 +627,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.fixes = [NSMutableArray new];
   NSMutableArray<NSArray<NSView*>*>* extraRows = [NSMutableArray new];
   BOOL fixesLabelled = NO;
+  NSButton* vehicleTest = nil;
   for (const Fix& f : kFixes) {
     NSButton* b = [NSButton checkboxWithTitle:f.title target:nil action:nil];
     b.state = [d boolForKey:f.key] ? NSControlStateValueOn : NSControlStateValueOff;
@@ -372,7 +636,21 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
       // The tab's width: longer titles wrap rather than end in "...".
       b.lineBreakMode = NSLineBreakByWordWrapping;
       [b.widthAnchor constraintLessThanOrEqualToConstant:kWindowWidth - 100].active = YES;
-      [extraRows addObject:@[ b ]];
+      // The vehicle-entry toast is a test of the achievement styles, so it
+      // sits on the Achievements tab with the list. The same button is what
+      // Play stores.
+      if ([f.key isEqualToString:@"AchievementVehicleTest"])
+        vehicleTest = b;
+      else
+        [extraRows addObject:@[ b ]];
+      if ([f.key isEqualToString:@"Achievements"]) {
+        NSTextField* where = [NSTextField wrappingLabelWithString:
+            @"The list, the toast style and the vehicle test are on the Achievements tab."];
+        where.textColor = NSColor.secondaryLabelColor;
+        where.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+        where.preferredMaxLayoutWidth = kNoteWidth;
+        [extraRows addObject:@[ where ]];
+      }
       if ([f.key isEqualToString:@"Episodes"]) [extraRows addObject:@[ self.episodesNote ]];
     } else if (AdvancedFixShown(f)) {
       [rows addObject:@[ fixesLabelled ? NSGridCell.emptyContentView : [self label:@"Fixes:"], b ]];
@@ -410,8 +688,17 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     [advDoc.widthAnchor constraintEqualToAnchor:advScroll.contentView.widthAnchor],
   ]];
 
+  self.achievementsTab = [GtaivAchievementsTab new];
+  [self.achievementsTab buildWithDefaults:d vehicleTest:vehicleTest];
+  __weak GtaivAchievementsTab* achievementsPane = self.achievementsTab;
+  [NSTimer scheduledTimerWithTimeInterval:1.0 repeats:YES block:^(NSTimer*) {
+    [achievementsPane refreshIfChanged];
+  }];
+
   self.tabs = [NSTabView new];
-  for (NSArray* tab in @[ @[ @"General", grid ], @[ @"Extras", extras ], @[ @"Advanced", advScroll ] ]) {
+  self.tabs.delegate = self;
+  for (NSArray* tab in @[ @[ @"General", grid ], @[ @"Extras", extras ], @[ @"Achievements", self.achievementsTab.view ],
+                          @[ @"Advanced", advScroll ] ]) {
     NSTabViewItem* item = [[NSTabViewItem alloc] initWithIdentifier:tab[0]];
     item.label = tab[0];
     NSView* page = [NSView new];
@@ -422,7 +709,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
       [g.leadingAnchor constraintEqualToAnchor:page.leadingAnchor constant:14],
       [g.topAnchor constraintEqualToAnchor:page.topAnchor constant:14],
     ]];
-    if (g == advScroll)  // fills the page, scrolls inside
+    if (g == advScroll || g == self.achievementsTab.view)  // fills the page, scrolls inside
       [NSLayoutConstraint activateConstraints:@[
         [g.trailingAnchor constraintEqualToAnchor:page.trailingAnchor constant:-4],
         [g.bottomAnchor constraintEqualToAnchor:page.bottomAnchor constant:-4],
@@ -551,6 +838,10 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   Store(d, kExecutionsKey, @(self.executions.state == NSControlStateValueOn));
   for (NSUInteger i = 0; i < self.fixes.count; i++)
     Store(d, kFixes[i].key, @(self.fixes[i].state == NSControlStateValueOn));
+  if (self.achievementsTab.style)
+    Store(d, kAchievementStyleKey, AchievementStyleKeys()[self.achievementsTab.style.indexOfSelectedItem]);
+  if (self.achievementsTab.place)
+    Store(d, kAchievementPositionKey, AchievementPositionKeys()[self.achievementsTab.place.indexOfSelectedItem]);
   for (NSUInteger i = 0; i < self.shaderChoices.count; i++)
     Store(d, kShaderChoices[i].key, @(self.shaderChoices[i].indexOfSelectedItem));
   Store(d, kSkipKey, @(self.skip.state == NSControlStateValueOn));
@@ -561,6 +852,10 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
 // Sharpening follows TAA and MetalFX only: greyed with the others.
 - (void)antialiasingChanged:(id)sender {
   self.sharpening.enabled = SharpeningApplies(self.antialiasing.indexOfSelectedItem);
+}
+
+- (void)tabView:(NSTabView*)tabView didSelectTabViewItem:(NSTabViewItem*)item {
+  if ([item.identifier isEqual:@"Achievements"]) [self.achievementsTab reload];
 }
 
 - (void)openMods:(id)sender {

@@ -39,6 +39,7 @@ if(TARGET gtaiv_lifted)
     src/bench.cpp src/fixes.cpp src/jobs.cpp src/options.cpp src/perf.cpp src/episodes.cpp src/mods.cpp src/threads.cpp src/native.cpp src/pad_icons.cpp
     src/saves.cpp
     src/pad_feedback.cpp
+    src/now_playing.cpp
     src/spatial_audio.cpp
     src/community_fixes.cpp
     src/high_fps_fixes.cpp

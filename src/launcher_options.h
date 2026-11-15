@@ -192,6 +192,7 @@ const Fix kFixes[] = {
     {@"TurnIndicatorsManual", "GTAIV_TURN_INDICATORS_MANUAL", @"Turn indicators by hand: [ and ] or bumpers, both for hazards (needs Turn indicators)", false, true},
     {@"RouteIndicators", "GTAIV_TURN_INDICATORS_ROUTE", @"Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand)", false, true},
     {@"PadIcons", "GTAIV_PAD_ICONS", @"Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder)", false, true},
+    {@"NowPlaying", "GTAIV_NOW_PLAYING", @"Now playing: in a vehicle, the song and artist on the radio (as ZiT names them) on screen when you get in, retune or the song changes", false, true},
     {@"PadFeedback", "GTAIV_PAD_FEEDBACK", @"DualSense: adaptive triggers when driving and with a gun in hand, light bar flashes red and blue while wanted", false, true},
     {@"SpatialAudio", "GTAIV_SPATIAL_AUDIO", @"Spatial Audio: the game's 5.1 sound around your head, with head tracking on AirPods", true, true},
     {@"PhoneCheats", "GTAIV_PHONE_CHEATS", @"Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100)", false, true},

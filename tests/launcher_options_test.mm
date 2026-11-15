@@ -33,7 +33,7 @@ const Fix* Find(NSString* key) {
 void TestExtras() {
   NSArray<NSString*>* want = @[
     @"Episodes", @"EpisodeRadioOwn", @"TurnIndicators", @"TurnIndicatorsManual", @"RouteIndicators", @"PadIcons",
-    @"PadFeedback", @"PhoneCheats", @"PlayerFullDamage"
+    @"NowPlaying", @"PadFeedback", @"PhoneCheats", @"PlayerFullDamage"
   ];
   const Fix* spatial = Find(@"SpatialAudio");
   EXPECT(spatial && spatial->extra && spatial->on && !spatial->hidden);

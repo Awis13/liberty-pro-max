@@ -79,10 +79,13 @@
 //     Niko for 2 s after the mouse moved it.
 
 #include <cmath>
+#include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include <string_view>
 
+#include "colour_filter.h"
+#include "runtime/gfx/device.h"
 #include "hook_util.h"
 #include "option.h"
 #include "runtime/lifted.h"
@@ -604,11 +607,29 @@ void hook_00A89930(Ctx& c) {
 // format, then a pointer per column). Its bloom intensity (column 38) and
 // near and far depth of field blur (123, 124) zeroed after it when the
 // options turn them off.
+// And its colour filter with ray tracing (GTAIV_COLOUR_FILTER=natural, the
+// default while rays are traced; game: as the game has it, the default
+// without them): colour_filter.h, the colour correction only.
 void hook_00A3B995(Ctx& c) {
   static const bool bloom = OptionOn("GTAIV_BLOOM", true);
   static const bool dof = OptionOn("GTAIV_DEPTH_OF_FIELD", true);
+  // (Natural only with ray tracing, whose picture it was made for; without
+  // it the game's own, as before. GTAIV_COLOUR_FILTER=natural|game says
+  // which whatever the rays.)
+  static const bool natural = [] {
+    if (const char* e = std::getenv("GTAIV_COLOUR_FILTER"); e && *e) return std::strcmp(e, "natural") == 0;
+    const char* rt = std::getenv("GTAIV_RT");
+    return recomp::gfx::RayTracedShadows() || (rt && *rt && std::strcmp(rt, "off") != 0);
+  }();
   c.eax = uint32_t(CallGuest(c, 0x00CF874F, {}));  // the arguments are already pushed
   auto column = [&](uint32_t k) { return Rd32(c.esp + 8 + 4 * k); };
+  if (natural && c.eax >= gtaiv_colour_filter::kColumns) {
+    namespace cf = gtaiv_colour_filter;
+    cf::Line l{};
+    for (uint32_t k = 0; k < 3; k++) l.cc[k] = int32_t(Rd32(column(cf::kColourCorrect + k)));
+    cf::Natural(&l);
+    for (uint32_t k = 0; k < 3; k++) Wr32(column(cf::kColourCorrect + k), uint32_t(l.cc[k]));
+  }
   if (!bloom) WrF32(column(38), 0.0f);
   if (!dof) {
     WrF32(column(123), 0.0f);

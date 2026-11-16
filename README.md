@@ -37,6 +37,7 @@ For the iPad, the iPhone and the Apple TV, see [Install](#install).
 | **Renderer** | Metal, written for this port: drawing encoded on its own thread, geometry read in place from the game's memory, several frames in flight | the same |
 | **Frame rate** | about 125 fps indoors, 60–100 fps outdoors at 3440×1440, maximum settings, M3 Pro; no frame rate cap unless you set the launcher's frame limit (30, 60 or 120 fps) | 60 fps indoors, 45–60 outdoors at 1792×1344, iPad Air (M4) |
 | **Anti-aliasing** | TAA (default), SMAA, MetalFX temporal and SMAA + MetalFX spatial upscaling; TAA and MetalFX sharpened (AMD RCAS, off to high) | SMAA (default), TAA (sharpened as on the Mac) |
+| **Ray tracing** (experimental) | off by default; on Macs with an M3 or newer: shadows from the sun, street lamps and headlights traced by the GPU, reflections on car paint, glass and wet streets, the sun's light bounced once, fog in the low sun; about 40 fps in the city at 3440×1440 on an M3 Pro | not available |
 | **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048 (iPhone: half to all of its own screen), field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play** |
 | **Fixes built in** | about 100 fixes (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
@@ -400,6 +401,19 @@ pad by cable and by Bluetooth on the Mac, and through the system's controller
 support on the iPad and iPhone. The Apple TV has no settings screen, so it is
 off there. Not yet: gyro aiming.
 
+**Ray tracing** (the Mac, experimental, off by default): the launcher's
+Advanced tab has a row for it on Macs whose GPU traces rays in hardware (M3
+and newer); elsewhere it is not shown. **Shadows** traces the sun's and the
+moon's shadows and those of every lamp in view (street lamps, headlights,
+sirens, shop lights) in place of the game's shadow maps, with the sun's
+light bounced once off what it lights and fog in the low sun. **Shadows and
+reflections** adds traced reflections on car paint, glass and wet
+streets. It is heavy: about 40 fps in the city at
+3440×1440 on an M3 Pro, less in a subway station full of lamps, and it is
+made for TAA (the traced light is sampled sparsely and TAA averages it).
+With it off the game runs as before. It is new: expect rough edges, and
+tell us what you see.
+
 **Spatial Audio** (the Mac, on by default): the game's own 5.1 sound,
 placed around your head. The game is told it has 5.1 speakers and mixes
 its sound into six channels, as it does on a PC with a surround system: a
@@ -607,6 +621,9 @@ keyboard lighting, graphics API choice and plugin loaders have nothing to do.
   fit its memory (DXT decoded on upload).
 - MetalFX temporal upscaling costs about 5 ms a frame at 3440×1440 output,
   more than it saves in this game; TAA at native resolution is the default.
+- Ray tracing (experimental, the Mac, M3 and newer): about 40 fps in the city at
+  3440×1440 on an M3 Pro and less in subway stations; short hitches while new
+  parts of the city enter the traced scene; not on the iPad, iPhone or Apple TV.
 - A few seconds of stutter right after loading, while the city streams in.
 - Multiplayer and paid features are not available and not planned.
 

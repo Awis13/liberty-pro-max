@@ -115,6 +115,7 @@ const Fix kFixes[] = {
     {@"RadarEveryFrame", "GTAIV_RADAR_EVERY_FRAME", @"Radar moves smoothly at high frame rates"},
     {@"HoodCamera", "GTAIV_HOOD_CAMERA", @"Bonnet camera sway smooth at high frame rates"},
     {@"CarCameraReturn", "GTAIV_CAR_CAMERA_RETURN", @"Car camera swings back faster with keyboard and mouse"},
+    {@"TladBikeCamera", "GTAIV_TLAD_BIKE_CAMERA", @"TLAD: higher bike camera"},
     {@"FusionFixData", "GTAIV_FF_DATA", @"Use FusionFix's mission and model fixes if installed (update folder)"},
     {@"RunInBackground", "GTAIV_RUN_IN_BACKGROUND", @"Keep running when the window is not in front", false},
     {@"MenuRightClick", "GTAIV_MENU_RIGHT_CLICK", @"Right click goes back in menus and steps an option down"},

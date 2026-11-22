@@ -454,6 +454,7 @@ The game was made for 30 fps; these keep it right at any frame rate.
 | Keep camera shake (hand-held, drunk, vehicles) | on |
 | Cutscene cameras steady, without sudden zooms or flicker at cuts | on |
 | Car camera swings back faster with keyboard and mouse | on |
+| TLAD: higher bike camera | on |
 | Cinematic camera when vaulting walls and jacking cars | on |
 | Cinematic camera and slow motion on stunt jumps | on |
 | On foot, the camera waits 2 s after the mouse before recentring | on |

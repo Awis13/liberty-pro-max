@@ -75,6 +75,26 @@ bool Down(uint32_t io) { return uint8_t(Rd8(io + 6) ^ Rd8(io + 4)) > 0x7F; }
 
 }  // namespace
 
+// TLAD's bike uses preset 7, with one pitch value per camera distance.
+// 0.28 was tested in game. Restore the stock values with the option off,
+// including when the player's EXE has our earlier 0.28 data patch. Leave
+// unfamiliar values alone to avoid overriding other camera modifications.
+void hook_00A79B88(Ctx& c) {
+  static const bool on = OptionOn("GTAIV_TLAD_BIKE_CAMERA", true);
+  static const bool configured = [] {
+    constexpr uint32_t addresses[] = {0xDB4508, 0xDB452C, 0xDB4550};
+    constexpr float stock[] = {-0.05f, -0.06f, -0.0475f};
+    for (unsigned i = 0; i < 3; ++i) {
+      const uint32_t value = Rd32(addresses[i]);
+      if (value != Bits(stock[i]) && value != Bits(0.28f)) return false;
+    }
+    for (unsigned i = 0; i < 3; ++i) WrF32(addresses[i], on ? 0.28f : stock[i]);
+    return true;
+  }();
+  (void)configured;
+  Wr32(c.eax, 7);
+}
+
 // CCamFollowPed: how strongly the camera swings back behind the player
 // this frame, (target - current heading) / time (divss xmm0, xmm1; stored
 // next by the mouse delay's hook). With a gamepad held at 0 for 2 s after

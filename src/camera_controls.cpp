@@ -76,7 +76,7 @@ bool Down(uint32_t io) { return uint8_t(Rd8(io + 6) ^ Rd8(io + 4)) > 0x7F; }
 }  // namespace
 
 // TLAD's bike uses preset 7, with one pitch value per camera distance.
-// 0.28 was tested in game. Restore the stock values with the option off,
+// Restore the stock values with the option off,
 // including when the player's EXE has our earlier 0.28 data patch. Leave
 // unfamiliar values alone to avoid overriding other camera modifications.
 void hook_00A79B88(Ctx& c) {
@@ -84,11 +84,12 @@ void hook_00A79B88(Ctx& c) {
   static const bool configured = [] {
     constexpr uint32_t addresses[] = {0xDB4508, 0xDB452C, 0xDB4550};
     constexpr float stock[] = {-0.05f, -0.06f, -0.0475f};
+    constexpr float higher[] = {0.115f, 0.11f, 0.11625f};
     for (unsigned i = 0; i < 3; ++i) {
       const uint32_t value = Rd32(addresses[i]);
-      if (value != Bits(stock[i]) && value != Bits(0.28f)) return false;
+      if (value != Bits(stock[i]) && value != Bits(0.28f) && value != Bits(higher[i])) return false;
     }
-    for (unsigned i = 0; i < 3; ++i) WrF32(addresses[i], on ? 0.28f : stock[i]);
+    for (unsigned i = 0; i < 3; ++i) WrF32(addresses[i], on ? higher[i] : stock[i]);
     return true;
   }();
   (void)configured;

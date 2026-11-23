@@ -15,18 +15,48 @@
 //   GTAIV_NO_STATIC_CAR_SHADOWS (off by default): no dark patch under cars
 //     at all; GTAIV_NO_CUTSCENE_STATIC_CAR_SHADOWS (off by default): none
 //     in cutscenes.
+// And with ray tracing (GTAIV_RT=shadows or reflections, the launcher's Ray
+// tracing row, on GPUs that trace rays in hardware), the deferred
+// lighting's sun shadows read the GPU's traced shadow mask instead of the
+// cascaded shadow maps (sun_shadow_tokens.h, GtaivRayShadowConsumer), the
+// forward-drawn shaders (decals, glass, fences, people, vehicles...) trace
+// their sun's shadow themselves where the GPU traces rays from its render
+// pipelines, lit elsewhere (forward_shadow_tokens.h,
+// GtaivRayForwardShadowConsumer), and
+// its shadowed local lights (street lights, headlights) a mask traced per
+// light instead of their shadow atlas (light_shadow_tokens.h); with
+// reflections, its reflection term blends the GPU's traced reflections over
+// the paraboloid's (reflection_tokens.h, GtaivRayReflectionConsumer); and
+// where the GPU traces rays from its render pipelines too, vehicle glass
+// (drawn after the lighting) blends reflections it traces itself over its
+// environment map (vehglass_tokens.h, GtaivRayForwardReflectionConsumer).
 
+#include <cstdlib>
 #include <atomic>
+#include <chrono>
+#include <mutex>
+#include <string>
 #include <cctype>
 #include <cstdint>
 #include <cstring>
 #include <vector>
 
+#include "denoise_tokens.h"
+#include "forward_light_tokens.h"
+#include "forward_shadow_tokens.h"
+#include "light_volume_tokens.h"
 #include "hook_util.h"
 #include "night_shadow_slots.h"
+#include "light_shadow_tokens.h"
 #include "option.h"
+#include "reflection_tokens.h"
+#include "rt_cascades.h"
+#include "occlusion_tokens.h"
+#include "vehglass_tokens.h"
+#include "runtime/gfx/device.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
+#include "sun_shadow_tokens.h"
 
 namespace recomp::gen {
 
@@ -146,6 +176,7 @@ void hook_008C499A(Ctx& c) {
   if (ns::Held(id, ids)) SetLane0(c.xmm[1], ns::RankDistance(Lane0(c.xmm[1]), true));
 }
 
+
 // 008C32B0 (cdecl: the fresh light's flags, the ranking place's): which of
 // the two the place keeps (night_shadow_slots.h's Priority), the cars' lights
 // and the others even when steady.
@@ -176,9 +207,14 @@ void hook_0095AEE9(Ctx& c) {
 void hook_0095A41B(Ctx& c) { CmpFlags<4>(c, VehicleNightShadows() ? 0 : c.eax, 3); }
 
 // The headlights' light (00A2E5F0, its flags the third argument): 504h for
-// the player's car, 104h for others. Flag 4 (dynamic shadows) dropped.
+// the player's car, 104h for others. Flag 4 (dynamic shadows) dropped for
+// the shadow map (the car in it would block its own lights); kept with
+// ray-traced lights, which shadow a lamp by rays only through the flag
+// (the car's own body is left out at the lamp by its gap).
 namespace {
-uint32_t HeadlightFlags(uint32_t flags) { return VehicleNightShadows() ? flags & ~4u : flags; }
+uint32_t HeadlightFlags(uint32_t flags) {
+  return VehicleNightShadows() && !recomp::gfx::RayTracedShadows() ? flags & ~4u : flags;
+}
 }  // namespace
 void hook_008F71E1(Ctx& c) { Push(c, HeadlightFlags(0x504)); }
 void hook_008F73EB(Ctx& c) { Push(c, HeadlightFlags(0x504)); }
@@ -243,6 +279,23 @@ void hook_008FB380(Ctx& c) {
     ComissFlags(c, Lane0(c.xmm[6]), threshold);
 }
 
+// With ray-traced shadows the game's own shadow maps are read by nothing
+// (every shader reading them reads the traced shadow instead). The street
+// lights' and headlights' shadow atlas (CRenderPhaseWarpShadow's draw list,
+// 00C532F0) is not built, as gta4-rtx skips it; its light scan (00C53400)
+// still runs: it picks the lights drawn with their shadowed volumes, which
+// trace their shadows. The cascades are still drawn: their casters (what
+// the camera does not see) feed the ray-traced scene. __fastcall with no
+// stack arguments: skipping it is its ret.
+void f_00C532F0_lifted(Ctx& c);
+void f_00C532F0(Ctx& c) {
+  if (recomp::gfx::RayTracedShadows()) {
+    c.esp += 4;
+    return;
+  }
+  f_00C532F0_lifted(c);
+}
+
 }  // namespace recomp::gen
 
 // A model shader of the update folder's that a mod's model needs while the
@@ -278,6 +331,37 @@ void DropLogDepth(std::vector<uint32_t>& tokens) {
 }
 }  // namespace
 
+namespace {
+// Ray-traced ambient occlusion (occlusion_tokens.h): off unless
+// GTAIV_RT_OCCLUSION=1 (its one ray in 16 pixels seen as noise in play,
+// 2026-11-11, until it is accumulated over frames).
+// The sun's light bounced once off what it lights, added to the sun pass's
+// ambient (occlusion_tokens.h's read; x86recomp's RtReflector::EncodeBounce).
+bool BounceOn() {
+  static const bool on = OptionOn("GTAIV_RT_BOUNCE", true);
+  return on;
+}
+bool OcclusionOn() {
+  static const bool on = OptionOn("GTAIV_RT_OCCLUSION", false);
+  return on;
+}
+}  // namespace
+
+namespace {
+// The forward shaders' lamps shadowed by rays (forward_light_tokens.h):
+// GTAIV_RT_FORWARD_LIGHTS=0 leaves them as the game has them (unshadowed);
+// GTAIV_RT_FORWARD_LIGHTS_HALF=1: a ray toward each light of a set
+// bringing half of what its strongest does, not the strongest's only.
+bool ForwardLightsOn() {
+  static const bool on = OptionOn("GTAIV_RT_FORWARD_LIGHTS", true);
+  return on;
+}
+bool ForwardLightsHalf() {
+  static const bool on = OptionOn("GTAIV_RT_FORWARD_LIGHTS_HALF", false);
+  return on;
+}
+}  // namespace
+
 // The glowing signs of gta_emissivestrong.fxc (JIMS, Comrades Bar...) sit on
 // or just behind what they light, and the shader moves them towards the camera
 // by its zShift (c210.x), as every other emissive shader does: z - zShift. In
@@ -288,6 +372,39 @@ void DropLogDepth(std::vector<uint32_t>& tokens) {
 // GTAIV_SIGN_GLOW_FIX=0 leaves it.
 void GtaivShaderTokens(std::vector<uint32_t>& tokens) {
   if (!recomp::gen::FfShadersOn()) DropLogDepth(tokens);
+  // Ray-traced sun shadows: the sun pass reads the traced mask (only while
+  // the renderer traces it, else the mask's sampler would read the cascade
+  // maps).
+  // And the shadowed light volumes read their light's traced mask (s14,
+  // the atlas's sampler: likewise only while it is traced). And the other
+  // shaders reading the cascades (the forward ones) a ray query's at their
+  // point (s15: the translation's, which is lit where it cannot trace).
+  if (recomp::gfx::RayTracedShadows()) {
+    gtaiv_sun_shadow::PatchSunShadowLookup(tokens);
+    // (Traced by the light volume's own pixels where the GPU can: no mask.)
+    if (!recomp::gfx::RayTracedForwardShadows() || !gtaiv_light_shadow::PatchLightShadowRay(tokens))
+      gtaiv_light_shadow::PatchLightShadowLookup(tokens);
+    gtaiv_forward_shadow::PatchForwardShadowLookup(tokens);
+    // And the forward shaders' lamps, each one's light times a ray's toward
+    // it (only where render pipelines trace: forward_light_tokens.h).
+    if (recomp::gfx::RayTracedForwardShadows() && ForwardLightsOn())
+      gtaiv_forward_light::PatchForwardLights(tokens, ForwardLightsHalf());
+  }
+  // Ray-traced reflections: the lighting's reflection term reads the traced
+  // ones (only while the renderer traces them: s3 is bound to nothing else).
+  if (recomp::gfx::RayTracedReflections()) gtaiv_reflection::PatchReflectionLookup(tokens);
+  // Vehicle glass traces its own (only while the renderer makes s3's read
+  // a ray query).
+  if (recomp::gfx::RayTracedForwardReflections()) gtaiv_vehglass::PatchVehglassLookup(tokens);
+  // The sun pass's flat ambient times the traced occlusion (only while
+  // shadows are traced: s7 is bound to nothing else; after the reflections'
+  // patch, which wants r8 free; GTAIV_RT_OCCLUSION=0 none).
+  // Or, where reflections are traced, plus the sun's light bounced once
+  // (the same read, added: GTAIV_RT_BOUNCE=0 none).
+  if (recomp::gfx::RayTracedReflections() && BounceOn())
+    gtaiv_occlusion::PatchOcclusionLookup(tokens, true);
+  else if (recomp::gfx::RayTracedShadows() && OcclusionOn())
+    gtaiv_occlusion::PatchOcclusionLookup(tokens);
   static const bool on = OptionOn("GTAIV_SIGN_GLOW_FIX", true);
   if (!on || tokens.empty() || (tokens[0] & 0xFFFF0000) != 0xFFFE0000) return;  // a vertex shader's
   for (size_t i = 1; i < tokens.size();) {
@@ -302,4 +419,91 @@ void GtaivShaderTokens(std::vector<uint32_t>& tokens) {
       tokens[i + 3] = 0xA10000D2;  // add oPos.z, r0.z, -c210.x
     i += 1 + ((tokens[i] >> 24) & 0xF);
   }
+}
+
+// The pixel shaders GtaivShaderTokens gave the traced mask's read: where the
+// renderer binds the mask (s15, the cascade maps' sampler), the depth it is
+// traced from (s4), the G-buffer's normals (s1: where the depth gives none) and the
+// sun's direction (c17, pointing away from it); for
+// the light volumes, their light's (light_shadow_tokens.h).
+// And those still reading the cascade maps (what the patches could not
+// take: none of the game's own; FusionFix's, say): counted by the
+// renderer, read as lit everywhere with GTAIV_RT_GAME_SHADOWS=lit (gfx::
+// RayShadow::own_map), the default unless the cascade mode is All (main.cpp:
+// the cascades are not all drawn every frame then; rt_cascades.h).
+bool GtaivRayShadowConsumer(const std::vector<uint32_t>& tokens, recomp::gfx::RayShadow* out) {
+  if (gtaiv_light_shadow::LightShadowConsumer(tokens, out)) return true;
+  if (gtaiv_forward_shadow::ReadsCascadeMaps(tokens)) {
+    *out = recomp::gfx::RayShadow{};
+    out->own_map = true;
+    out->mask_sampler = gtaiv_forward_shadow::kSampler;
+    out->own_map_lit = gtaiv_forward_shadow::kLitTap;
+    return true;
+  }
+  if (!gtaiv_sun_shadow::IsPatchedSunShader(tokens)) return false;
+  out->mask_sampler = gtaiv_sun_shadow::kMaskSampler;
+  out->depth_sampler = gtaiv_sun_shadow::kDepthSampler;
+  out->normal_sampler = gtaiv_sun_shadow::SunShadowNormalSampler(tokens);
+  out->light_register = gtaiv_sun_shadow::kLightRegister;
+  out->toward_light = false;
+  out->colour_register = gtaiv_sun_shadow::SunShadowColourRegister(tokens);
+  out->dim_light = gtaiv_sun_shadow::kDimLight;
+  // The cascades' help (rays left out where the game's shadow map is sure):
+  // off unless GTAIV_RT_CASCADE_HYBRID=1, after square holes in the sun's
+  // shadows were seen in play where the map and the traced scene disagree.
+  // It reads all four maps, so the same test makes the cascade mode All
+  // (rt_cascades.h, EffectiveMode: every cascade drawn every frame).
+  gtaiv_sun_shadow::CascadeRegisters cr;
+  if (gtaiv_rt_cascades::HybridRequested(std::getenv("GTAIV_RT_CASCADE_HYBRID")) &&
+      gtaiv_sun_shadow::SunShadowCascade(tokens, &cr)) {
+    out->cascade_sampler = cr.sampler;
+    out->cascade_view_register = cr.view;
+    out->cascade_split_register = cr.split;
+    out->cascade_matrix_register = cr.matrix;
+    out->cascade_range_register = cr.range;
+    for (int k = 0; k < 4; k++) out->cascade_select_registers[k] = cr.select[k];
+    out->cascade_max_texel = gtaiv_sun_shadow::kCascadeMaxTexel;
+    out->cascade_shadow_gap = gtaiv_sun_shadow::kCascadeShadowGap;
+  }
+  return true;
+}
+
+// The pixel shaders GtaivShaderTokens gave the traced reflections' read, and
+// where and what from (reflection_tokens.h).
+bool GtaivRayReflectionConsumer(const std::vector<uint32_t>& tokens, recomp::gfx::RayReflection* out) {
+  return gtaiv_reflection::ReflectionConsumer(tokens, out);
+}
+
+// The sun pass's shaders GtaivShaderTokens gave the occlusion's read, and
+// what it is traced from (occlusion_tokens.h).
+bool GtaivRayOcclusionConsumer(const std::vector<uint32_t>& tokens, recomp::gfx::RayOcclusion* out) {
+  return gtaiv_occlusion::OcclusionConsumer(tokens, out);
+}
+
+// The vehicle glass shaders GtaivShaderTokens gave the traced reflection's
+// read, and what the renderer traces it with (vehglass_tokens.h).
+bool GtaivRayForwardReflectionConsumer(const std::vector<uint32_t>& tokens, recomp::gfx::RayForwardReflection* out) {
+  return gtaiv_vehglass::VehglassConsumer(tokens, out);
+}
+
+// The forward shaders GtaivShaderTokens gave the traced shadow's read at
+// their point, and the light it is traced toward (forward_shadow_tokens.h).
+bool GtaivRayForwardShadowConsumer(const std::vector<uint32_t>& tokens, recomp::gfx::RayForwardShadow* out) {
+  if (gtaiv_light_shadow::LightShadowRayConsumer(tokens, out)) return true;
+  if (gtaiv_forward_light::ForwardLightsConsumer(tokens, out)) return true;
+  return gtaiv_forward_shadow::ForwardShadowConsumer(tokens, out);
+}
+
+// The sun pass's shaders (the lit scene, their G-buffer) and the post-
+// processing's (where they read it), for MetalFX's denoiser
+// (denoise_tokens.h).
+bool GtaivRayDenoiseConsumer(const std::vector<uint32_t>& tokens, recomp::gfx::RayDenoise* out) {
+  return gtaiv_denoise::DenoiseConsumer(tokens, out);
+}
+
+// The deferred lighting's shaders naming the G-buffer, and its light
+// volumes, for the local lights the renderer lights itself
+// (light_volume_tokens.h).
+bool GtaivRayLightVolumeConsumer(const std::vector<uint32_t>& tokens, recomp::gfx::RayLightVolume* out) {
+  return gtaiv_light_volume::LightVolumeConsumer(tokens, out);
 }

@@ -33,6 +33,8 @@
 #include "launcher_options.h"
 #include "save_paths.h"
 #include "runtime/gfx/prewarm.h"
+#include "runtime/gfx/rt_denoise.h"
+#include "runtime/gfx/rt_support.h"
 
 namespace {
 
@@ -171,6 +173,12 @@ void StopPrewarm() {
 @property(strong) NSTabView* tabs;
 @property(strong) NSPopUpButton* shadows;
 @property(strong) NSPopUpButton* reflections;
+@property(strong) NSPopUpButton* rayTracing;
+// The anti-aliasing row's note while ray tracing on a GPU with MetalFX's
+// denoiser: the denoiser replaces it (rayTracingChanged:).
+@property(strong) NSTextField* denoiseNote;
+@property(strong) NSGridView* generalGrid;
+@property BOOL denoiser;
 @property(strong) NSPopUpButton* fov;
 @property(strong) NSButton* fastLoading;
 @property(strong) NSButton* stunPunch;
@@ -286,6 +294,9 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   // The folder the game reads its saves from (SGTA400 to SGTA414).
   NSButton* savesFolder = [NSButton buttonWithTitle:@"Open Saves Folder" target:self action:@selector(openSaves:)];
 
+  self.denoiseNote = [NSTextField labelWithString:@"Ray tracing uses the GPU's denoiser in its place."];
+  self.denoiseNote.textColor = NSColor.secondaryLabelColor;
+  self.denoiseNote.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
   NSGridView* grid = [NSGridView gridViewWithViews:@[
     @[ [self label:@"Game folder:"], folderRow ],
     @[ [self label:@"Display:"], self.display ],
@@ -293,6 +304,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ [self label:@"Vertical sync:"], self.vsync ],
     @[ [self label:@"Frame limit:"], self.frameLimit ],
     @[ [self label:@"Anti-aliasing:"], self.antialiasing ],
+    @[ NSGridCell.emptyContentView, self.denoiseNote ],
     @[ [self label:@"MetalFX resolution:"], self.metalfxScale ],
     @[ NSGridCell.emptyContentView, aaNote ],
     @[ [self label:@"Sharpening:"], self.sharpening ],
@@ -321,6 +333,13 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.reflections = [self popup:@[ @"As in the game", @"High (twice the resolution)" ]
                         selected:std::clamp<NSInteger>([d integerForKey:kReflectionsKey], 0, 1)];
   NSTextField* reflNote = [NSTextField labelWithString:@"Sharper reflections on water and cars."];
+  // (Shown only where the GPU traces rays in hardware, below.)
+  self.rayTracing = [self popup:@[ @"Off", @"Shadows", @"Shadows and reflections" ] selected:RayTracingIndex(d)];
+  NSTextField* rayNote = [NSTextField
+      wrappingLabelWithString:@"Shadows: sun, street-light and headlight shadows traced by the GPU. Shadows and "
+                              @"reflections: also reflections on wet streets, windows and car glass. "
+                              @"Experimental and heavy: off by default, shown on Macs whose GPU traces rays "
+                              @"(M3 and newer); best with TAA."];
   self.fov = [self popup:@[ @"As in the game", @"+5°", @"+10°", @"+15°", @"+20°" ]
                 selected:std::clamp<NSInteger>([d integerForKey:kFovKey], 0, 4)];
   NSTextField* fovNote = [NSTextField labelWithString:@"A wider view for wide and ultrawide screens."];
@@ -336,8 +355,8 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   // Under the episodes' option, only for a game folder with an episode's
   // folder the game will not take (showFolder).
   self.episodesNote = [NSTextField wrappingLabelWithString:@""];
-  for (NSTextField* n : @[ aaNote, self.modsNote, meleeNote, self.episodesNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
-  for (NSTextField* n : @[ shadowNote, reflNote, fovNote, loadNote, meleeNote, self.episodesNote ]) {
+  for (NSTextField* n : @[ aaNote, self.modsNote, meleeNote, self.episodesNote, rayNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
+  for (NSTextField* n : @[ shadowNote, reflNote, rayNote, fovNote, loadNote, meleeNote, self.episodesNote ]) {
     n.textColor = NSColor.secondaryLabelColor;
     n.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
   }
@@ -346,6 +365,8 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ NSGridCell.emptyContentView, shadowNote ],
     @[ [self label:@"Reflections:"], self.reflections ],
     @[ NSGridCell.emptyContentView, reflNote ],
+    @[ [self label:@"Ray tracing (experimental):"], self.rayTracing ],
+    @[ NSGridCell.emptyContentView, rayNote ],
     @[ [self label:@"Field of view:"], self.fov ],
     @[ NSGridCell.emptyContentView, fovNote ],
     @[ [self label:@"Loading:"], self.fastLoading ],
@@ -392,6 +413,17 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   adv.columnSpacing = 10;
   [adv columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
   adv.rowAlignment = NSGridRowAlignmentFirstBaseline;
+  const bool rays = recomp::gfx::RtSupportedHere();
+  [adv cellForView:self.rayTracing].row.hidden = !rays;
+  [adv cellForView:rayNote].row.hidden = !rays;
+  self.generalGrid = grid;
+  // The lit scene's denoiser is off unless asked for (GTAIV_RT_DENOISE=1):
+  // without it ray tracing keeps the anti-aliasing and resolution chosen.
+  const char* dn = std::getenv("GTAIV_RT_DENOISE");
+  self.denoiser = rays && dn && *dn == '1' && recomp::gfx::RtDenoiseSupported(MTLCreateSystemDefaultDevice());
+  self.rayTracing.target = self;
+  self.rayTracing.action = @selector(rayTracingChanged:);
+  [self rayTracingChanged:nil];
 
   // The Advanced grid scrolls: it outgrows the tab.
   NSScrollView* advScroll = [NSScrollView new];
@@ -488,6 +520,14 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [self.window center];
 }
 
+// Ray tracing on a GPU with MetalFX's denoiser: the denoiser takes the
+// anti-aliasing's place (the renderer replaces it), so its choices are off
+// and the note says why.
+- (void)rayTracingChanged:(id)sender {
+  const BOOL replaced = self.denoiser && self.rayTracing.indexOfSelectedItem > 0;
+  for (NSPopUpButton* p in @[ self.antialiasing, self.metalfxScale, self.sharpening ]) p.enabled = !replaced;
+  [self.generalGrid cellForView:self.denoiseNote].row.hidden = !replaced;
+}
 // The line under the buttons: `text`, or none (nil). The window grows or
 // shrinks by its height, its top staying where it is.
 - (void)showPreparing:(NSString*)text {
@@ -545,6 +585,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   Store(d, kModsKey, @(self.mods.state == NSControlStateValueOn));
   Store(d, kShadowsKey, @(self.shadows.indexOfSelectedItem));
   Store(d, kReflectionsKey, @(self.reflections.indexOfSelectedItem));
+  Store(d, kRayTracingKey, @(self.rayTracing.indexOfSelectedItem));
   Store(d, kFovKey, @(self.fov.indexOfSelectedItem));
   Store(d, kFastLoadingKey, @(self.fastLoading.state == NSControlStateValueOn));
   Store(d, kStunPunchKey, @(self.stunPunch.state == NSControlStateValueOn));

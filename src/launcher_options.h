@@ -57,6 +57,10 @@ NSString* const kModsKey = @"Mods";
 // Advanced: 0 the game's own, 1 high.
 NSString* const kShadowsKey = @"ShadowResolution";
 NSString* const kReflectionsKey = @"ReflectionResolution";
+// 0 off, 1 shadows, 2 reflections (and shadows); shown where the GPU
+// traces rays in hardware: x86recomp's RtSupported, runtime/gfx/
+// rt_support.h.
+NSString* const kRayTracingKey = @"RayTracing";
 NSString* const kFastLoadingKey = @"FastLoading";
 NSString* const kFovKey = @"ExtraFieldOfView";  // 0-4: +0, +5, +10, +15, +20 degrees
 NSString* const kStunPunchKey = @"StunPunchAnywhere";
@@ -343,6 +347,14 @@ inline NSDictionary* TvDefaults() {
   return @{kAntiAliasingKey : @1, kHudKey : @NO, @"FixDrawDistance" : @YES, @"Episodes" : @YES};
 }
 
+// The ray tracing choice (kRayTracingKey) as the game gets it and the
+// launchers show it (Off, Shadows, Reflections): the stored value if it is
+// one of 0 (off), 1 (shadows) and 2 (reflections), else 0.
+inline NSInteger RayTracingIndex(NSUserDefaults* d) {
+  const NSInteger v = [d integerForKey:kRayTracingKey];
+  return v >= 0 && v <= 2 ? v : 0;
+}
+
 // The options as the game reads them: environment variables of this process.
 void ApplyOptions(NSUserDefaults* d) {
   setenv("GTAIV_FULLSCREEN", [d boolForKey:kWindowKey] ? "window" : "desktop", 1);
@@ -392,6 +404,10 @@ void ApplyOptions(NSUserDefaults* d) {
   else unsetenv("GTAIV_FOV");
   if (boost.empty()) unsetenv("RECOMP_RT_BOOST");
   else setenv("RECOMP_RT_BOOST", boost.substr(0, boost.size() - 1).c_str(), 1);
+  // Ray tracing (GTAIV_RT; RECOMP_RT_BOOST above is render targets): always
+  // written, so that with Off a value from the shell does not reach the game.
+  static const char* const kRayTracing[] = {"off", "shadows", "reflections"};
+  setenv("GTAIV_RT", kRayTracing[RayTracingIndex(d)], 1);
   setenv("GTAIV_CONTINUE", [d boolForKey:kContinueKey] ? "1" : "0", 1);
   // The game's process reads the system's language itself (main.cpp).
   setenv("GTAIV_SYSTEM_LANGUAGE", [d boolForKey:kSystemLanguageKey] ? "1" : "0", 1);

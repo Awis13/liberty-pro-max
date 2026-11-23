@@ -23,6 +23,17 @@
 //     rain particles take (VS c237). A keyframe with no sun (black,
 //     multiplier below 1) takes visualsettings' rain default light
 //     (00F4B0D0) by the share it misses, as FusionFix has it.
+// With ray-traced shadows (FusionFix's shaders or not): the "nomoon"
+// timecycle modifiers (boxes of the map, under elevated tracks and the
+// like, where the cascaded shadow maps did badly: their names say so)
+// leave the directional light alone. Each blends the light's multiplier
+// toward 0 by its strength (00A36790: colour at +40h, its weight the alpha
+// byte +43h, multiplier +44h); at full strength it is 0 and the deferred
+// lighting draws lightNoDirectional instead of lightShadowDirectional
+// (00A2BF00: the technique chosen by the multiplier being 0, or shadows
+// off), so the moon and its traced shadow came and went as the camera
+// crossed such a box. Their weight is 0 instead: the moon stays, and the
+// traced shadows of what is above darken the ground under it.
 // Option:
 //   GTAIV_FF_VOLUMETRIC_FOG (off by default, as FusionFix): the fog drawn
 //     by FusionFix's shaders (PS c210.y), and the game's own distance fog
@@ -36,6 +47,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -50,6 +62,7 @@
 #include "hook_util.h"
 #include "option.h"
 #include "runtime/hle/kernel32_state.h"
+#include "runtime/gfx/device.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
 
@@ -312,6 +325,28 @@ void f_007F8AA0(Ctx& c) {
   f_007F8AA0_lifted(c);
 }
 
+// The name hashes of the "nomoon" modifiers in timecyclemodifiers*.dat.
+std::unordered_map<uint32_t, bool>* NoMoonModifiers() {
+  auto* names = new std::unordered_map<uint32_t, bool>;
+  for (const char* file : {"timecyclemodifiers.dat", "timecyclemodifiers2.dat", "timecyclemodifiers3.dat",
+                           "timecyclemodifiers4.dat"})
+    for (const std::string& line : DataLines(DataFile(file))) {
+      std::string name = line.substr(0, line.find_first_of(" \t\r"));
+      std::string lower = name;
+      std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) { return char(std::tolower(ch)); });
+      if (lower.find("nomoon") != std::string::npos) (*names)[NameHash(name)] = true;
+    }
+  return names;
+}
+
+// With ray-traced shadows: a "nomoon" modifier of the table (at va) about
+// to be applied leaves the directional light alone (its weight 0).
+void KeepMoon(uint32_t va) {
+  if (!recomp::gfx::RayTracedShadows() || ModifierIndex(va) < 0) return;
+  static const std::unordered_map<uint32_t, bool>* const names = NoMoonModifiers();
+  if (names->count(Rd32(va)) && Rd8(va + 0x43)) Wr8(va + 0x43, 0);
+}
+
 // CTimeCycle: a modifier applied to a keyframe (thiscall: modifier,
 // strength, flag; ret 0Ch). Its strength kept when it is one of the
 // table's (not an interior's blend, built on the stack).
@@ -320,6 +355,7 @@ void f_00A36790(Ctx& c) {
   if (FfShadersOn()) {
     Applied(ModifierIndex(Rd32(c.esp + 4)), hook::RdF32(c.esp + 8), false);
   }
+  KeepMoon(Rd32(c.esp + 4));
   f_00A36790_lifted(c);
 }
 

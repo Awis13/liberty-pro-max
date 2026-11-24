@@ -31,6 +31,7 @@ is told apart by the lines' order, not by their times.
 import argparse
 import json
 import re
+import statistics
 import sys
 
 COMPILE_SLOW_MS = 20.0
@@ -51,6 +52,52 @@ RE_LOAD_DOWN = re.compile(r"load: loading screen down at ([\d.]+) s")
 RE_PLACED = re.compile(r"gtaiv: bench: player placed at")
 RE_FARM_STOPPED = re.compile(r"farm: .*measurement stopped")
 RE_MSL_CACHED = re.compile(r"gfx: (\d+) translated shaders from earlier runs")
+RE_RESOLUTION = re.compile(r"gfx: back buffer (\d+)x(\d+)")
+
+
+def warm_window(text, start, end):
+    """Compare warmed FPS-report windows, not loading or whole-session averages.
+
+    These are medians of interval summaries, not pooled frame percentiles.
+    Resolution follows log order because its clock need not match FPS time.
+    """
+    if not 0 <= start < end:
+        raise ValueError("require 0 <= start < end")
+    if RE_FARM_STOPPED.search(text) or "FATAL:" in text or "game error " in text:
+        raise ValueError("interrupted or failed measurement")
+    resolution = None
+    rows = []
+    for line in text.splitlines():
+        size = RE_RESOLUTION.search(line)
+        if size:
+            resolution = tuple(map(int, size.groups()))
+        match = RE_FPS.search(line)
+        if match and start <= float(match.group(2)) <= end:
+            rows.append((match, resolution))
+    if not rows:
+        raise ValueError("no FPS reports in the selected window")
+    sizes = {size for _, size in rows}
+    if None in sizes or len(sizes) != 1:
+        raise ValueError("render resolution missing or changed inside window")
+    return {
+        "window_s": [start, end], "resolution": list(rows[0][1]), "fps_reports": len(rows),
+        "fps_median": statistics.median(float(m.group(1)) for m, _ in rows),
+        "interval_median_ms": statistics.median(float(m.group(4)) for m, _ in rows),
+        "reported_p99_median_ms": statistics.median(float(m.group(5)) for m, _ in rows),
+        "interval_max_ms": max(float(m.group(6)) for m, _ in rows),
+    }
+
+
+def compare_warm(texts, start, end):
+    if len(texts) != 2:
+        raise ValueError("warm comparison takes original and candidate logs")
+    original, candidate = (warm_window(text, start, end) for text in texts)
+    if original["resolution"] != candidate["resolution"]:
+        raise ValueError("render resolution differs between runs")
+    rate = original["fps_median"]
+    return {"original": original, "candidate": candidate,
+            "fps_change_percent": 100 * (candidate["fps_median"] / rate - 1) if rate else None,
+            "frame_time_change_ms": candidate["interval_median_ms"] - original["interval_median_ms"]}
 
 
 def percentile(values, p):
@@ -229,7 +276,27 @@ def main(argv=None):
     ap.add_argument("--json", help="write the summary (one log) here")
     ap.add_argument("--label", help="the run's name in the table")
     ap.add_argument("--table", nargs="+", metavar="SUMMARY_JSON", help="a table of earlier summaries")
+    ap.add_argument("--compare-warm", action="store_true", help="compare original/candidate logs in one FPS-clock window")
+    ap.add_argument("--start", type=float, default=35, help="warm window start in FPS-clock seconds (default 35)")
+    ap.add_argument("--end", type=float, default=65, help="warm window end in FPS-clock seconds (default 65)")
     o = ap.parse_args(argv)
+    if o.compare_warm:
+        if len(o.logs) != 2 or o.table or o.label:
+            ap.error("--compare-warm takes two logs and no --table/--label")
+        try:
+            texts = []
+            for path in o.logs:
+                with open(path, errors="replace") as f:
+                    texts.append(f.read())
+            result = compare_warm(texts, o.start, o.end)
+        except ValueError as e:
+            ap.error(str(e))
+        if o.json:
+            with open(o.json, "w") as f:
+                json.dump(result, f, indent=2)
+                f.write("\n")
+        print(json.dumps(result, indent=2))
+        return 0
     if o.table:
         summaries = [json.load(open(p)) for p in o.table]
     elif o.logs:

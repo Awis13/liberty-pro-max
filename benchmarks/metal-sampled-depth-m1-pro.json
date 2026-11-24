@@ -1,0 +1,76 @@
+{
+  "hardware": "Apple M1 Pro",
+  "render_resolution": "5120x2880",
+  "graphics": "Existing settings/mods, SMAA 1x, 60 FPS limit",
+  "scene": "-421.9,1494,18.9,90; 13:00, weather 1",
+  "comparison": "Within one session, 10-second phases; first report after each switch excluded; frame-clock seconds 30-75 exclude loading/teleport and later traffic occlusion.",
+  "original": {
+    "samples": 2,
+    "median_fps": 44.625,
+    "median_frame_ms": 22.287,
+    "median_reported_p99_ms": 24.2795,
+    "worst_frame_ms": 25.065
+  },
+  "optimized": {
+    "samples": 3,
+    "median_fps": 45.93,
+    "median_frame_ms": 21.613,
+    "median_reported_p99_ms": 23.34,
+    "worst_frame_ms": 24.374
+  },
+  "fps_change_percent": 2.924369747899158,
+  "rows": [
+    {
+      "enabled": true,
+      "time": 33.8,
+      "fps": 45.92,
+      "median_ms": 21.613,
+      "p99_ms": 23.34,
+      "max_ms": 23.734
+    },
+    {
+      "enabled": false,
+      "time": 43.8,
+      "fps": 44.91,
+      "median_ms": 22.143,
+      "p99_ms": 23.916,
+      "max_ms": 23.999
+    },
+    {
+      "enabled": true,
+      "time": 53.8,
+      "fps": 45.93,
+      "median_ms": 21.654,
+      "p99_ms": 23.348,
+      "max_ms": 24.374
+    },
+    {
+      "enabled": false,
+      "time": 63.8,
+      "fps": 44.34,
+      "median_ms": 22.431,
+      "p99_ms": 24.643,
+      "max_ms": 25.065
+    },
+    {
+      "enabled": true,
+      "time": 73.9,
+      "fps": 46.03,
+      "median_ms": 21.568,
+      "p99_ms": 23.321,
+      "max_ms": 23.802
+    }
+  ],
+  "normal_resolution": "2560x1440",
+  "normal_result": {
+    "samples": 6,
+    "median_fps": 60.0,
+    "median_frame_ms": 16.667,
+    "median_reported_p99_ms": 16.6725,
+    "worst_frame_ms": 17.199
+  },
+  "other_hardware": "iOS 17 and tvOS 27.1 SDK syntax checked; performance not measured on base M1, M2 or A18.",
+  "limitations": "Hidden/windowed host frame intervals; not physical display presentation timestamps or a promise of zero stutter in every location.",
+  "runtime_commit_tested": "908ea658e15fcbdd4c765bea6001fd149faecd22",
+  "note": "The activation-only test update changes no production runtime code."
+}

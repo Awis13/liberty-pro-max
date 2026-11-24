@@ -52,6 +52,61 @@ LOG = "\n".join([
 
 
 class SummaryTests(unittest.TestCase):
+    def test_warm_window_excludes_loading_and_keeps_tail_latency(self):
+        result = report.warm_window("gfx: back buffer 5120x2880\n" + LOG, 25, 45)
+        self.assertEqual(result["fps_reports"], 2)
+        self.assertEqual(result["fps_median"], 100)
+        self.assertEqual(result["interval_median_ms"], 10)
+        self.assertEqual(result["reported_p99_median_ms"], 25)
+        self.assertEqual(result["interval_max_ms"], 90)
+        self.assertEqual(result["resolution"], [5120, 2880])
+
+    def test_warm_window_rejects_missing_samples_or_invalid_range(self):
+        for start, end in [(50, 60), (30, 20), (-1, 40)]:
+            with self.assertRaises(ValueError):
+                report.warm_window("gfx: back buffer 5120x2880\n" + LOG, start, end)
+
+    def test_warm_comparison_rejects_mismatched_render_resolution(self):
+        with self.assertRaisesRegex(ValueError, "resolution"):
+            report.compare_warm(["gfx: back buffer 5120x2880\n" + LOG,
+                                 "gfx: back buffer 2560x1440\n" + LOG], 25, 45)
+
+    def test_warm_comparison_rejects_interrupted_measurements(self):
+        with self.assertRaisesRegex(ValueError, "interrupted"):
+            report.warm_window("farm: measurement stopped\ngfx: back buffer 5120x2880\n" + LOG, 25, 45)
+
+    def test_warm_comparison_uses_same_window_and_reports_delta(self):
+        text = "gfx: back buffer 5120x2880\n" + LOG
+        result = report.compare_warm([text, text], 25, 45)
+        self.assertEqual(result["fps_change_percent"], 0)
+        self.assertEqual(result["frame_time_change_ms"], 0)
+
+    def test_warm_window_rejects_resize_inside_measurement(self):
+        text = "gfx: back buffer 5120x2880\n" + LOG
+        text = text.replace("warning: fps: 80.00", "gfx: back buffer 2560x1440\nwarning: fps: 80.00")
+        with self.assertRaisesRegex(ValueError, "resolution"):
+            report.warm_window(text, 25, 45)
+
+    def test_warm_comparison_cli_writes_same_json_it_prints(self):
+        with tempfile.TemporaryDirectory() as directory:
+            a, b, output = (Path(directory) / name for name in ["a.log", "b.log", "result.json"])
+            for path in [a, b]:
+                path.write_text("gfx: back buffer 5120x2880\n" + LOG)
+            text = io.StringIO()
+            with redirect_stdout(text):
+                status = report.main([str(a), str(b), "--compare-warm", "--start", "25", "--end", "45", "--json", str(output)])
+            self.assertEqual(status, 0)
+            self.assertEqual(json.loads(output.read_text()), json.loads(text.getvalue()))
+
+    def test_recorded_comparison_can_be_recalculated(self):
+        import statistics
+        data = json.loads((Path(__file__).resolve().parents[1] / "benchmarks/metal-sampled-depth-m1-pro.json").read_text())
+        for enabled, key in [(False, "original"), (True, "optimized")]:
+            rows = [row for row in data["rows"] if row["enabled"] == enabled]
+            self.assertEqual(statistics.median(row["fps"] for row in rows), data[key]["median_fps"])
+            self.assertEqual(statistics.median(row["median_ms"] for row in rows), data[key]["median_frame_ms"])
+        self.assertAlmostEqual(100 * (data["optimized"]["median_fps"] / data["original"]["median_fps"] - 1), data["fps_change_percent"])
+
     def setUp(self):
         self.s = report.summarize(LOG, "cold")
 

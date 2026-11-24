@@ -30,6 +30,8 @@ Expect rough edges, and please report what you find in the
 
 For the iPad, the iPhone and the Apple TV, see [Install](#install).
 
+For controlled Metal performance comparisons, see [the benchmark method and results](docs/metal-sampled-depth-benchmark.md).
+
 ## What you get
 
 | | Mac | iPad and iPhone |

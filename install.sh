@@ -36,7 +36,14 @@ if [ ! -d vendor/x86recomp/.git ]; then
   git clone --branch liberty https://github.com/Awis13/x86recomp vendor/x86recomp
 fi
 git -C vendor/x86recomp fetch --quiet origin liberty
-git -C vendor/x86recomp checkout --quiet "$pin"
+# The pin is upstream. --force drops the achievement hook from the last run
+# so it can be applied again onto that commit. A pin the patch no longer
+# fits stops the install; saves are not involved.
+git -C vendor/x86recomp checkout --quiet --force "$pin"
+if [ -f patches/x86recomp-local-achievements.patch ]; then
+  git -C vendor/x86recomp apply --whitespace=nowarn "$here/patches/x86recomp-local-achievements.patch" \
+    || die "the local achievements patch did not apply onto x86recomp $pin. Refresh patches/x86recomp-local-achievements.patch (see the README)."
+fi
 
 say "Lifter and runtime (first build)"
 cmake --preset release >/dev/null

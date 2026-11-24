@@ -20,17 +20,26 @@
 //     both together the hazard lights;
 //   GTAIV_KEEP_WHEELS_TURNED (off by default): a vehicle the player leaves
 //     keeps its front wheels (or handlebars) turned as he left them, not
-//     straightened.
+//     straightened;
+//   GTAIV_ACHIEVEMENT_VEHICLE_TEST (off by default): a toast, in the
+//     selected achievement style, when the player gets into a vehicle.
+//     The name is the one the HUD shows: the model's game-name key
+//     (vehicles.ide, SULTANRS) looked up in the loaded text (CText::Get),
+//     then title-cased (Sultan RS). The handling id is the fallback.
+//     It is not written to achievements.json.
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <mutex>
+#include <string>
 #include <vector>
 
+#include "achievements.h"
 #include "hook_util.h"
 #include "runtime/log.h"
 #include "option.h"
@@ -827,7 +836,116 @@ void Update(Ctx& c) {
   }
 }
 
+// The handling block's first 16 bytes are its id when they are a short
+// token (the same block whose +0x84 is the steering lock).
+std::string HandlingLabel(uint32_t veh) {
+  const uint32_t handling = Rd32(veh + kHandling);
+  if (!handling) return {};
+  std::string raw;
+  for (uint32_t i = 0; i < 16; i++) {
+    const uint8_t ch = Rd8(handling + i);
+    if (ch == 0) break;
+    if (ch < 33 || ch > 126) return {};
+    raw.push_back(char(ch));
+  }
+  return raw.size() < 2 ? std::string{} : raw;
+}
+
+// CEntity::m_nModelIndex, CModelInfo::ms_modelInfoPtrs and
+// CVehicleModelInfo::m_sGameName for 1.0.8.0 (IV-SDK; the exe is based at
+// 0x400000, and the vehicle pool at 0x01252CD0 matches that SDK). TheText
+// and CText::Get are the lookup the HUD uses for that key. 0x011FB440 is
+// the empty string Get returns when the key is missing.
+constexpr gaddr kModelInfos = 0x0122C168;
+constexpr gaddr kTheText = 0x011FB4C8;
+constexpr gaddr kTextGet = 0x008A4000;
+constexpr gaddr kEmptyText = 0x011FB440;
+constexpr int kModelInfoCount = 31000;
+constexpr uint32_t kModelIndex = 0x2E;
+constexpr uint32_t kGameName = 0x60;
+
+std::string GameNameKey(uint32_t veh) {
+  const int model = int16_t(Rd16(veh + kModelIndex));
+  if (model < 0 || model >= kModelInfoCount) return {};
+  const uint32_t info = Rd32(kModelInfos + 4u * uint32_t(model));
+  if (!info) return {};
+  std::string key;
+  for (uint32_t i = 0; i < 12; i++) {
+    const uint8_t ch = Rd8(info + kGameName + i);
+    if (ch == 0) break;
+    if (!std::isalnum(ch) && ch != '_') return {};
+    key.push_back(char(ch));
+  }
+  return key.size() < 2 ? std::string{} : key;
+}
+
+std::string LookupGameName(Ctx& c, const std::string& key) {
+  if (key.empty()) return {};
+  const uint32_t eax = c.eax, ebx = c.ebx, ecx = c.ecx, edx = c.edx;
+  const uint32_t esi = c.esi, edi = c.edi, ebp = c.ebp, esp = c.esp;
+  const uint32_t room = (uint32_t(key.size()) + 16u) & ~15u;
+  c.esp = (esp - room) & ~15u;
+  std::memcpy(GPtr(c.esp), key.c_str(), key.size() + 1);
+  c.ecx = kTheText;
+  const uint32_t got = uint32_t(CallGuest(c, kTextGet, {c.esp}));
+  std::string plain;
+  if (got && got != kEmptyText) {
+    bool skip = false;
+    for (char16_t ch : GWStr(got)) {
+      if (ch == '~') {
+        skip = !skip;
+        continue;
+      }
+      if (skip || ch < 32 || ch > 126) continue;
+      plain.push_back(char(ch));
+    }
+  }
+  c.eax = eax;
+  c.ebx = ebx;
+  c.ecx = ecx;
+  c.edx = edx;
+  c.esi = esi;
+  c.edi = edi;
+  c.ebp = ebp;
+  c.esp = esp;
+  return gtaiv::achievements::TitleCaseLabel(plain);
+}
+
+std::string VehicleLabel(Ctx& c, uint32_t veh) {
+  const std::string shown = LookupGameName(c, GameNameKey(veh));
+  if (shown.size() >= 2) return shown;
+  const std::string handling = gtaiv::achievements::TitleCaseLabel(HandlingLabel(veh));
+  return handling.size() >= 2 ? handling : "Vehicle";
+}
+
+// Once a frame, from the main loop. The first frame that has a player
+// only records the vehicle they are already in, so a save that loads in
+// a car does not toast.
+void PollEnteredVehicle(Ctx& c) {
+  static const bool on = OptionOn("GTAIV_ACHIEVEMENT_VEHICLE_TEST", false);
+  if (!on) return;
+  static uint32_t last_veh = 0;
+  static bool primed = false;
+  const uint32_t ped = PlayerPed();
+  if (!ped) return;
+  const uint32_t veh = PlayerVehicle(ped);
+  if (!primed) {
+    primed = true;
+    last_veh = veh;
+    return;
+  }
+  if (!veh) {
+    last_veh = 0;
+    return;
+  }
+  if (veh == last_veh) return;
+  last_veh = veh;
+  gtaiv::achievements::QueueVehicleToast(VehicleLabel(c, veh));
+}
+
 }  // namespace
+
+void GtaivAchievementVehicleFrame(Ctx& c) { PollEnteredVehicle(c); }
 
 // The vehicle light pass (008FB0B0, ebx the vehicle; run for each vehicle
 // from its PreRender) has just set which side's indicators are lit

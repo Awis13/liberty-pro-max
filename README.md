@@ -41,7 +41,7 @@ For the iPad, the iPhone and the Apple TV, see [Install](#install).
 | **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048 (iPhone: half to all of its own screen), field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play** |
 | **Fixes built in** | about 100 fixes (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
-| **Extras** | the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, DualSense triggers and light bar, Spatial Audio (on), phone cheats, full damage | the same, in the settings screen's Extras section, but Spatial Audio |
+| **Extras** | the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, DualSense triggers and light bar, Spatial Audio (on), phone cheats, full damage, local achievements (on) | the same, in the settings screen's Extras section, but Spatial Audio |
 | **More options** | stun punch and executions on anyone, fast loading, continuing the last save, a mods folder, saves shared through iCloud Drive | the same |
 | **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
 
@@ -348,6 +348,87 @@ Only files are loaded: mods with Windows code (`.asi`, `.dll`) do not run. Mods
 are not part of this project, and it does not supply or support any. Add them
 before `install-ios.sh` to have them on the iPad, iPhone or Apple TV too.
 
+## Local achievements
+
+The PC game reports an achievement through Games for Windows Live
+(`XUserWriteAchievements`, ordinal 5278). This build keeps that on the
+machine. A new id is appended to `~/Library/Application Support/gtaiv/achievements.json`
+with the time, and a toast is drawn for a few seconds with a short chime.
+Nothing is sent anywhere. Save files are not read or written.
+
+Achievements already earned in a save from before this feature are not
+filled in. The game does not ask Live for those again, and the save's own
+statistics were not used: there is no checked layout for them here.
+
+The names, descriptions and points are the public GFWL set for IV (1000G),
+The Lost and Damned (250G) and The Ballad of Gay Tony (250G). Sources are
+cited in `src/achievements.cpp`. An id that is not in that table is still
+stored and shown as "Achievement N". On PC the three games share one id
+list (1–50, 51–55, 56–65), so one file holds all of them.
+
+**Achievements (local)** is on the launcher's Extras tab, and in the Extras
+section on the iPad and iPhone. It is on by default. Off, writes are
+ignored the way the port did before. The **Achievements** tab (on the iPad
+and iPhone, the Achievements row) lists all 65, grouped into GTA IV, The
+Lost and Damned and The Ballad of Gay Tony, with the description, points,
+locked or unlocked, and the unlock time. Each game shows how many are
+unlocked and the gamerscore so far. All, Unlocked and Locked filter the
+list, which refreshes when `achievements.json` changes. Reset asks first
+and clears only that file. The Apple TV has no settings screen, so the
+feature stays on there.
+
+**Achievement style** on that tab is `xbox_a` (the dark capsule), `xbox_b`
+(silver), `xbox_c` (flat), `xbox_d` (translucent, no green), `xbox_e`
+(gold), `ps3` (a trophy at the top right) or `steam` (bottom right). The
+preview is the resting toast. The launcher passes it as
+`GTAIV_ACHIEVEMENT_STYLE`. **Achievement position** on the same tab
+(and on the iPhone and iPad achievements screen) is `default`, which
+keeps each style's own corner, or `top_left`, `top_right`,
+`bottom_left`, `bottom_right`, `top` or `bottom`. The launcher passes
+it as `GTAIV_ACHIEVEMENT_POSITION`. **Test: toast on entering a vehicle**
+is off. The name is the one the game shows on the HUD.
+On, getting into a vehicle shows its name in the selected style and does
+not write `achievements.json`.
+
+`GTAIV_ACHIEVEMENT_TEST` shows one toast and does not record it. A number
+is an achievement id (`1`, `40`). A style name (`xbox_b`, `ps3`, `steam`)
+previews that style with Off The Boat. It waits until a few seconds after
+the first scene, so the loading screen does not use it up. Lines starting
+`achievement:` and `achievements:` go to stderr, the same place as
+`gfx: first scene` (`~/Library/Logs/gtaiv.log` when the launcher started
+the game). From a Terminal, set `GTAIV_GFX=metal` as well: without it the
+game uses the slower GPU path.
+
+```bash
+GTAIV_GFX=metal GTAIV_ACHIEVEMENT_TEST=xbox_a \
+  "/Applications/Liberty Pro Max.app/Contents/MacOS/gtaiv" \
+  --no-launcher --game-dir "/path/to/Grand Theft Auto IV"
+```
+
+The same command with `xbox_b`, `xbox_c`, `xbox_d`, `xbox_e`, `ps3` or
+`steam`. A vehicle toast from a Terminal:
+
+```bash
+GTAIV_GFX=metal GTAIV_ACHIEVEMENT_STYLE=ps3 GTAIV_ACHIEVEMENT_VEHICLE_TEST=1 \
+  "/Applications/Liberty Pro Max.app/Contents/MacOS/gtaiv" \
+  --no-launcher --game-dir "/path/to/Grand Theft Auto IV"
+```
+
+The toast is drawn in the Metal present, on the Mac and on iOS. Checked
+in the game on an M3 Mac with GTA IV 1.0.8.0: all seven styles, the
+position setting, the vehicle toast, and a real unlock (Off The Boat).
+The macOS-glass style (`xbox_d`) is a translucent fill, not a live blur
+of the frame behind it.
+
+`install.sh` checks out the commit in `X86RECOMP` and applies
+`patches/x86recomp-local-achievements.patch` (the Live hook and the toast).
+If that pin moves and the patch no longer applies, the script stops.
+Refresh the patch against `vendor/x86recomp` and keep the calls into
+`src/achievements.h`: `XUserWriteAchievements`, the achievement
+enumerator, and the toast drawn from `MetalDevice::Show`. Saves, settings
+and `achievements.json` stay in `~/Library/Application Support/gtaiv`,
+not in the app.
+
 ## Fixes and options
 
 The Mac's launcher has three tabs. **General**: the game folder, full screen
@@ -360,7 +441,7 @@ mods (**Open Mods Folder**) and the saves' folder (**Open Saves Folder**).
 **Extras**: this port's own additions, the episodes, turn indicators, pad
 icons, the DualSense's triggers and light bar, phone cheats and full damage,
 each off until you turn it on, and the episodes' radio songs kept to their
-own episode and Spatial Audio, on.
+own episode, Spatial Audio and local achievements, on.
 **Advanced**: shadow and reflection resolution, field of view, fast loading,
 **Combat** (stun punch and executions on anyone), then every fix below, each
 a switch. Most fixes follow FusionFix's and ZolikaPatch's (by what they do;
@@ -438,7 +519,7 @@ Audio in Control Center) and have no switch for it.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-107 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
+109 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
 
 #### High frame rates
 
@@ -597,6 +678,8 @@ This port's own additions, on the launcher's Extras tab (a section of their own 
 | Spatial Audio: the game's 5.1 sound around your head, with head tracking on AirPods | on |
 | Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100) | off |
 | Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5 | off |
+| Achievements (local) | on |
+| Test: toast on entering a vehicle | off |
 
 <!-- fixes:end -->
 
@@ -625,6 +708,12 @@ keyboard lighting, graphics API choice and plugin loaders have nothing to do.
   3440×1440 on an M3 Pro and less in subway stations; short hitches while new
   parts of the city enter the traced scene; not on the iPad, iPhone or Apple TV.
 - A few seconds of stutter right after loading, while the city streams in.
+- Without `GTAIV_GFX=metal` the game uses the generic SDL_GPU renderer. On
+  an Apple GPU that renderer used to abort the first time a shader wrote
+  depth with no depth buffer bound (`depthAttachmentPixelFormat is not
+  valid and shader writes to depth`). The Metal renderer already dropped
+  that write; the SDL_GPU path does too now. The launcher still selects
+  Metal.
 - Multiplayer and paid features are not available and not planned.
 
 ## Build by hand
@@ -633,6 +722,7 @@ keyboard lighting, graphics API choice and plugin loaders have nothing to do.
 brew install cmake ninja sdl3 ffmpeg llvm@22 glslang spirv-cross python
 git clone --branch liberty https://github.com/Awis13/x86recomp vendor/x86recomp
 git -C vendor/x86recomp checkout "$(cut -d' ' -f2 X86RECOMP)"
+git -C vendor/x86recomp apply --whitespace=nowarn "$PWD/patches/x86recomp-local-achievements.patch"
 export GTAIV_GAME_DIR="/path/to/Grand Theft Auto IV"
 
 cmake --preset release && cmake --build --preset release   # the lifter and runtime
@@ -683,7 +773,10 @@ Like everything in `out/`, none of it is in the repository.
   `src/launcher_options.h` the options they share.
 - The Metal renderer, audio and Windows layer live in x86recomp, on the
   [`liberty`](https://github.com/Awis13/x86recomp/tree/liberty) branch pinned
-  in `X86RECOMP`.
+  in `X86RECOMP`. `patches/x86recomp-local-achievements.patch` is applied on
+  that pin by `install.sh`: the Live achievement calls and the toast in the
+  Metal present. The list, the JSON file and the toast text are
+  `src/achievements.cpp`.
 
 ### Speed
 

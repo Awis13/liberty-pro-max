@@ -37,6 +37,12 @@ recomp_add_lifted(gtaiv_lifted "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 if(TARGET gtaiv_lifted)
   add_executable(gtaiv src/main.cpp src/game_args.cpp src/language.cpp src/paul.cpp src/integrity.cpp src/diagnostics.cpp src/widescreen.cpp src/crt_math.cpp
     src/bench.cpp src/fixes.cpp src/jobs.cpp src/options.cpp src/perf.cpp src/episodes.cpp src/mods.cpp src/threads.cpp src/native.cpp src/pad_icons.cpp
+    src/saves.cpp
+    src/pad_feedback.cpp
+    src/spatial_audio.cpp
+    src/rt_cascades.cpp
+    src/rt_lights.cpp
+    src/siren_lights.cpp
     src/community_fixes.cpp
     src/high_fps_fixes.cpp
     src/update_folder.cpp
@@ -93,7 +99,7 @@ if(TARGET gtaiv_lifted)
     target_sources(gtaiv PRIVATE src/launcher_mac.mm src/save_sync_mac.mm src/save_cloud.mm)
     set_source_files_properties(src/launcher_mac.mm src/save_sync_mac.mm src/save_cloud.mm
                                 PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
-    target_link_libraries(gtaiv PRIVATE "-framework AppKit")
+    target_link_libraries(gtaiv PRIVATE "-framework AppKit" "-framework Metal")  # Metal: runtime/gfx/rt_support.h
     # "Liberty Pro Max.app" next to the plain executable: a bundle that says
     # it is a game (macos/Info.plist), so that macOS turns Game Mode on
     # while it runs full screen in front. Its executable is the same build;
@@ -130,6 +136,18 @@ if(GTAIV_TESTS AND NOT RECOMP_IOS)
   add_executable(gtaiv_save_paths_test tests/save_paths_test.cpp)
   target_include_directories(gtaiv_save_paths_test PRIVATE src)
   add_test(NAME save_paths COMMAND gtaiv_save_paths_test)
+  add_executable(gtaiv_save_file_test tests/save_file_test.cpp)
+  target_include_directories(gtaiv_save_file_test PRIVATE src)
+  # Reads past a buffer's end fail the test (not with MSVC).
+  if(NOT MSVC)
+    target_compile_options(gtaiv_save_file_test PRIVATE -fsanitize=address,undefined -fno-sanitize-recover=undefined)
+    target_link_options(gtaiv_save_file_test PRIVATE -fsanitize=address,undefined)
+  endif()
+  add_test(NAME save_file COMMAND gtaiv_save_file_test)
+  add_executable(gtaiv_night_shadow_slots_test tests/night_shadow_slots_test.cpp)
+  target_include_directories(gtaiv_night_shadow_slots_test PRIVATE src)
+  target_compile_features(gtaiv_night_shadow_slots_test PRIVATE cxx_std_20)
+  add_test(NAME night_shadow_slots COMMAND gtaiv_night_shadow_slots_test)
   add_executable(gtaiv_language_test tests/language_test.cpp)
   target_include_directories(gtaiv_language_test PRIVATE src)
   add_test(NAME language COMMAND gtaiv_language_test)
@@ -139,6 +157,103 @@ if(GTAIV_TESTS AND NOT RECOMP_IOS)
   add_executable(gtaiv_water_surface_test tests/water_surface_test.cpp)
   target_include_directories(gtaiv_water_surface_test PRIVATE src)
   add_test(NAME water_surface COMMAND gtaiv_water_surface_test)
+  # (With x86recomp's pad_effects.h, a plain header.)
+  add_executable(gtaiv_pad_feedback_test tests/pad_feedback_test.cpp)
+  target_include_directories(gtaiv_pad_feedback_test PRIVATE src "${X86RECOMP_DIR}/src")
+  add_test(NAME pad_feedback COMMAND gtaiv_pad_feedback_test)
+  add_executable(gtaiv_spatial_audio_test tests/spatial_audio_test.cpp)
+  target_include_directories(gtaiv_spatial_audio_test PRIVATE src)
+  add_test(NAME spatial_audio COMMAND gtaiv_spatial_audio_test)
+  add_executable(gtaiv_episode_files_test tests/episode_files_test.cpp)
+  target_include_directories(gtaiv_episode_files_test PRIVATE src)
+  add_test(NAME episode_files COMMAND gtaiv_episode_files_test)
+  # Ray tracing: the shaders' patches, the lights, the cascades (on synthetic
+  # shaders; on the game's own with GTAIV_GAME_DIR set).
+  # The sun pass's patch for ray-traced shadows (src/sun_shadow_tokens.h), on
+  # a synthetic shader; on the game's own with GTAIV_GAME_DIR set.
+  add_executable(gtaiv_sun_shadow_test tests/sun_shadow_test.cpp)
+  target_include_directories(gtaiv_sun_shadow_test PRIVATE src "${X86RECOMP_DIR}/src")
+  target_link_libraries(gtaiv_sun_shadow_test PRIVATE recomp_hlsl)
+  add_test(NAME sun_shadow COMMAND gtaiv_sun_shadow_test)
+  # The forward shaders' cascade lookup replaced by a ray-traced shadow's read
+  # (src/forward_shadow_tokens.h), on a synthetic shader; on the game's own
+  # (all six folders, after the sun pass's patch) with GTAIV_GAME_DIR set.
+  add_executable(gtaiv_forward_shadow_test tests/forward_shadow_test.cpp)
+  target_include_directories(gtaiv_forward_shadow_test PRIVATE src "${X86RECOMP_DIR}/src")
+  target_link_libraries(gtaiv_forward_shadow_test PRIVATE recomp_hlsl)
+  add_test(NAME forward_shadow COMMAND gtaiv_forward_shadow_test)
+  # The forward shaders' local lights shadowed by rays
+  # (src/forward_light_tokens.h), on a synthetic shader; on the game's own
+  # (all six folders, in the hook's order) with GTAIV_GAME_DIR set.
+  add_executable(gtaiv_forward_light_test tests/forward_light_test.cpp)
+  target_include_directories(gtaiv_forward_light_test PRIVATE src "${X86RECOMP_DIR}/src")
+  target_link_libraries(gtaiv_forward_light_test PRIVATE recomp_hlsl)
+  add_test(NAME forward_light COMMAND gtaiv_forward_light_test)
+  # The shadowed light volumes reading their light's ray-traced shadow mask
+  # (src/light_shadow_tokens.h), on a synthetic shader; on the game's own
+  # (with the sun's and the reflections' patches) with GTAIV_GAME_DIR set.
+  add_executable(gtaiv_light_shadow_test tests/light_shadow_test.cpp)
+  target_include_directories(gtaiv_light_shadow_test PRIVATE src "${X86RECOMP_DIR}/src")
+  target_link_libraries(gtaiv_light_shadow_test PRIVATE recomp_hlsl)
+  add_test(NAME light_shadow COMMAND gtaiv_light_shadow_test)
+  # The lighting's reflection term blended with ray-traced reflections
+  # (src/reflection_tokens.h), on a synthetic shader; on the game's own with
+  # GTAIV_GAME_DIR set.
+  add_executable(gtaiv_reflection_test tests/reflection_test.cpp)
+  target_include_directories(gtaiv_reflection_test PRIVATE src "${X86RECOMP_DIR}/src")
+  target_link_libraries(gtaiv_reflection_test PRIVATE recomp_hlsl)
+  add_test(NAME reflection COMMAND gtaiv_reflection_test)
+  # occlusion_test: the sun pass's ambient times the traced occlusion
+  # (src/occlusion_tokens.h; the game's shaders with GTAIV_GAME_DIR).
+  add_executable(gtaiv_occlusion_test tests/occlusion_test.cpp)
+  target_include_directories(gtaiv_occlusion_test PRIVATE src "${X86RECOMP_DIR}/src")
+  target_compile_features(gtaiv_occlusion_test PRIVATE cxx_std_20)
+  target_link_libraries(gtaiv_occlusion_test PRIVATE recomp_hlsl)
+  add_test(NAME occlusion COMMAND gtaiv_occlusion_test)
+  # The shaders that take part in MetalFX's denoising of the lit scene
+  # (src/denoise_tokens.h), on synthetic shaders; on the game's own with
+  # GTAIV_GAME_DIR set.
+  add_executable(gtaiv_denoise_test tests/denoise_test.cpp)
+  target_include_directories(gtaiv_denoise_test PRIVATE src "${X86RECOMP_DIR}/src")
+  target_link_libraries(gtaiv_denoise_test PRIVATE recomp_hlsl)
+  add_test(NAME denoise COMMAND gtaiv_denoise_test)
+  # Vehicle glass tracing its own reflections (src/vehglass_tokens.h), on a
+  # synthetic shader; on the game's own with GTAIV_GAME_DIR set.
+  add_executable(gtaiv_vehglass_test tests/vehglass_test.cpp)
+  target_include_directories(gtaiv_vehglass_test PRIVATE src "${X86RECOMP_DIR}/src")
+  target_link_libraries(gtaiv_vehglass_test PRIVATE recomp_hlsl)
+  add_test(NAME vehglass COMMAND gtaiv_vehglass_test)
+  # Which shadow cascades are drawn with ray-traced sun shadows
+  # (src/rt_cascades.h): the mode, the decision, the far cascade's turns, the
+  # entity lists left out, GTAIV_RT_GAME_SHADOWS's default.
+  add_executable(gtaiv_rt_cascades_test tests/rt_cascades_test.cpp)
+  target_include_directories(gtaiv_rt_cascades_test PRIVATE src)
+  add_test(NAME rt_cascades COMMAND gtaiv_rt_cascades_test)
+  # The game's light records as the renderer gets them (src/rt_lights.h):
+  # points, spots and their cones, what is left out, the flags, the key, the
+  # count.
+  add_executable(gtaiv_rt_lights_test tests/rt_lights_test.cpp)
+  target_include_directories(gtaiv_rt_lights_test PRIVATE src "${X86RECOMP_DIR}/src")
+  add_test(NAME rt_lights COMMAND gtaiv_rt_lights_test)
+  # What the game culls while shadows are ray traced (src/rt_anticull.h): the
+  # near rule of the sphere test.
+  add_executable(gtaiv_rt_anticull_test tests/rt_anticull_test.cpp)
+  target_include_directories(gtaiv_rt_anticull_test PRIVATE src)
+  add_test(NAME rt_anticull COMMAND gtaiv_rt_anticull_test)
+  # The local lights the renderer lights itself (src/light_volume_tokens.h):
+  # the pixel classes and models; with GTAIV_GAME_DIR, the deferred
+  # lighting's shaders taken and its light volumes marked.
+  add_executable(gtaiv_light_volume_test tests/light_volume_test.cpp)
+  target_include_directories(gtaiv_light_volume_test PRIVATE src "${X86RECOMP_DIR}/src")
+  add_test(NAME light_volume COMMAND gtaiv_light_volume_test)
+  # The timecycle's natural colour filter (src/colour_filter.h).
+  add_executable(gtaiv_colour_filter_test tests/colour_filter_test.cpp)
+  target_include_directories(gtaiv_colour_filter_test PRIVATE src)
+  add_test(NAME colour_filter COMMAND gtaiv_colour_filter_test)
+  # A siren bulb's light (src/siren_lights.h).
+  add_executable(gtaiv_siren_lights_test tests/siren_lights_test.cpp)
+  target_include_directories(gtaiv_siren_lights_test PRIVATE src)
+  add_test(NAME siren_lights COMMAND gtaiv_siren_lights_test)
   # The tools' Python tests (tests/test_*.py), so that ctest runs them too.
   find_package(Python3 COMPONENTS Interpreter)
   if(Python3_FOUND)

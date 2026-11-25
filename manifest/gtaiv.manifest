@@ -138,6 +138,10 @@ hook 00C8DBD0 00C8DBD6   # melee: self ready to be executed (GTAIV_EXECUTIONS)
 hook 00C8DBF5 00C8DBFB   # melee: opponent ready to be executed (GTAIV_EXECUTIONS)
 replace 00922630         # physics job count: GTAIV_JOB_WORKERS (game: 3)
 
+# Saves (src/saves.cpp).
+replace 00857E90 Saves_SetError   # the save and load errors recorded here are also lines in the log
+hook 0061ED8D 0061ED92   # a save sealed by Games for Windows Live: the checksum comparison passed when its own sum is right (GTAIV_SAVE_LIVE_CHECKSUM)
+
 # Native versions of hot functions (src/native.cpp, tools/x86n.py).
 replace 00567940 Native_00567940
 replace 0059ABA0 Native_0059ABA0
@@ -180,6 +184,7 @@ replace 005198E0 Native_005198E0
 replace 0044D930 Native_0044D930
 replace 00A55530 Native_00A55530
 replace 004151B0 Native_004151B0
+replace 00C51E30 Anticull_MarkSections   # the main view's map cells, and those around the camera with RT (src/rt_anticull.h)
 replace 006A0960 Native_006A0960
 replace 00413A60 Native_00413A60
 replace 00414C20 Native_00414C20
@@ -738,6 +743,9 @@ hook 00CC3F10 00CC3F15
 # Shadows and lights (src/shadows_lights.cpp).
 hook 008CB242 008CB244   # vehicle night shadows: register "wd_local" after "wd" (FF shaders only)
 hook 0095AEE9 0095AEEE   # vehicle night shadows: lists 0, 1 into local lights' shadow maps
+replace 008C32B0 NightShadowPriority   # the night shadows' ranking order (night_shadow_slots.h Priority)
+hook 008C45CA 008C45D2   # night shadow slots: ranked from the camera, not 8 m ahead (issue #50)
+hook 008C499A 008C499E   # night shadow slots: a light that held a slot keeps it unless clearly beaten
 hook 0095A41B 0095A41E   # vehicle night shadows: peds in vehicles not left out
 hook 008F71E1 008F71E6   # vehicle night shadows: player's headlight without shadows
 hook 008F73EB 008F73F0   # vehicle night shadows: player's headlight without shadows
@@ -812,9 +820,21 @@ hook 00A60463 00A60468   # player wants to aim: Jump toggles the scope; no aimin
 hook 00A607AC 00A607B1   # the same, second call
 # Tree shadows (src/tree_shadows.cpp).
 hook 00AC68D2 00AC68D7   # tree shadows: IDE instance models (trees, bushes) made base models
+# The lights' shadow atlas not drawn while ray-traced shadows replace it (src/shadows_lights.cpp).
+replace 00C532F0 CRenderPhaseWarpShadow_BuildDrawList   # the lights' shadow atlas's draw list
 # Impostors and cascaded shadows (src/render_misc2.cpp).
 hook 00CA057A 00CA0582   # vehicle impostors by day: no 75 m height cutoff for the second road list (GTAIV_NO_IMPOSTOR_HEIGHT_CUTOFF)
 hook 00CA117B 00CA1183   # vehicle impostors by night: no 75 m height cutoff for the second road list (GTAIV_NO_IMPOSTOR_HEIGHT_CUTOFF)
+hook 008CC106 008CC10B   # ray-traced sun shadows: only the far cascade's casters are drawn (src/rt_cascades.cpp)
+replace 00959FF0 ShadowEntityList   # ray-traced sun shadows: the far cascade's entity lists 0 and 1 left out (src/rt_cascades.cpp)
+hook 008CC0F7 008CC0FC   # ray-traced sun shadows: a nearer cascade's clear of the cascade map not enqueued while its quarter of the atlas holds the empty result (GTAIV_RT_CASCADE_CLEAR_SKIP; src/rt_cascades.cpp)
+hook 008CC1BD 008CC1C2   # the same: the map's copy into the cascade's quarter of the atlas
+replace 008CB160 CascadeDeviceReset   # the same: the cascades' callback after a device reset counted, the nearer cascades drawn in full again
+replace 00A2E9D0 SetRenderLights   # ray tracing: the frame's light list handed to the renderer (src/rt_lights.cpp)
+replace 008FABD0 SirenLights   # ray tracing: a light a turning siren bulb (src/siren_lights.cpp)
+replace 008FA670 SirenLightsOther   # the same, the seventh siren function
+replace 00A6F7B0 AddCorona   # a siren's coronas noted for their lights (src/siren_lights.cpp)
+replace 00A2E5F0 AddLight   # a siren's light above the roof replaced by its bulbs' (src/siren_lights.cpp)
 hook 008C896D 008C896F   # cascade targets: no add esi, esi with FusionFix's cascade fixes unless high resolution shadows (src/ff_shaders.cpp)
 hook 008C89FB 008C8A09   # shadow atlas creation: twice the size with GTAIV_FF_HIGH_RES_SHADOWS (src/ff_shaders.cpp)
 # FusionFix's timecycext and volumetric fog (src/ff_timecycext.cpp).
@@ -847,3 +867,4 @@ replace 008906B0 ExtraContent_LoadAudio   #   the same, the audio lists alone
 # The icons of the pad in use (src/pad_icons.cpp).
 hook 0088798D 0088798E   # the game's button textures loaded (push ebp): the other pads' sets beside them (GTAIV_PAD_ICONS)
 replace 00887E80 MenuManager_ReleaseButtonTextures   # the other pad sets released, the game's own given back
+hook 007BC38E 007BC393   # the speaker setting the game mixes by: a surround placement for headphones or stereo while its output is 5.1 (GTAIV_SPATIAL_AUDIO)

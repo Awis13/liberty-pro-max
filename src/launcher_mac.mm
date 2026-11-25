@@ -31,7 +31,10 @@
 #include <vector>
 
 #include "launcher_options.h"
+#include "save_paths.h"
 #include "runtime/gfx/prewarm.h"
+#include "runtime/gfx/rt_denoise.h"
+#include "runtime/gfx/rt_support.h"
 
 namespace {
 
@@ -83,8 +86,19 @@ void Launch(NSString* folder, NSUserDefaults* d, const Args& args) {
   // The newest saves from the player's iPad and Apple TV first.
   GtaivSyncSaves("before the game");
 
-  // The game's log: ~/Library/Logs/gtaiv.log unless given (main.cpp).
-  setenv("GTAIV_LOG", [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs/gtaiv.log"].fileSystemRepresentation, 0);
+  // The game's log: ~/Library/Logs/gtaiv.log unless given (main.cpp). The
+  // last runs' logs are kept beside it, gtaiv.1.log the run before, up to
+  // gtaiv.4.log: a crash's log is still there after the next start.
+  if (!std::getenv("GTAIV_LOG")) {
+    NSString* logs = [NSHomeDirectory() stringByAppendingPathComponent:@"Library/Logs"];
+    auto path = [&](int k) {
+      return std::string([logs stringByAppendingPathComponent:(k ? [NSString stringWithFormat:@"gtaiv.%d.log", k]
+                                                                 : @"gtaiv.log")]
+                             .fileSystemRepresentation);
+    };
+    for (int k = 3; k >= 0; k--) std::rename(path(k).c_str(), path(k + 1).c_str());
+    setenv("GTAIV_LOG", path(0).c_str(), 0);
+  }
 
   // A new instance of the app started by Launch Services, as a double click
   // would: macOS then treats the game as the game it is (Game Mode). Run
@@ -148,15 +162,24 @@ void StopPrewarm() {
 @property(strong) NSPopUpButton* antialiasing;
 @property(strong) NSPopUpButton* metalfxScale;
 @property(strong) NSPopUpButton* sharpening;
+@property(strong) NSPopUpButton* consoleGamma;
 @property(strong) NSButton* hud;
 @property(strong) NSButton* skipIntro;
 @property(strong) NSButton* continueSave;
 @property(strong) NSButton* overNotch;
 @property(strong) NSButton* mods;
 @property(strong) NSTextField* modsNote;
+@property(strong) NSTextField* episodesNote;
+@property(strong) NSGridRow* episodesNoteRow;
 @property(strong) NSTabView* tabs;
 @property(strong) NSPopUpButton* shadows;
 @property(strong) NSPopUpButton* reflections;
+@property(strong) NSPopUpButton* rayTracing;
+// The anti-aliasing row's note while ray tracing on a GPU with MetalFX's
+// denoiser: the denoiser replaces it (rayTracingChanged:).
+@property(strong) NSTextField* denoiseNote;
+@property(strong) NSGridView* generalGrid;
+@property BOOL denoiser;
 @property(strong) NSPopUpButton* fov;
 @property(strong) NSButton* fastLoading;
 @property(strong) NSButton* stunPunch;
@@ -236,6 +259,8 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.sharpening = [self popup:@[ @"Off", @"Low", @"Medium", @"High" ]
                        selected:std::clamp<NSInteger>([d integerForKey:kTaaSharpeningKey], 0, 3)];
   [self antialiasingChanged:nil];
+  self.consoleGamma = [self popup:@[ @"Off", @"Xbox 360", @"PS3" ]
+                         selected:std::clamp<NSInteger>([d integerForKey:kConsoleGammaKey], 0, 2)];
   NSTextField* aaNote = [NSTextField
       wrappingLabelWithString:@"SMAA smooths edges cheaply. TAA also steadies wires, fences and leaves at little cost; "
                       @"MetalFX does it best and, below native resolution, also raises the frame rate. "
@@ -267,7 +292,12 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
                                "Your game folder is not changed."];
   self.modsNote.textColor = NSColor.secondaryLabelColor;
   self.modsNote.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
+  // The folder the game reads its saves from (SGTA400 to SGTA414).
+  NSButton* savesFolder = [NSButton buttonWithTitle:@"Open Saves Folder" target:self action:@selector(openSaves:)];
 
+  self.denoiseNote = [NSTextField labelWithString:@"Ray tracing uses the GPU's denoiser in its place."];
+  self.denoiseNote.textColor = NSColor.secondaryLabelColor;
+  self.denoiseNote.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
   NSGridView* grid = [NSGridView gridViewWithViews:@[
     @[ [self label:@"Game folder:"], folderRow ],
     @[ [self label:@"Display:"], self.display ],
@@ -275,9 +305,11 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ [self label:@"Vertical sync:"], self.vsync ],
     @[ [self label:@"Frame limit:"], self.frameLimit ],
     @[ [self label:@"Anti-aliasing:"], self.antialiasing ],
+    @[ NSGridCell.emptyContentView, self.denoiseNote ],
     @[ [self label:@"MetalFX resolution:"], self.metalfxScale ],
     @[ NSGridCell.emptyContentView, aaNote ],
     @[ [self label:@"Sharpening:"], self.sharpening ],
+    @[ [self label:@"Console gamma:"], self.consoleGamma ],
     @[ NSGridCell.emptyContentView, self.hud ],
     @[ [self label:@"Start:"], self.skipIntro ],
     @[ NSGridCell.emptyContentView, self.continueSave ],
@@ -285,6 +317,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ [self label:@"Mods:"], self.mods ],
     @[ NSGridCell.emptyContentView, modsFolder ],
     @[ NSGridCell.emptyContentView, self.modsNote ],
+    @[ [self label:@"Saves:"], savesFolder ],
   ]];
   grid.rowSpacing = 10;
   BOOL notch = NO;
@@ -301,6 +334,13 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.reflections = [self popup:@[ @"As in the game", @"High (twice the resolution)" ]
                         selected:std::clamp<NSInteger>([d integerForKey:kReflectionsKey], 0, 1)];
   NSTextField* reflNote = [NSTextField labelWithString:@"Sharper reflections on water and cars."];
+  // (Shown only where the GPU traces rays in hardware, below.)
+  self.rayTracing = [self popup:@[ @"Off", @"Shadows", @"Shadows and reflections" ] selected:RayTracingIndex(d)];
+  NSTextField* rayNote = [NSTextField
+      wrappingLabelWithString:@"Shadows: sun, street-light and headlight shadows traced by the GPU. Shadows and "
+                              @"reflections: also reflections on wet streets, windows and car glass. "
+                              @"Experimental and heavy: off by default, shown on Macs whose GPU traces rays "
+                              @"(M3 and newer); best with TAA."];
   self.fov = [self popup:@[ @"As in the game", @"+5°", @"+10°", @"+15°", @"+20°" ]
                 selected:std::clamp<NSInteger>([d integerForKey:kFovKey], 0, 4)];
   NSTextField* fovNote = [NSTextField labelWithString:@"A wider view for wide and ultrawide screens."];
@@ -313,8 +353,11 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.executions.state = [d boolForKey:kExecutionsKey] ? NSControlStateValueOn : NSControlStateValueOff;
   NSTextField* meleeNote = [NSTextField
       wrappingLabelWithString:@"Moves the game keeps for a few missions: sneak up unarmed (or with a pistol), lock on, attack."];
-  for (NSTextField* n : @[ aaNote, self.modsNote, meleeNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
-  for (NSTextField* n : @[ shadowNote, reflNote, fovNote, loadNote, meleeNote ]) {
+  // Under the episodes' option, only for a game folder with an episode's
+  // folder the game will not take (showFolder).
+  self.episodesNote = [NSTextField wrappingLabelWithString:@""];
+  for (NSTextField* n : @[ aaNote, self.modsNote, meleeNote, self.episodesNote, rayNote ]) n.preferredMaxLayoutWidth = kNoteWidth;
+  for (NSTextField* n : @[ shadowNote, reflNote, rayNote, fovNote, loadNote, meleeNote, self.episodesNote ]) {
     n.textColor = NSColor.secondaryLabelColor;
     n.font = [NSFont systemFontOfSize:NSFont.smallSystemFontSize];
   }
@@ -323,6 +366,8 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
     @[ NSGridCell.emptyContentView, shadowNote ],
     @[ [self label:@"Reflections:"], self.reflections ],
     @[ NSGridCell.emptyContentView, reflNote ],
+    @[ [self label:@"Ray tracing (experimental):"], self.rayTracing ],
+    @[ NSGridCell.emptyContentView, rayNote ],
     @[ [self label:@"Field of view:"], self.fov ],
     @[ NSGridCell.emptyContentView, fovNote ],
     @[ [self label:@"Loading:"], self.fastLoading ],
@@ -350,6 +395,7 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
       b.lineBreakMode = NSLineBreakByWordWrapping;
       [b.widthAnchor constraintLessThanOrEqualToConstant:kWindowWidth - 100].active = YES;
       [extraRows addObject:@[ b ]];
+      if ([f.key isEqualToString:@"Episodes"]) [extraRows addObject:@[ self.episodesNote ]];
     } else if (AdvancedFixShown(f)) {
       [rows addObject:@[ fixesLabelled ? NSGridCell.emptyContentView : [self label:@"Fixes:"], b ]];
       fixesLabelled = YES;
@@ -357,11 +403,28 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   }
   NSGridView* extras = [NSGridView gridViewWithViews:extraRows];
   extras.rowSpacing = 10;
+  // The note is indented under its checkbox.
+  NSGridCell* noteCell = [extras cellForView:self.episodesNote];
+  self.episodesNoteRow = noteCell.row;
+  noteCell.xPlacement = NSGridCellPlacementNone;
+  noteCell.customPlacementConstraints =
+      @[ [self.episodesNote.leadingAnchor constraintEqualToAnchor:extras.leadingAnchor constant:20] ];
   NSGridView* adv = [NSGridView gridViewWithViews:rows];
   adv.rowSpacing = 10;
   adv.columnSpacing = 10;
   [adv columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
   adv.rowAlignment = NSGridRowAlignmentFirstBaseline;
+  const bool rays = recomp::gfx::RtSupportedHere();
+  [adv cellForView:self.rayTracing].row.hidden = !rays;
+  [adv cellForView:rayNote].row.hidden = !rays;
+  self.generalGrid = grid;
+  // The lit scene's denoiser is off unless asked for (GTAIV_RT_DENOISE=1):
+  // without it ray tracing keeps the anti-aliasing and resolution chosen.
+  const char* dn = std::getenv("GTAIV_RT_DENOISE");
+  self.denoiser = rays && dn && *dn == '1' && recomp::gfx::RtDenoiseSupported(MTLCreateSystemDefaultDevice());
+  self.rayTracing.target = self;
+  self.rayTracing.action = @selector(rayTracingChanged:);
+  [self rayTracingChanged:nil];
 
   // The Advanced grid scrolls: it outgrows the tab.
   NSScrollView* advScroll = [NSScrollView new];
@@ -458,6 +521,14 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [self.window center];
 }
 
+// Ray tracing on a GPU with MetalFX's denoiser: the denoiser takes the
+// anti-aliasing's place (the renderer replaces it), so its choices are off
+// and the note says why.
+- (void)rayTracingChanged:(id)sender {
+  const BOOL replaced = self.denoiser && self.rayTracing.indexOfSelectedItem > 0;
+  for (NSPopUpButton* p in @[ self.antialiasing, self.metalfxScale, self.sharpening ]) p.enabled = !replaced;
+  [self.generalGrid cellForView:self.denoiseNote].row.hidden = !replaced;
+}
 // The line under the buttons: `text`, or none (nil). The window grows or
 // shrinks by its height, its top staying where it is.
 - (void)showPreparing:(NSString*)text {
@@ -480,6 +551,9 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   self.problem.stringValue = ok ? @"" : @"Choose the folder of your Grand Theft Auto IV (PC) install: the one with GTAIV.exe.";
   self.problem.hidden = ok;
   self.play.enabled = ok;
+  NSString* note = EpisodesNote(self.folder);
+  self.episodesNote.stringValue = note ?: @"";
+  self.episodesNoteRow.hidden = note == nil;
 }
 
 - (void)choose:(id)sender {
@@ -505,12 +579,14 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   Store(d, kAntiAliasingKey, @(self.antialiasing.indexOfSelectedItem));
   Store(d, kMetalFXScaleKey, @(self.metalfxScale.indexOfSelectedItem));
   Store(d, kTaaSharpeningKey, @(self.sharpening.indexOfSelectedItem));
+  Store(d, kConsoleGammaKey, @(self.consoleGamma.indexOfSelectedItem));
   Store(d, kHudKey, @(self.hud.state == NSControlStateValueOn));
   Store(d, kSkipIntroKey, @(self.skipIntro.state == NSControlStateValueOn));
   Store(d, kContinueKey, @(self.continueSave.state == NSControlStateValueOn));
   Store(d, kModsKey, @(self.mods.state == NSControlStateValueOn));
   Store(d, kShadowsKey, @(self.shadows.indexOfSelectedItem));
   Store(d, kReflectionsKey, @(self.reflections.indexOfSelectedItem));
+  Store(d, kRayTracingKey, @(self.rayTracing.indexOfSelectedItem));
   Store(d, kFovKey, @(self.fov.indexOfSelectedItem));
   Store(d, kFastLoadingKey, @(self.fastLoading.state == NSControlStateValueOn));
   Store(d, kStunPunchKey, @(self.stunPunch.state == NSControlStateValueOn));
@@ -533,6 +609,15 @@ constexpr CGFloat kWindowWidth = 760, kNoteWidth = 520;
   [NSFileManager.defaultManager createDirectoryAtPath:ModsFolder() withIntermediateDirectories:YES
                                            attributes:nil error:nil];
   [NSWorkspace.sharedWorkspace openURL:[NSURL fileURLWithPath:ModsFolder()]];
+}
+
+// The saves' folder of the profile the game reads (save_paths.h), made if
+// the game has not run yet.
+- (void)openSaves:(id)sender {
+  NSString* saves = [[DataFolder() stringByAppendingPathComponent:@(save_paths::kSavesRel)]
+      stringByAppendingPathComponent:@(std::string(save_paths::kGameProfile).c_str())];
+  [NSFileManager.defaultManager createDirectoryAtPath:saves withIntermediateDirectories:YES attributes:nil error:nil];
+  [NSWorkspace.sharedWorkspace openURL:[NSURL fileURLWithPath:saves]];
 }
 
 // If the caches lack shaders earlier runs compiled: compiled again in the

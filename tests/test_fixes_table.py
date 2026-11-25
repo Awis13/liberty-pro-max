@@ -94,9 +94,15 @@ class FallbackTests(unittest.TestCase):
     NOT_IN_TABLE = {
         'GTAIV_FF_SHADERS': 'the extended shaders, unfinished: no launcher option',
         'GTAIV_TURN_LOG': 'a log of the turn indicators for development',
+        'GTAIV_PAD_FEEDBACK_LOG': "a log of what the DualSense option reads from the game, for development",
         'GTAIV_MODS': "the General tab's Load mods (kModsKey), on, not a kFixes row",
         'GTAIV_SYSTEM_LANGUAGE': "the General tab's Language (kSystemLanguageKey), on, not a kFixes row",
         'GTAIV_LAUNCHER_LANGUAGE': "the launcher's explicit language choice (kGameLanguageKey), not a kFixes row",
+        'GTAIV_RT_BOUNCE': "ray tracing: the sun's light bounced once, a development switch",
+        'GTAIV_RT_OCCLUSION': 'ray tracing: ambient occlusion of its own, a development switch',
+        'GTAIV_RT_FORWARD_LIGHTS': "ray tracing: the forward shaders' lamps shadowed, a development switch",
+        'GTAIV_RT_FORWARD_LIGHTS_HALF': 'ray tracing: more lamp rays in forward shaders, a development switch',
+        'GTAIV_RT_CASCADE_CLEAR_SKIP': "ray tracing: the nearer cascades' map not cleared, a development switch",
     }
 
     def test_fallbacks_match_the_table(self):

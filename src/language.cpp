@@ -246,11 +246,13 @@ void hook_008A3E02(Ctx& c) { Wr8(c.esi + kTextRegion, Russian() ? 'r' : 'e'); }
 // SETTINGS.CFG read (007C70D0), after either of its copies into the
 // settings block, which holds the lookup's answer when the file was written
 // and the language then: push ebp. The lookup's answer now applies unless
-// the language was chosen in the game's menu (language::StartLanguage).
+// the language was chosen in the game's menu. An explicit launcher choice
+// takes priority over that stored choice (language::StartLanguage).
 void hook_007C72E7(Ctx& c) {
   const uint32_t stored = Rd32(kLanguage), lookup = LookupAnswer();
   const uint32_t lang =
-      language::StartLanguage(Rd32(kLookupLanguage), stored, lookup, Russian(), Rd8(kJapaneseFlag) != 0);
+      language::StartLanguage(Rd32(kLookupLanguage), stored, lookup, Russian(), Rd8(kJapaneseFlag) != 0,
+                              OptionOn("GTAIV_LAUNCHER_LANGUAGE", false));
   Wr32(kLookupLanguage, lookup);
   if (lang != stored) {
     Wr32(kLanguage, lang);
@@ -263,7 +265,8 @@ void hook_007C72E7(Ctx& c) {
 // from the lookup's answer) read back: mov [010FC138], eax. One the game
 // cannot use here is the lookup's (language::StoredLanguage).
 void hook_007C9685(Ctx& c) {
-  Wr32(kLanguage, language::StoredLanguage(c.eax, LookupAnswer(), Russian(), Rd8(kJapaneseFlag) != 0));
+  Wr32(kLanguage, language::StoredLanguage(c.eax, LookupAnswer(), Russian(), Rd8(kJapaneseFlag) != 0,
+                                         OptionOn("GTAIV_LAUNCHER_LANGUAGE", false)));
 }
 
 // The game's language menu, after its arrows or its slider set a language

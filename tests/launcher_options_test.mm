@@ -166,6 +166,51 @@ void TestConsoleGamma() {
 
 bool Has(NSArray* a, NSString* k) { return [a containsObject:k]; }
 
+void TestLauncherLanguage() {
+  NSString* suite = [@"launcher_options_test.language." stringByAppendingString:NSUUID.UUID.UUIDString];
+  NSUserDefaults* d = [[NSUserDefaults alloc] initWithSuiteName:suite];
+  RegisterDefaults(d);
+  EXPECT(LauncherLanguageIndex(d) == 0);
+  [d setBool:NO forKey:kSystemLanguageKey];
+  EXPECT(LauncherLanguageIndex(d) == 1);  // migrate the old English-only preference
+  [d setObject:@"system" forKey:kGameLanguageKey];
+  EXPECT(LauncherLanguageIndex(d) == 0);  // a new choice supersedes the legacy boolean
+
+  auto envIs = [](const char* key, const char* value) {
+    const char* got = std::getenv(key);
+    return got && std::strcmp(got, value) == 0;
+  };
+  const char* ids[] = {"", "0x0409", "0x040C", "0x0407", "0x0410", "0x0C0A", "0x0419"};
+  EXPECT(LauncherLanguageTitles().count == 7);
+  for (NSInteger i = 1; i < 7; ++i) {
+    [d setObject:LauncherLanguageCode(i) forKey:kGameLanguageKey];
+    ApplyOptions(d);
+    ApplyLauncherLanguage(d);
+    EXPECT(LauncherLanguageIndex(d) == i);
+    EXPECT(envIs("GTAIV_LANG_ID", ids[i]));
+    EXPECT(envIs("GTAIV_SYSTEM_LANGUAGE", "0"));
+    EXPECT(envIs("GTAIV_LAUNCHER_LANGUAGE", "1"));
+  }
+  EXPECT([LauncherLanguageCode(6) isEqualToString:@"ru"]);
+  // Returning from a manual choice must not leave Russian forced in the
+  // environment passed to the next game process.
+  [d setObject:@"system" forKey:kGameLanguageKey];
+  ApplyLauncherLanguage(d);
+  EXPECT(std::getenv("GTAIV_LANG_ID") == nullptr);
+  EXPECT(std::getenv("GTAIV_LAUNCHER_LANGUAGE") == nullptr);
+  EXPECT(envIs("GTAIV_SYSTEM_LANGUAGE", "1"));
+  // An external diagnostic override remains supported in automatic mode.
+  setenv("GTAIV_LANG_ID", "0x040C", 1);
+  ApplyLauncherLanguage(d);
+  EXPECT(envIs("GTAIV_LANG_ID", "0x040C"));
+  for (id invalid in @[ @"unknown", @42 ]) {
+    [d setObject:invalid forKey:kGameLanguageKey];
+    EXPECT(LauncherLanguageIndex(d) == 0);
+  }
+  unsetenv("GTAIV_LANG_ID");
+  [d removePersistentDomainForName:suite];
+}
+
 // Ray tracing: off unless the launcher's choice says otherwise, whatever a
 // shell's GTAIV_RT says; a stored value that is no choice is off.
 void TestRayTracing() {
@@ -266,6 +311,7 @@ int main() {
     TestConsoleGamma();
     TestEpisodesNote();
     TestTvDefaults();
+    TestLauncherLanguage();
     TestRayTracing();
   }
   if (g_failures) return 1;

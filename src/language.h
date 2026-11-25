@@ -97,8 +97,11 @@ inline uint32_t MenuLanguage(uint32_t chosen, uint32_t applied, bool russian) {
 // `japanese` the text object's Japanese flag: one the game cannot use here
 // is the lookup's. That is Russian without the Russian files, Japanese
 // without the flag (its tables with American text and western fonts), and
-// anything past Japanese.
-inline uint32_t StoredLanguage(uint32_t stored, uint32_t lookup, bool russian, bool japanese) {
+// anything past Japanese. An explicit launcher choice uses the validated
+// lookup answer instead of the stored setting.
+inline uint32_t StoredLanguage(uint32_t stored, uint32_t lookup, bool russian, bool japanese,
+                               bool launcher_choice = false) {
+  if (launcher_choice) return lookup;
   if (stored > kJapanese || (stored == kRussian && !russian) || (stored == kJapanese && !japanese)) return lookup;
   return stored;
 }
@@ -107,9 +110,11 @@ inline uint32_t StoredLanguage(uint32_t stored, uint32_t lookup, bool russian, b
 // lookup's answer when it was written ([010FC134]) and the language then
 // ([010FC138]). The same: no choice was made in the game's menu, and the
 // lookup's answer now applies (the system's language, or the launcher's
-// English, may have changed since). Different: the menu's choice stays.
-inline uint32_t StartLanguage(uint32_t stored_lookup, uint32_t stored, uint32_t lookup, bool russian, bool japanese) {
-  if (stored == stored_lookup) return lookup;
+// language, may have changed since). Different: the menu's choice stays,
+// unless the player explicitly selected a language in the launcher.
+inline uint32_t StartLanguage(uint32_t stored_lookup, uint32_t stored, uint32_t lookup, bool russian, bool japanese,
+                              bool launcher_choice = false) {
+  if (launcher_choice || stored == stored_lookup) return lookup;
   return StoredLanguage(stored, lookup, russian, japanese);
 }
 

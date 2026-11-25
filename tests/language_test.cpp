@@ -216,6 +216,15 @@ void TestStored() {
   EXPECT(StartLanguage(5, 6, 5, true, false) == 5);  // Japanese without the flag
   EXPECT(StartLanguage(0, 9, 1, false, false) == 1);
   EXPECT(StartLanguage(0, 5, 5, true, false) == 5);
+  // An explicit launcher choice wins over both saved settings and the
+  // profile. Automatic mode above continues to preserve menu choices.
+  EXPECT(StartLanguage(0, 1, 5, true, false, true) == language::kRussian);
+  EXPECT(StoredLanguage(1, 5, true, false, true) == language::kRussian);
+  EXPECT(StartLanguage(5, 1, 0, false, false, true) == language::kAmerican);
+  EXPECT(StoredLanguage(5, 2, false, false, true) == language::kGerman);
+  // Lookup has already checked the assets: requesting Russian without
+  // its files must still fall back safely to English.
+  EXPECT(StoredLanguage(1, language::GameLanguageFor(0x0419, false), false, false, true) == language::kAmerican);
 }
 
 // English drawn with the Russian font: Latin-1 letters made plain (its

@@ -347,6 +347,13 @@ inline NSDictionary* TvDefaults() {
   return @{kAntiAliasingKey : @1, kHudKey : @NO, @"FixDrawDistance" : @YES, @"Episodes" : @YES};
 }
 
+// Apply before cache inspection can create the first Metal device. Opt in
+// only when requested; turning the option off removes our environment flag.
+inline void ApplyLauncherHud(NSUserDefaults* d) {
+  if ([d boolForKey:kHudKey]) setenv("MTL_HUD_ENABLED", "1", 1);
+  else unsetenv("MTL_HUD_ENABLED");
+}
+
 // The ray tracing choice (kRayTracingKey) as the game gets it and the
 // launchers show it (Off, Shadows, Reflections): the stored value if it is
 // one of 0 (off), 1 (shadows) and 2 (reflections), else 0.

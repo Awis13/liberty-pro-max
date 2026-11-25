@@ -37,10 +37,11 @@ For the iPad, the iPhone and the Apple TV, see [Install](#install).
 | **Renderer** | Metal, written for this port: drawing encoded on its own thread, geometry read in place from the game's memory, several frames in flight | the same |
 | **Frame rate** | about 125 fps indoors, 60–100 fps outdoors at 3440×1440, maximum settings, M3 Pro; no frame rate cap unless you set the launcher's frame limit (30, 60 or 120 fps) | 60 fps indoors, 45–60 outdoors at 1792×1344, iPad Air (M4) |
 | **Anti-aliasing** | TAA (default), SMAA, MetalFX temporal and SMAA + MetalFX spatial upscaling; TAA and MetalFX sharpened (AMD RCAS, off to high) | SMAA (default), TAA (sharpened as on the Mac) |
+| **Ray tracing** (experimental) | off by default; on Macs with an M3 or newer: shadows from the sun, street lamps and headlights traced by the GPU, reflections on car paint, glass and wet streets, the sun's light bounced once, fog in the low sun; about 40 fps in the city at 3440×1440 on an M3 Pro | not available |
 | **Screens** | any resolution, ultrawide included, field of view, full screen as a macOS Space with Game Mode | 1536×1152 to 2732×2048 (iPhone: half to all of its own screen), field of view |
 | **Launcher** | a window with all options before the game | a settings screen with all options and **Play** |
 | **Fixes built in** | about 100 fixes (high frame rate physics, cameras, timers, lights, mirrors, water), each a switch in the launcher | the same |
-| **Extras** | the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, DualSense triggers and light bar, phone cheats, full damage | the same, in the settings screen's Extras section |
+| **Extras** | the launcher's Extras tab, off until you turn them on: the episodes (their radio songs kept to their own episode, on), turn indicators, pad icons, DualSense triggers and light bar, Spatial Audio (on), phone cheats, full damage | the same, in the settings screen's Extras section, but Spatial Audio |
 | **More options** | stun punch and executions on anyone, fast loading, continuing the last save, a mods folder, saves shared through iCloud Drive | the same |
 | **Controls** | keyboard and mouse, controllers | touch controls, controllers, keyboard |
 
@@ -363,7 +364,7 @@ mods (**Open Mods Folder**) and the saves' folder (**Open Saves Folder**).
 **Extras**: this port's own additions, the episodes, turn indicators, pad
 icons, the DualSense's triggers and light bar, phone cheats and full damage,
 each off until you turn it on, and the episodes' radio songs kept to their
-own episode, on.
+own episode and Spatial Audio, on.
 **Advanced**: shadow and reflection resolution, field of view, fast loading,
 **Combat** (stun punch and executions on anyone), then every fix below, each
 a switch. Most fixes follow FusionFix's and ZolikaPatch's (by what they do;
@@ -404,11 +405,44 @@ pad by cable and by Bluetooth on the Mac, and through the system's controller
 support on the iPad and iPhone. The Apple TV has no settings screen, so it is
 off there. Not yet: gyro aiming.
 
+**Ray tracing** (the Mac, experimental, off by default): the launcher's
+Advanced tab has a row for it on Macs whose GPU traces rays in hardware (M3
+and newer); elsewhere it is not shown. **Shadows** traces the sun's and the
+moon's shadows and those of every lamp in view (street lamps, headlights,
+sirens, shop lights) in place of the game's shadow maps, with the sun's
+light bounced once off what it lights and fog in the low sun. **Shadows and
+reflections** adds traced reflections on car paint, glass and wet
+streets. It is heavy: about 40 fps in the city at
+3440×1440 on an M3 Pro, less in a subway station full of lamps, and it is
+made for TAA (the traced light is sampled sparsely and TAA averages it).
+With it off the game runs as before. It is new: expect rough edges, and
+tell us what you see.
+
+**Spatial Audio** (the Mac, on by default): the game's own 5.1 sound,
+placed around your head. The game is told it has 5.1 speakers and mixes
+its sound into six channels, as it does on a PC with a surround system: a
+siren coming up from behind is in the back channels, gunfire to your left
+in the left ones. The Mac's spatial audio renders those channels for what
+is playing. It has been heard on AirPods Max, with head tracking (the
+sound stays put when you turn your head) and the listener's personal
+spatial audio profile in use. On other headphones it is rendered the same
+way; on the Mac's own speakers through their own surround; a device set up
+as surround speakers in Audio MIDI Setup gets the 5.1 as it is. The output
+follows the device you choose while you play. Those last ones (other
+headphones, Bluetooth speakers, which the Mac cannot tell from
+headphones, a surround receiver, a change of device mid-game) are written
+for but have not been tried yet. With the option on, the game mixes in
+surround even when its audio menu's speaker setting says headphones or
+stereo (which would put everything in front); the menu and your profile
+keep your setting, and it applies again with the option off. The iPad and
+iPhone already put the game's stereo around you on their own (Spatial
+Audio in Control Center) and have no switch for it.
+
 <details>
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-106 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
+107 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
 
 #### High frame rates
 
@@ -564,6 +598,7 @@ This port's own additions, on the launcher's Extras tab (a section of their own 
 | Route indicators: with a GPS route, the turn indicator comes on before the turn and towards the kerb on arriving (needs Turn indicators, not by hand) | off |
 | Pad icons: PlayStation, Xbox One and Switch buttons on screen, for the first connected pad (needs their textures in the update folder) | off |
 | DualSense: adaptive triggers when driving and with a gun in hand, light bar flashes red and blue while wanted | off |
+| Spatial Audio: the game's 5.1 sound around your head, with head tracking on AirPods | on |
 | Phone cheats: beta gloves (458-555-0100), beta hair (288-555-0100) | off |
 | Full damage: the player takes bullet damage ×3, explosion, fire and thrown object damage ×1.5 | off |
 
@@ -590,6 +625,9 @@ keyboard lighting, graphics API choice and plugin loaders have nothing to do.
   fit its memory (DXT decoded on upload).
 - MetalFX temporal upscaling costs about 5 ms a frame at 3440×1440 output,
   more than it saves in this game; TAA at native resolution is the default.
+- Ray tracing (experimental, the Mac, M3 and newer): about 40 fps in the city at
+  3440×1440 on an M3 Pro and less in subway stations; short hitches while new
+  parts of the city enter the traced scene; not on the iPad, iPhone or Apple TV.
 - A few seconds of stutter right after loading, while the city streams in.
 - Multiplayer and paid features are not available and not planned.
 

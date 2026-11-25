@@ -5,13 +5,19 @@
 // workers by their own time (run/perf/s1_final_sample.txt), among them
 // 004FFB70 (phBoundComposite extents) and the physics' 00567940.
 
+#include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <cstdio>
+#include <ctime>
 #include <set>
 #include <utility>
 
 #include "native.h"
+#include "rt_anticull.h"
+#include "runtime/gfx/device.h"
 
 #pragma clang fp contract(off)
 
@@ -353,7 +359,11 @@ bool Enabled(uint32_t va) {
 #include "native/00954B60.inc"
 #include "native/00954FB0.inc"
 #include "native/00955970.inc"
+// (Its occluder test, 00A1DC10, through the anticull rule: below.)
+void Anticull_00A1DC10(Ctx& c);
+#define f_00A1DC10 Anticull_00A1DC10
 #include "native/00957450.inc"
+#undef f_00A1DC10
 #include "native/00957D80.inc"
 #include "native/00959230.inc"
 #include "native/0095A840.inc"
@@ -436,7 +446,9 @@ bool Enabled(uint32_t va) {
 #define NATIVE(VA)                                                      \
   void f_##VA##_lifted(Ctx& c);                                         \
   void f_##VA(Ctx& c) {                                                 \
-    if (native::Use(c, 0x##VA, Native_##VA##_x87))                      \
+    /* GTAIV_NATIVE and GTAIV_NATIVE_OFF, looked up once a function. */ \
+    static const bool on = native::On() && native::Enabled(0x##VA);     \
+    if (native::Use(c, on, Native_##VA##_x87))                          \
       Native_##VA(c);                                                   \
     else                                                                \
       f_##VA##_lifted(c);                                               \
@@ -482,7 +494,186 @@ NATIVE(00A391E0)
 NATIVE(005198E0)
 NATIVE(0044D930)
 NATIVE(00A55530)
-NATIVE(004151B0)
+// The anticull rule (rt_anticull.h) on while shadows are ray traced
+// (GTAIV_RT_ANTICULL=0: off), and whether an entity's verdict (00957450)
+// is running on this thread.
+namespace {
+thread_local bool t_entity_verdict = false;
+thread_local uint32_t t_entity = 0;  // the entity whose verdict runs
+thread_local float t_entity_height = 0.0f;  // its box's height (rt_anticull.h KeptStatic)
+thread_local bool t_holds = false;   // one of its spheres held the traced point
+// GTAIV_RT_TRACE_AT=x,y,z (to find out): the tests of spheres holding that
+// point, and what the rule did, said every 2 s with the rule's counts.
+struct AnticullTrace {
+  bool on = false;
+  float at[3] = {};
+  std::atomic<uint64_t> near{0}, statics{0}, occluder{0}, sections{0}, tested{0}, kept{0}, game_in{0};
+  // The last sphere holding the point the rule did not keep: centre,
+  // radius, its distance from the camera.
+  std::atomic<float> miss[5] = {};
+};
+AnticullTrace& Trace() {
+  static AnticullTrace t;
+  static const bool read = [] {
+    if (const char* e = std::getenv("GTAIV_RT_TRACE_AT"))
+      t.on = std::sscanf(e, "%f,%f,%f", &t.at[0], &t.at[1], &t.at[2]) == 3;
+    return true;
+  }();
+  (void)read;
+  return t;
+}
+bool Holds(const float p[3], float r) {
+  const AnticullTrace& t = Trace();
+  const float dx = t.at[0] - p[0], dy = t.at[1] - p[1], dz = t.at[2] - p[2];
+  return t.on && dx * dx + dy * dy + dz * dz <= r * r;
+}
+bool AnticullOn() {
+  static const bool on = [] {
+    const char* e = std::getenv("GTAIV_RT_ANTICULL");
+    return !(e && *e == '0');
+  }();
+  return on && recomp::gfx::RayTracedShadows();
+}
+}  // namespace
+
+// The main view's map sections marked (0095D1B0's two calls), then the
+// cells around the camera too (rt_anticull.h, MarkSquare).
+void f_00C51E30_lifted(Ctx& c);
+void f_00C51E30(Ctx& c) {
+  namespace ac = gtaiv_anticull;
+  using namespace ::recomp::gen::native;
+  const uint32_t ret = Rd<uint32_t>(c.esp);
+  f_00C51E30_lifted(c);  // (cdecl: its arguments stay on the stack)
+  const uint32_t scale_at = ret == ac::kMarkRetA ? ac::kMarkScaleA : ret == ac::kMarkRetB ? ac::kMarkScaleB : 0;
+  // (Off unless GTAIV_RT_ANTICULL_SECTIONS=1: not needed once every test
+  // keeps the rule's spheres, and some 3 fps.)
+  static const bool sections = [] {
+    const char* e = std::getenv("GTAIV_RT_ANTICULL_SECTIONS");
+    return e && *e == '1';
+  }();
+  if (!scale_at || !sections || !AnticullOn()) return;
+  uint32_t a[8];
+  for (int k = 0; k < 8; k++) a[k] = Rd<uint32_t>(c.esp + 4 * k);
+  float poly[10];
+  if (a[1] != 5) return;
+  for (int k = 0; k < 10; k++) poly[k] = F(Rd<uint32_t>(a[0] + 4 * k));
+  float sq[8];
+  if (!ac::MarkSquare(poly, a[1], ac::kMarkAround * std::fabs(F(Rd<uint32_t>(scale_at))), sq)) return;
+  for (int k = 0; k < 8; k++) {
+    uint32_t u;
+    std::memcpy(&u, &sq[k], 4);
+    Wr<uint32_t>(a[0] + 4 * k, u);  // (the footprint's buffer: not read after the call)
+  }
+  ::recomp::CallGuest(c, 0x00C51E30, {a[0], 4, a[2], a[3], a[4], a[5], a[6], a[7]});
+  if (Trace().on) {
+    AnticullTrace& t = Trace();
+    t.sections++;
+    static std::atomic<int64_t> last{0};
+    const int64_t now = int64_t(std::time(nullptr));
+    if (now - last.load() >= 2) {
+      last = now;
+      std::fprintf(stderr,
+                   "anticull: kept near %llu, statics %llu, by occluder test %llu; footprints widened %llu; "
+                   "spheres holding (%.1f %.1f %.1f): %llu tested, %llu kept by the rule; last not kept: centre "
+                   "(%.1f %.1f %.1f) radius %.1f at %.1f m\n",
+                   (unsigned long long)t.near.exchange(0), (unsigned long long)t.statics.exchange(0),
+                   (unsigned long long)t.occluder.exchange(0), (unsigned long long)t.sections.exchange(0), t.at[0],
+                   t.at[1], t.at[2], (unsigned long long)t.tested.exchange(0), (unsigned long long)t.kept.exchange(0),
+                   double(t.miss[0]), double(t.miss[1]), double(t.miss[2]), double(t.miss[3]), double(t.miss[4]));
+    }
+  }
+}
+
+// The sphere-against-frustum test, with what is near the camera kept, and
+// during an entity's verdict the buildings and objects the rule keeps.
+void f_004151B0_lifted(Ctx& c);
+void f_004151B0(Ctx& c) {
+  namespace ac = gtaiv_anticull;
+  if (AnticullOn()) {
+    using namespace ::recomp::gen::native;
+    const uint32_t vp = c.ecx;
+    const float cam[3] = {F(Rd<uint32_t>(vp + ac::kCameraPos)), F(Rd<uint32_t>(vp + ac::kCameraPos + 4)),
+                          F(Rd<uint32_t>(vp + ac::kCameraPos + 8))};
+    const float p[3] = {F(Rd<uint32_t>(c.esp + 4)), F(Rd<uint32_t>(c.esp + 8)), F(Rd<uint32_t>(c.esp + 12))};
+    const bool perspective = Rd<uint8_t>(vp + ac::kPerspective) != 0;
+    const float radius = F(Rd<uint32_t>(c.esp + 0x10));
+    if (Trace().on && perspective) {
+      static std::atomic<int64_t> said{0};
+      const int64_t now = int64_t(std::time(nullptr));
+      if (now - said.load() >= 2) {
+        said = now;
+        std::fprintf(stderr,
+                     "anticull: viewport %08x rows at 70 (%.1f %.1f %.1f) 130 (%.1f %.1f %.1f) 170 (%.1f %.1f %.1f)\n",
+                     vp, double(F(Rd<uint32_t>(vp + 0x70))), double(F(Rd<uint32_t>(vp + 0x74))),
+                     double(F(Rd<uint32_t>(vp + 0x78))), double(F(Rd<uint32_t>(vp + 0x130))),
+                     double(F(Rd<uint32_t>(vp + 0x134))), double(F(Rd<uint32_t>(vp + 0x138))),
+                     double(F(Rd<uint32_t>(vp + 0x170))), double(F(Rd<uint32_t>(vp + 0x174))),
+                     double(F(Rd<uint32_t>(vp + 0x178))));
+      }
+    }
+    const bool near = ac::KeptNear(cam, perspective, p);
+    // The static rule on every test, not only an entity's verdict: a
+    // building's drawable culls its own pieces outside the view through
+    // this test too (found 2026-11-11: the verdict said drawn, the pieces
+    // behind the camera were not; GTAIV_RT_ANTICULL_ALL=0: verdicts only).
+    static const bool all = [] {
+      const char* e = std::getenv("GTAIV_RT_ANTICULL_ALL");
+      return !(e && *e == '0');
+    }();
+    const bool big = !near && (t_entity_verdict || all) && perspective &&
+                     ac::KeptStatic(cam, p, radius, t_entity_verdict ? t_entity_height : 0.0f);
+    // What casts a shadow into the view (rt_anticull.h KeptShadow;
+    // GTAIV_RT_ANTICULL_SHADOWS=0: not).
+    static const bool shadows = [] {
+      const char* e = std::getenv("GTAIV_RT_ANTICULL_SHADOWS");
+      return !(e && *e == '0');
+    }();
+    bool cast = false;
+    if (!near && !big && shadows && (t_entity_verdict || all) && perspective) {
+      float toward[3];
+      if (::recomp::gfx::RtSunToward(toward)) {
+        float planes[24];
+        for (int k = 0; k < 24; k++) planes[k] = F(Rd<uint32_t>(vp + ac::kPlanes + 4 * uint32_t(k)));
+        const float down[3] = {-toward[0], -toward[1], -toward[2]};
+        cast = ac::KeptShadow(planes, p, radius, down);
+      }
+    }
+    if (Trace().on) {
+      (near ? Trace().near : Trace().statics) += near || big ? 1 : 0;
+      if (t_entity_verdict && Holds(p, radius)) {
+        t_holds = true;
+        Trace().tested++;
+        if (near || big) {
+          Trace().kept++;
+        } else {
+          const float d = std::sqrt((p[0] - cam[0]) * (p[0] - cam[0]) + (p[1] - cam[1]) * (p[1] - cam[1]) +
+                                    (p[2] - cam[2]) * (p[2] - cam[2]));
+          const float m[5] = {p[0], p[1], p[2], radius, d};
+          for (int k = 0; k < 5; k++) Trace().miss[k] = m[k];
+        }
+      }
+    }
+    if (near || big || cast) {
+      const uint32_t out = Rd<uint32_t>(c.esp + 0x14);
+      if (out) {
+        const float plane[4] = {F(Rd<uint32_t>(vp + ac::kPlanes)), F(Rd<uint32_t>(vp + ac::kPlanes + 4)),
+                                F(Rd<uint32_t>(vp + ac::kPlanes + 8)), F(Rd<uint32_t>(vp + ac::kPlanes + 12))};
+        const float v = ac::PlaneZero(plane, p, F(Rd<uint32_t>(c.esp + 0x10)));
+        uint32_t u;
+        std::memcpy(&u, &v, 4);
+        Wr<uint32_t>(out, u);
+      }
+      c.eax = ac::KeptAnswer(out != 0);
+      c.esp += 24;  // (ret 0x14)
+      return;
+    }
+  }
+  static const bool on = native::On() && native::Enabled(0x004151B0);
+  if (native::Use(c, on, Native_004151B0_x87))
+    Native_004151B0(c);
+  else
+    f_004151B0_lifted(c);
+}
 NATIVE(006A0960)
 NATIVE(00413A60)
 NATIVE(00414C20)
@@ -760,7 +951,84 @@ NATIVE(00954B30)
 NATIVE(00954B60)
 NATIVE(00954FB0)
 NATIVE(00955970)
-NATIVE(00957450)
+// An entity's verdict (culled or drawn), with the anticull rule for
+// buildings and objects in its frustum tests while it runs (rt_anticull.h).
+void f_00957450_lifted(Ctx& c);
+void f_00957450(Ctx& c) {
+  const bool was = t_entity_verdict;
+  const uint32_t was_entity = t_entity;
+  t_entity_verdict = true;
+  t_entity = ::recomp::gen::native::Rd<uint32_t>(c.esp + 4);
+  t_holds = false;
+  const float was_height = t_entity_height;
+  t_entity_height = 0.0f;
+  if (AnticullOn() && t_entity) {
+    // Its box's height: the virtuals at +0x60 and +0x64 (thiscall, its
+    // model's min and max corners, as this verdict reads them).
+    using namespace ::recomp::gen::native;
+    const uint32_t vt = Rd<uint32_t>(t_entity);
+    Ctx k = c;
+    k.ecx = t_entity;
+    const uint32_t lo = uint32_t(::recomp::CallGuest(k, Rd<uint32_t>(vt + 0x60), {}));
+    k = c;
+    k.ecx = t_entity;
+    const uint32_t hi = uint32_t(::recomp::CallGuest(k, Rd<uint32_t>(vt + 0x64), {}));
+    if (lo && hi) {
+      const float h = F(Rd<uint32_t>(hi + 8)) - F(Rd<uint32_t>(lo + 8));
+      if (h > 0.0f && h < 2000.0f) t_entity_height = h;
+    }
+  }
+  const uint32_t phase = ::recomp::gen::native::Rd<uint32_t>(c.esp + 8);
+  static const bool on = native::On() && native::Enabled(0x00957450);
+  if (native::Use(c, on, Native_00957450_x87))
+    Native_00957450(c);
+  else
+    f_00957450_lifted(c);
+  if (t_holds) {
+    // (Traced: the entity, its model, the phase, culled or drawn.)
+    using namespace ::recomp::gen::native;
+    static std::atomic<int64_t> said{0};
+    static std::atomic<int> n{0};
+    const int64_t now = int64_t(std::time(nullptr));
+    if (now != said.load()) said = now, n = 0;
+    if (n++ < 12)
+      std::fprintf(stderr, "anticull: entity %08x model %d phase %08x: %s\n", t_entity,
+                   int(int16_t(Rd<uint16_t>(t_entity + 0x2E))), phase, (c.eax & 0xFF) ? "culled" : "drawn");
+  }
+  t_holds = false;
+  t_entity_verdict = was;
+  t_entity = was_entity;
+  t_entity_height = was_height;
+}
+void f_00A1DC10(Ctx& c);
+void Anticull_00A1DC10(Ctx& c) {
+  // (Off unless GTAIV_RT_ANTICULL_OCCLUDER=1: not needed either.)
+  static const bool occluder = [] {
+    const char* e = std::getenv("GTAIV_RT_ANTICULL_OCCLUDER");
+    return e && *e == '1';
+  }();
+  if (occluder && AnticullOn()) {
+    using namespace ::recomp::gen::native;
+    const uint32_t q = Rd<uint32_t>(c.esp + 4);
+    const float cam[3] = {F(Rd<uint32_t>(c.ecx)), F(Rd<uint32_t>(c.ecx + 4)), F(Rd<uint32_t>(c.ecx + 8))};
+    const float p[3] = {F(Rd<uint32_t>(q)), F(Rd<uint32_t>(q + 4)), F(Rd<uint32_t>(q + 8))};
+    const float radius = F(Rd<uint32_t>(c.esp + 8));
+    const bool keep = gtaiv_anticull::KeptStatic(cam, p, radius);
+    if (Trace().on) {
+      if (keep) Trace().occluder++;
+      if (Holds(p, radius)) {
+        Trace().tested++;
+        if (keep) Trace().kept++;
+      }
+    }
+    if (keep) {
+      c.eax = 0;    // inside
+      c.esp += 12;  // (ret 8)
+      return;
+    }
+  }
+  f_00A1DC10(c);
+}
 NATIVE(00957D80)
 NATIVE(00959230)
 NATIVE(0095A840)

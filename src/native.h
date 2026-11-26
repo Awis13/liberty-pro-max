@@ -140,10 +140,9 @@ inline bool On() {
 // to bisect), MXCSR as usual and, for a function with x87 arithmetic, the
 // FPU at PC=24 with RC=nearest (its floats are the x87's results then).
 bool Enabled(uint32_t va);
-inline bool Use(Ctx& c, uint32_t va, bool x87) {
-  if (!On() || !::recomp::sse::fast::UsualMxcsr(c.mxcsr)) return false;
-  if (x87 && (c.fpu.cw & 0x0F00u) != 0) return false;
-  return Enabled(va);
+inline bool Use(Ctx& c, bool enabled, bool x87) {
+  if (!enabled || !::recomp::sse::fast::UsualMxcsr(c.mxcsr)) return false;
+  return !(x87 && (c.fpu.cw & 0x0F00u) != 0);
 }
 
 // A callee's float result, left in st0 by it: taken off the x87 model.

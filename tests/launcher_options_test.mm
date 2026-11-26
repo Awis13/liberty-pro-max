@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 
 namespace {
 
@@ -27,12 +28,17 @@ const Fix* Find(NSString* key) {
   return nullptr;
 }
 
-// The Extras, in the order shown: off, but the episodes' own radio songs.
+// The iPad's and iPhone's Extras, in the order shown: off, but the
+// episodes' own radio songs. Spatial Audio is an extra of the Mac's only,
+// on by default.
 void TestExtras() {
   NSArray<NSString*>* want = @[
     @"Episodes", @"EpisodeRadioOwn", @"TurnIndicators", @"TurnIndicatorsManual", @"RouteIndicators", @"PadIcons",
     @"PadFeedback", @"PhoneCheats", @"PlayerFullDamage"
   ];
+  const Fix* spatial = Find(@"SpatialAudio");
+  EXPECT(spatial && spatial->extra && spatial->on && !spatial->hidden);
+  EXPECT(spatial && !IpadExtraShown(*spatial));
   EXPECT(ExtraCount() == NSInteger(want.count));
   for (NSInteger i = 0; i < ExtraCount() && i < NSInteger(want.count); i++) {
     const Fix& f = ExtraAt(i);
@@ -160,6 +166,32 @@ void TestConsoleGamma() {
 
 bool Has(NSArray* a, NSString* k) { return [a containsObject:k]; }
 
+// Ray tracing: off unless the launcher's choice says otherwise, whatever a
+// shell's GTAIV_RT says; a stored value that is no choice is off.
+void TestRayTracing() {
+  NSUserDefaults* d = [[NSUserDefaults alloc] initWithSuiteName:@"launcher_options_test.rays"];
+  [d removePersistentDomainForName:@"launcher_options_test.rays"];
+  RegisterDefaults(d);
+  auto applied = [&] {
+    ApplyOptions(d);
+    const char* e = std::getenv("GTAIV_RT");
+    return std::string(e ? e : "(unset)");
+  };
+  setenv("GTAIV_RT", "reflections", 1);
+  EXPECT(RayTracingIndex(d) == 0);
+  EXPECT(applied() == "off");
+  const struct {
+    NSInteger stored;
+    const char* want;
+  } kCases[] = {{0, "off"}, {1, "shadows"}, {2, "reflections"}, {3, "off"}, {-1, "off"}, {5, "off"}};
+  for (const auto& c : kCases) {
+    setenv("GTAIV_RT", "shadows", 1);
+    [d setInteger:c.stored forKey:kRayTracingKey];
+    EXPECT(applied() == c.want);
+  }
+  [d removePersistentDomainForName:@"launcher_options_test.rays"];
+}
+
 // The one move to storing only changes: what earlier versions stored on
 // Play, the old defaults among it.
 void TestClearedOnce() {
@@ -243,6 +275,7 @@ int main() {
     TestConsoleGamma();
     TestEpisodesNote();
     TestTvDefaults();
+    TestRayTracing();
   }
   if (g_failures) return 1;
   std::puts("launcher_options_test: ok");

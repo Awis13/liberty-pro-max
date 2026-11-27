@@ -167,6 +167,15 @@ in the game are saved and take precedence over launcher defaults. The
 mission and model fixes. The PC ASI, DirectX options, and Windows-only
 features are outside the native integration.
 
+On Mac, **FusionFix shader preview** in the launcher's **Advanced** tab
+enables tree lighting, tree alpha, shadow filtering, extended sunlight
+reach, auto exposure, tone mapping, motion blur and volumetric fog under
+**Display** and **Graphics**. Changes save across launches. Restart the
+game after changing volumetric fog so the game reloads its timecycle.
+Contact-hardening shadows require Very High shadow quality. Use the
+native Metal renderer with ray tracing off. For terminal builds, set
+`GTAIV_GFX=metal GTAIV_FF_SHADERS=1`.
+
 ### Mac, from the Terminal
 
 If your game is the Complete Edition, duplicate the game folder in Finder

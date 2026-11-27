@@ -65,6 +65,7 @@ NSString* const kFastLoadingKey = @"FastLoading";
 NSString* const kFovKey = @"ExtraFieldOfView";  // 0-4: +0, +5, +10, +15, +20 degrees
 NSString* const kStunPunchKey = @"StunPunchAnywhere";
 NSString* const kExecutionsKey = @"ExecutionsAnywhere";
+NSString* const kFusionShadersKey = @"FusionFixShaderPreview";
 
 // Advanced, the community's fixes (community_fixes.cpp, widescreen.cpp):
 // each a checkbox, on unless the player turns it off. Extras, the port's
@@ -170,6 +171,7 @@ const Fix kFixes[] = {
     {@"ErrorsToLog", "GTAIV_ERRORS_TO_LOG", @"Game errors only to the log, no error box (may crash later)", false},
     {@"NoPhysicsSleep", "GTAIV_NO_PHYSICS_SLEEP", @"Cars roll to a stop instead of freezing (costs CPU)", false},
     {@"KeepWheelsTurned", "GTAIV_KEEP_WHEELS_TURNED", @"Parked vehicles keep their wheels turned", false},
+    {kFusionShadersKey, "GTAIV_FF_SHADERS", @"FusionFix shader preview (ray tracing off)", false},
     {@"FFToneMapping", "GTAIV_FF_TONE_MAPPING", @"FusionFix shaders: tone mapping (highlights not clipped)", false, false, true},
     {@"FFNoBloomColorShift", "GTAIV_FF_NO_BLOOM_COLOR_SHIFT", @"FusionFix shaders: bloom keeps its colour with tone mapping", true, false, true},
     {@"FFAutoExposure", "GTAIV_FF_AUTO_EXPOSURE", @"FusionFix shaders: exposure adapts as on consoles", true, false, true},
@@ -215,7 +217,8 @@ inline bool AdvancedFixShown(const Fix& f) {
 // Mac's own, keeping running behind other windows (iOS suspends an app
 // that is not in front).
 inline bool IpadFixShown(const Fix& f) {
-  return AdvancedFixShown(f) && ![f.key isEqualToString:@"RunInBackground"];
+  return AdvancedFixShown(f) && ![f.key isEqualToString:@"RunInBackground"] &&
+         ![f.key isEqualToString:kFusionShadersKey];
 }
 inline NSInteger ShownFixCount() {
   NSInteger n = 0;
@@ -413,7 +416,8 @@ void ApplyOptions(NSUserDefaults* d) {
   setenv("GTAIV_MODS", [d boolForKey:kModsKey] ? "1" : "0", 1);
   setenv("GTAIV_STUN_PUNCH", [d boolForKey:kStunPunchKey] ? "1" : "0", 1);
   setenv("GTAIV_EXECUTIONS", [d boolForKey:kExecutionsKey] ? "1" : "0", 1);
-  for (const Fix& f : kFixes) setenv(f.env, [d boolForKey:f.key] ? "1" : "0", 1);
+  for (const Fix& f : kFixes)
+    setenv(f.env, [d boolForKey:f.key] ? "1" : "0", ![f.key isEqualToString:kFusionShadersKey]);
   for (const ShaderChoice& sc : kShaderChoices) {
     const NSInteger v = std::clamp<NSInteger>([d integerForKey:sc.key], 0, NSInteger(sc.items.count) - 1);
     setenv(sc.env, std::to_string(v).c_str(), 1);

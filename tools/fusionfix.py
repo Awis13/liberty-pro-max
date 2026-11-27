@@ -104,7 +104,9 @@ def merge_menu(original, fusionfix, supported):
 
 
 def prepare(game, archive, options, output):
-    supported = set(re.findall(r"^FUSION_OPTION\((PREF_[A-Z0-9_]+),", options.read_text(), re.M))
+    bindings = options.read_text()
+    supported = set(re.findall(r"^FUSION_OPTION\((PREF_[A-Z0-9_]+),", bindings, re.M))
+    shaders = set(re.findall(r"^FUSION_SHADER_OPTION\((PREF_[A-Z0-9_]+),", bindings, re.M))
     if not supported:
         raise ValueError("FusionFix's native menu preferences are missing.")
     if not find_path(game, MENU):
@@ -125,8 +127,11 @@ def prepare(game, archive, options, output):
                 continue
             layout = output / "frontend" / episode / MENU
             layout.parent.mkdir(parents=True, exist_ok=True)
-            merged = merge_menu(source, release.read((Path("update") / episode / MENU).as_posix()), supported)
-            merged.write(layout, encoding="utf-8")
+            upstream = release.read((Path("update") / episode / MENU).as_posix())
+            merge_menu(source, upstream, supported).write(layout, encoding="utf-8")
+            shader_layout = output / "frontend" / "shaders" / episode / MENU
+            shader_layout.parent.mkdir(parents=True, exist_ok=True)
+            merge_menu(source, upstream, supported | shaders).write(shader_layout, encoding="utf-8")
             try:
                 font = release.read((Path("update") / episode / FONT).as_posix())
             except KeyError:

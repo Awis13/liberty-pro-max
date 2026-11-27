@@ -2,6 +2,8 @@ import importlib.util
 from pathlib import Path
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
+from zipfile import ZipFile
 
 
 spec = importlib.util.spec_from_file_location(
@@ -76,3 +78,39 @@ class MenuOverlayTests(unittest.TestCase):
             archive.write_bytes(b"incomplete download")
             with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
                 fusionfix.verify(archive)
+
+    def test_shader_rows_are_bundled_separately_for_each_episode(self):
+        stock = """<FrontendMenu><sMenuDisplayValue/><sMenuScreen>
+          <menupc enum="SCR_ADVANCED"/>
+        </sMenuScreen></FrontendMenu>"""
+        upstream = """<FrontendMenu><sMenuScreen><menupc enum="SCR_ADVANCED">
+          <optionspc value="PREF_FPS_LIMIT_PRESET"/>
+          <optionspc value="PREF_SHADOWFILTER"/>
+        </menupc></sMenuScreen></FrontendMenu>"""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            game = root / "game"
+            archive = root / "FusionFix.zip"
+            output = root / "output"
+            options = root / "options.inc"
+            options.write_text(
+                "FUSION_OPTION(PREF_FPS_LIMIT_PRESET, FPS, 0, 12)\n"
+                "FUSION_SHADER_OPTION(PREF_SHADOWFILTER, FILTER, 0, 2)\n"
+            )
+            episodes = (Path(), Path("TLAD"), Path("TBoGT"))
+            with ZipFile(archive, "w") as release:
+                for episode in episodes:
+                    menu = episode / fusionfix.MENU
+                    (game / menu).parent.mkdir(parents=True)
+                    (game / menu).write_text(stock)
+                    release.writestr((Path("update") / menu).as_posix(), upstream)
+            fusionfix.prepare(game, archive, options, output)
+            for episode in episodes:
+                with self.subTest(episode=episode):
+                    menu = episode / fusionfix.MENU
+                    regular = ET.parse(output / "frontend" / menu)
+                    shaders = ET.parse(output / "frontend/shaders" / menu)
+                    rows = "sMenuScreen/menupc/optionspc"
+                    self.assertEqual([row.get("value") for row in regular.findall(rows)], ["PREF_FPS_LIMIT_PRESET"])
+                    self.assertEqual([row.get("value") for row in shaders.findall(rows)],
+                                     ["PREF_FPS_LIMIT_PRESET", "PREF_SHADOWFILTER"])

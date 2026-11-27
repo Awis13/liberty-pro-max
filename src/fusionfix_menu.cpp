@@ -26,7 +26,9 @@ struct Preference {
 
 Preference g_preferences[] = {
 #define FUSION_OPTION(name, env, initial, maximum) {#name, #env, initial, maximum},
+#define FUSION_SHADER_OPTION FUSION_OPTION
 #include "fusionfix_options.inc"
+#undef FUSION_SHADER_OPTION
 #undef FUSION_OPTION
 };
 
@@ -53,6 +55,16 @@ int InitialChoice(const Preference& pref) {
     const auto parsed = std::from_chars(text, end, value);
     if (parsed.ec == std::errc{} && parsed.ptr == end)
       return std::clamp(value, 0, pref.maximum);
+    const char* const tree_modes[] = {"pc", "pc+", "console"};
+    const char* const shadow_modes[] = {"sharp", "soft", "chss"};
+    if (name == "GTAIV_FF_SHADOW_FILTER") {
+      for (int index = 0; index < 3; ++index)
+        if (strcasecmp(text, shadow_modes[index]) == 0) return index;
+    }
+    if (name == "GTAIV_FF_TREE_LIGHTING" || name == "GTAIV_FF_TREE_ALPHA") {
+      for (int index = 0; index < 3; ++index)
+        if (strcasecmp(text, tree_modes[index]) == 0) return index;
+    }
   }
   if (name == "GTAIV_FF_KB_FOOT_DELAY") return OptionOn("GTAIV_MOUSE_CAMERA_DELAY", true) ? 4 : 0;
   if (name == "GTAIV_FF_PAD_FOOT_DELAY") return OptionOn("GTAIV_PAD_CAMERA_DELAY", false) ? 4 : 0;

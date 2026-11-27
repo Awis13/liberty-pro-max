@@ -52,12 +52,10 @@
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <initializer_list>
 #include <mutex>
 #include <string_view>
 #include <unordered_map>
@@ -101,40 +99,14 @@ constexpr uint32_t kHours = 0x01151694, kMinutes = 0x01151690;  // CClock
 constexpr uint32_t kShadowQuality = 0x010FC31C;  // 0-4, 4 Very High
 constexpr uint32_t kWaterQuality = 0x010FC324;   // 0-3
 
-// One of a few values: its number or its name (any case), else the default.
-int Choice(const char* env, int def, std::initializer_list<std::string_view> names) {
-  const char* e = std::getenv(env);
-  if (!e || !*e) return def;
-  const std::string_view v(e);
-  if (v.size() == 1 && v[0] >= '0' && size_t(v[0] - '0') < names.size()) return v[0] - '0';
-  int i = 0;
-  for (std::string_view n : names) {
-    if (n.size() == v.size() && std::equal(n.begin(), n.end(), v.begin(), [](char a, char b) {
-          return std::tolower(uint8_t(a)) == std::tolower(uint8_t(b));
-        }))
-      return i;
-    i++;
-  }
-  return def;
-}
-
 struct Settings {
-  int shadow_filter;  // 0 sharp, 1 soft, 2 contact hardening (CHSS)
-  int tree_lighting;  // 0 PC, 1 PC+, 2 console
-  int tree_alpha;     // 0 PC, 1 PC+, 2 console
-  bool tone_mapping, no_bloom_shift, auto_exposure, definition, unclamp, shorelines, light_volumes;
+  bool no_bloom_shift, definition, shorelines, light_volumes;
 };
 
 const Settings& Prefs() {
   static const Settings s = {
-      Choice("GTAIV_FF_SHADOW_FILTER", 0, {"sharp", "soft", "chss"}),
-      Choice("GTAIV_FF_TREE_LIGHTING", 1, {"pc", "pc+", "console"}),
-      Choice("GTAIV_FF_TREE_ALPHA", 0, {"pc", "pc+", "console"}),
-      OptionOn("GTAIV_FF_TONE_MAPPING", false),
       OptionOn("GTAIV_FF_NO_BLOOM_COLOR_SHIFT", true),
-      OptionOn("GTAIV_FF_AUTO_EXPOSURE", true),
       OptionOn("GTAIV_FF_DEFINITION", true),
-      OptionOn("GTAIV_FF_UNCLAMP_LIGHTING", false),
       OptionOn("GTAIV_FF_SMOOTH_SHORELINES", true),
       OptionOn("GTAIV_FF_SMOOTH_LIGHT_VOLUMES", true),
   };
@@ -189,42 +161,42 @@ void FrameConstants(Ctx& c) {
   // The filter's softness and bias (sharp, soft, CHSS), CHSS itself (at
   // Very High shadow quality only), the cascades' blend.
   static constexpr float kSoftness[3] = {1.5f, 3.0f, 1.5f}, kBias[3] = {5.0f, 8.0f, 5.0f};
-  const bool chss = s.shadow_filter == 2 && int32_t(Rd32(kShadowQuality)) >= 4;
-  const float shadows[4] = {kSoftness[s.shadow_filter], kBias[s.shadow_filter], chss ? 1.0f : 0.0f, 0.1f};
+  const int shadow_filter = gtaiv::FusionFixChoice("GTAIV_FF_SHADOW_FILTER");
+  const bool chss = shadow_filter == 2 && int32_t(Rd32(kShadowQuality)) >= 4;
+  const float shadows[4] = {kSoftness[shadow_filter], kBias[shadow_filter], chss ? 1.0f : 0.0f, 0.1f};
   SetConstant(c, true, 218, shadows);
   // CHSS's largest softness and light size (in the atlas's texels: twice
   // with the high resolution atlas); tone mapping, and bloom without its
   // colour shift (with tone mapping only).
-  const float tone = s.tone_mapping ? 1.0f : 0.0f;
+  const bool tone = gtaiv::FusionFixOption("GTAIV_FF_TONE_MAPPING");
   const float texels = HighResShadows() ? 2.0f : 1.0f;
-  const float chss_tone[4] = {20.0f * texels, ext.chss_light_size * texels, tone,
-                              s.tone_mapping && s.no_bloom_shift ? 1.0f : 0.0f};
+  const float chss_tone[4] = {20.0f * texels, ext.chss_light_size * texels, tone ? 1.0f : 0.0f,
+                              tone && s.no_bloom_shift ? 1.0f : 0.0f};
   SetConstant(c, true, 217, chss_tone);
   // The water reflection's half-pixel by the water quality setting (its
   // 160x64 base doubling per step); light clamped to 4/3 x - 1/3 unless
   // unclamped.
   const int32_t wq = int32_t(Rd32(kWaterQuality));
   const int q = wq >= 0 && wq < 3 ? wq : 3;
-  const float water[4] = {0.5f / float(160 << q), 0.5f / float(64 << q), s.unclamp ? 1.0f : 4.0f / 3.0f,
-                          s.unclamp ? 0.0f : -1.0f / 3.0f};
+  const bool unclamp = gtaiv::FusionFixOption("GTAIV_FF_UNCLAMP_LIGHTING");
+  const float water[4] = {0.5f / float(160 << q), 0.5f / float(64 << q), unclamp ? 1.0f : 4.0f / 3.0f,
+                          unclamp ? 0.0f : -1.0f / 3.0f};
   SetConstant(c, true, 220, water);
   // Definition, snow, menu blur, the trees' alpha scale (PC, PC+, console).
   static constexpr float kTreeAlpha[3] = {0.625f, 1.0f, 4.0f};
   const float definition = s.definition ? 1.0f : 0.0f;
   // The menu's background is blurred behind the map tab.
   const float menu_blur = Rd8(kMenuActive) && Rd32(kMenuTab) == 3 ? 1.0f : 0.0f;
-  const float settings[4] = {definition, 0.0f, menu_blur, kTreeAlpha[s.tree_alpha]};
+  const int tree_alpha = gtaiv::FusionFixChoice("GTAIV_FF_TREE_ALPHA");
+  const float settings[4] = {definition, 0.0f, menu_blur, kTreeAlpha[tree_alpha]};
   SetConstant(c, true, 221, settings);
   const float step = std::max(F32(kTimeStep), 1e-4f);
-  // GTAIV_MOTION_BLUR=0-4: off, 1/8, 1/4 (the default), 1/2, full.
-  static const float blur = [] {
-    const char* e = std::getenv("GTAIV_MOTION_BLUR");
-    const int level = e && *e >= '0' && *e <= '4' ? *e - '0' : 2;
-    return level == 0 ? 0.0f : 1.0f / float(1 << (4 - level));
-  }();
+  static constexpr float kMotionBlur[] = {0.0f, 0.125f, 0.25f, 0.5f, 1.0f};
+  const float blur = kMotionBlur[gtaiv::FusionFixChoice("GTAIV_MOTION_BLUR")];
   // Eye adaptation's rate (1/9 as on the consoles, else 1/16), smooth shorelines,
   // motion blur per frame time.
-  const float post[4] = {s.auto_exposure ? 1.0f / 9.0f : 1.0f / 16.0f, s.shorelines ? 1.0f : 0.0f, 0.0f,
+  const bool auto_exposure = gtaiv::FusionFixOption("GTAIV_FF_AUTO_EXPOSURE");
+  const float post[4] = {auto_exposure ? 1.0f / 9.0f : 1.0f / 16.0f, s.shorelines ? 1.0f : 0.0f, 0.0f,
                          blur / (30.0f * step)};
   SetConstant(c, true, 222, post);
   // The game camera's field of view: the root camera's (the viewport current
@@ -233,7 +205,8 @@ void FrameConstants(Ctx& c) {
   const uint32_t h = Rd32(kHours) & 0xFF, m = Rd32(kMinutes) & 0xFF;
   const bool day = ((h == 6 && m >= 45) || h > 6) && ((h == 19 && m < 15) || h < 19);
   // Tree lighting (PC 0, PC+ 1, console 2), field of view, definition, night.
-  const float view[4] = {float(s.tree_lighting), fov > 45.0f ? std::pow(fov / 45.0f, 1.25f) : 1.0f, definition,
+  const int tree_lighting = gtaiv::FusionFixChoice("GTAIV_FF_TREE_LIGHTING");
+  const float view[4] = {float(tree_lighting), fov > 45.0f ? std::pow(fov / 45.0f, 1.25f) : 1.0f, definition,
                          day ? 0.0f : 1.0f};
   SetConstant(c, true, 223, view);
   // The fog's density, height falloff, power, altitude tweak.

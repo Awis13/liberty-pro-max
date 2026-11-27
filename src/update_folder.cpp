@@ -32,10 +32,20 @@ namespace recomp::gen {
 
 namespace {
 
-// FusionFix's shaders too (GTAIV_FF_SHADERS, off for now: they need its
-// shader constants, work in progress).
+// The extended effects are tested with the native Metal renderer. The
+// ray-tracing hooks still match the game's original shader bytecode.
 bool FfShaders() {
-  static const bool on = OptionOn("GTAIV_FF_SHADERS", false);
+  static const bool on = [] {
+    if (!OptionOn("GTAIV_FF_SHADERS", false)) return false;
+#if defined(__APPLE__)
+    const char* backend = std::getenv("GTAIV_GFX");
+    const char* rays = std::getenv("GTAIV_RT");
+    if (backend && std::strcmp(backend, "metal") == 0 &&
+        (!rays || !*rays || std::strcmp(rays, "off") == 0)) return true;
+#endif
+    WarnF("gtaiv: FusionFix shader preview requires native Metal with ray tracing off\n");
+    return false;
+  }();
   return on;
 }
 
@@ -224,10 +234,6 @@ bool LeftOut(const std::string& lower_rel) {
   // Its stipple texture goes with its shaders: with the game's own, trees are
   // flat rectangles with lines across them.
   if (lower_rel == "pc\\textures\\stipple.wtd" && !FfShaders()) return true;
-  // Its post-processing effect has a layout the game's loader misreads
-  // (named entries after the header; the game then hands Direct3D no
-  // shader): the game's own stays.
-  if (lower_rel == "common\\shaders\\win32_30\\rage_postfx.fxc") return true;
   return lower_rel == "common\\data\\frontend_menus.xml" || lower_rel == "common\\data\\frontend_pc.dat" ||
          lower_rel == "update.txt" || lower_rel == "update.img";
 }
@@ -295,8 +301,9 @@ bool MountFusionFix(const std::string& resource, const std::string& data_root) {
   namespace fs = std::filesystem;
   std::error_code ec;
   g_fusion_root = fs::canonical(resource, ec);
+  const auto frontend = FfShaders() ? "frontend/shaders" : "frontend";
   if (ec || !fs::is_regular_file(g_fusion_root / "update/common/text/americanFF.gxt", ec) ||
-      !fs::is_regular_file(g_fusion_root / "frontend/common/data/frontend_menus.xml", ec)) return false;
+      !fs::is_regular_file(g_fusion_root / frontend / "common/data/frontend_menus.xml", ec)) return false;
   const fs::path drive = fs::path(data_root) / "drive_c";
   fs::create_directories(drive, ec);
   if (ec) return false;
@@ -383,7 +390,8 @@ std::string UpdateFolderRedirect(const std::string& guest_path) {
   const std::string base = rel.substr(prefix);
   if (base == "common\\data\\frontend_menus.xml" || base == "common\\data\\frontend_pc.dat") {
     std::error_code ec;
-    const auto path = g_fusion_guest + "frontend\\" + rel;
+    const bool shaders = FfShaders() && base == "common\\data\\frontend_menus.xml";
+    const auto path = g_fusion_guest + (shaders ? "frontend\\shaders\\" : "frontend\\") + rel;
     if (std::filesystem::is_regular_file(HostPath(path), ec)) {
       WarnF("gtaiv: FusionFix frontend: %s\n", rel.c_str());
       return path;

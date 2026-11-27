@@ -97,7 +97,8 @@ constexpr uint32_t kModifiers = 0x013E67D0, kModifierSize = 0xBC, kModifierCount
 constexpr uint32_t kInteriorFade = 0x00F498E0;  // the interior modifiers' blend
 
 bool VolumetricFog() {
-  static const bool on = FfShadersOn() && OptionOn("GTAIV_FF_VOLUMETRIC_FOG", false);
+  // Keep the choice used to read the timecycle tables until the next launch.
+  static const bool on = FfShadersOn() && gtaiv::FusionFixOption("GTAIV_FF_VOLUMETRIC_FOG");
   return on;
 }
 

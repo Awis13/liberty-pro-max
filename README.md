@@ -23,10 +23,14 @@ Expect rough edges, and please report what you find in the
    [releases](https://github.com/Awis13/liberty-pro-max/releases) and open it.
    It is not signed by Apple: the first time, go to System Settings, Privacy &
    Security, and press **Open Anyway**.
-2. Drop your Grand Theft Auto IV folder (or `GTAIV.exe`) on it. If asked,
-   install Apple's Command Line Tools with its button (free).
-3. Press **Build Liberty Pro Max**. About 5 to 20 minutes later it is in
-   Applications: open it, check the options, press **Play**.
+2. Drop your GTA IV folder or `GTAIV.exe` on the Builder. For the Complete
+   Edition, follow the [Patch 8 steps](#complete-edition-with-the-builder).
+   Install Apple's Command Line Tools if the Builder asks.
+3. To restore the radio, select the [optional radio settings](#restore-the-radio)
+   in the Builder.
+4. Click **Build Liberty Pro Max**. The app goes in Applications after about
+   5 to 20 minutes.
+5. Open Liberty Pro Max and click **Play**.
 
 For the iPad, the iPhone and the Apple TV, see [Install](#install).
 
@@ -51,11 +55,11 @@ iPad's touch controls are there too, but small on a phone).
 
 ## What you need
 
-- **Your own GTA IV for PC, version 1.0.8.0**: the folder with `GTAIV.exe`
-  (SHA-256 `3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f`)
-  and the game's data next to it (`pc/`, `common/`, …). Only this file, as
-  Rockstar signed it, works: a changed or cracked exe does not. The Complete
-  Edition (1.2.0.x) is not supported.
+- **Your own GTA IV for PC.** Use the folder with `GTAIV.exe`, `pc/` and
+  `common/`. The Complete Edition also has `TLAD/` and `TBoGT/`.
+  Liberty Pro Max compiles Rockstar's signed `GTAIV.exe` version 1.0.8.0.
+  Check its SHA-256 against
+  `3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f`.
 
   If you own the game on Steam, you can download this version from your own
   account with [DepotDownloader](https://github.com/SteamRE/DepotDownloader)
@@ -91,12 +95,81 @@ iPad's touch controls are there too, but small on a phone).
 
 ### Mac, with the Builder
 
-See [Quick start](#quick-start). The Builder carries everything that is not
-the game's code (the runtime, its libraries, the translator) and compiles only
-what it translates from your own `GTAIV.exe`, with Apple's compiler; no
-Homebrew. `builder/make_builder.sh` makes it.
+See [Quick start](#quick-start). The Builder carries the runtime, libraries
+and translator. It uses Apple's compiler. Run `builder/make_builder.sh` to
+package the Builder from source.
+
+Run `builder/check_builder.sh` on macOS with Apple's Command Line Tools
+to check Complete Edition detection, rejection of malformed executables,
+the radio preset mappings and build readiness with radio disabled.
+The checks use test data in place of game files and radio archives.
+
+#### Complete Edition with the Builder
+
+1. Install [7-Zip](https://www.7-zip.org/) with
+   `brew install sevenzip`, or put the standalone `7zz` in `/usr/local/bin`.
+   A game folder that already has Rockstar's 1.0.8.0 executable can skip
+   this step.
+2. Drop the Complete Edition folder on the Builder. Use the folder that
+   contains `GTAIV.exe`, or its parent if it contains a `GTAIV` subfolder.
+3. Click **Download Rockstar's GTA IV Patch 8 installer**. Choose the
+   downloaded `GTA_IV_EFIGS_PATCH_8.exe` in the Builder.
+   [Rockstar Patch 8 notes](https://support.rockstargames.com/articles/4DH92vTMXDygNI5nFQGoy6/grand-theft-auto-iv-patch-8-title-update-notes-pc-only)
+4. Choose the optional radio settings before you click **Build Liberty Pro Max**.
+   The Builder verifies the installer and writes the verified executable to
+   a temporary folder. The launcher reads your Complete Edition game data.
+
+To play an episode, enable **Episodes** in the launcher's **Extras**. The
+game uses the 1.0.8.0 save format. See [Saves from elsewhere](#saves-from-elsewhere)
+for details.
+
+#### Restore the radio
+
+1. Download Tomasak's 23 May 2025 release. Extract `Resources/Radio Restorer`
+   and keep its DAT files together.
+   [Original Radio Restoration release](https://github.com/Tomasak/GTA-Downgraders/releases/tag/iv-latest)
+2. In the Builder, turn on **Restore the radio** and choose `data1.dat`.
+   The Builder extracts the radio archive, station listings and episode
+   audio. If you already unpacked `data1.dat`, you can choose
+   `update/pc/audio/sfx/RADIO_RESTORATION.rpf` instead. Keep the extracted
+   `update` folder beside the playlist DAT files.
+3. Choose **Pre-cut** or **Pre-cut + post-cut Vladivostok**. You can include
+   restored beta songs. **Separate GTA IV and Episodes** gives GTA IV its
+   original station lineup and uses a different playlist for the episodes.
+   **Share GTA IV and Episodes playlists** keeps all stations available.
+4. Click **Build Liberty Pro Max**. The Builder installs the radio files
+   under `Radio Restoration` in the Mods folder and applies the playlist
+   mode in the launcher. Leave **Load mods** enabled in the launcher.
+
+To change the playlist, close the game and move the existing
+`Radio Restoration` folder out of Mods before building again. The launcher's
+**Open Mods Folder** button opens its location. Set up the radio before
+running `install-ios.sh` to copy it to another Apple device.
+
+Tomasak, ICan'tReadYourMind and the Radio Restoration contributors made
+the radio mod. [Original project and credits](https://downgraders.rockstarvision.com/)
 
 ### Mac, from the Terminal
+
+If your game is the Complete Edition, duplicate the game folder in Finder
+first. Extract the executable from Rockstar's Patch 8 installer. Use
+`7zz` from the [Builder steps](#complete-edition-with-the-builder).
+
+```sh
+(
+  set -e
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  7zz x -so -bsp0 -- "/path/to/GTA_IV_EFIGS_PATCH_8.exe" '$0/GTAIV.exe' > "$tmp/GTAIV.exe"
+  cd "$tmp"
+  printf '%s  GTAIV.exe\n' \
+    3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f | shasum -a 256 -c
+  cp GTAIV.exe "/path/to/GTAIV-copy/GTAIV.exe"
+)
+```
+
+Use the duplicate in the next command and when the launcher asks for the
+game folder.
 
 ```bash
 git clone https://github.com/Awis13/liberty-pro-max
@@ -344,9 +417,10 @@ folder is not changed, and **Load mods** turns them off.
 The game's own `update` folder is read the same way, so mods already there keep
 working.
 
-Only files are loaded: mods with Windows code (`.asi`, `.dll`) do not run. Mods
-are not part of this project, and it does not supply or support any. Add them
-before `install-ios.sh` to have them on the iPad, iPhone or Apple TV too.
+Liberty Pro Max loads mod data files. Windows `.asi` plugins and `.dll`
+libraries require the Windows game. Get mod data from its original
+distributor. Add mods before `install-ios.sh` to copy them to the iPad,
+iPhone or Apple TV.
 
 ## Fixes and options
 

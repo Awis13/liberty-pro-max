@@ -6,6 +6,7 @@
 //   src/, include/                    the port's and the runtime's sources
 //   app/Liberty Pro Max.app           the app without its executable
 //   recipe.json                       how to compile and link the game
+//   radio/Catalog.json                sizes and checksums for the radio release
 // Everything that is not the game's code comes built; only the code
 // translated from the player's own GTAIV.exe is compiled on their Mac.
 
@@ -16,6 +17,7 @@ enum Kit {
   static func path(_ rel: String) -> String { root.appendingPathComponent(rel).path }
 
   /// SHA-256 of GTAIV.exe 1.0.8.0, the one version the port supports.
+  static let exeSize = 15_628_696
   static let exeSHA256 = "3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f"
   /// The game's settings domain (its launcher's NSUserDefaults).
   static let gameDomain = "io.github.awis13.liberty-pro-max" as CFString

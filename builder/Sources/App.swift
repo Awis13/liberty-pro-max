@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 @main
 enum Main {
   static func main() {
-    // Liberty Pro Max Builder --build GAME_FOLDER: the same build without the
+    // Builder --build GAME_FOLDER [--patch INSTALLER] [--radio FILE] runs without the
     // window, its log on stdout (for testing the kit); exit status 0 when
     // the app was installed.
     let args = CommandLine.arguments
@@ -25,10 +25,27 @@ enum Main {
       dispatchMain()
     }
     if let i = args.firstIndex(of: "--build"), i + 1 < args.count {
-      Task { @MainActor in exit(await Engine.headless(game: URL(fileURLWithPath: args[i + 1]))) }
+      let patch = fileArgument("--patch", in: args)
+      let radio = fileArgument("--radio", in: args)
+      if args.contains("--radio") && radio == nil {
+        print("Supply --radio data1.dat or --radio RADIO_RESTORATION.rpf.")
+        exit(2)
+      }
+      let options = RadioOptions(postCut: args.contains("--radio-post-cut"),
+                                 beta: args.contains("--radio-beta"), split: !args.contains("--radio-shared"))
+      Task { @MainActor in
+        exit(await Engine.headless(game: URL(fileURLWithPath: args[i + 1]),
+                                   patch: patch, radio: radio, options: options))
+      }
       dispatchMain()
     }
     BuilderApp.main()
+  }
+
+  private static func fileArgument(_ flag: String, in args: [String]) -> URL? {
+    guard let index = args.firstIndex(of: flag), args.indices.contains(index + 1),
+          !args[index + 1].hasPrefix("--") else { return nil }
+    return URL(fileURLWithPath: args[index + 1])
   }
 }
 
@@ -63,7 +80,11 @@ struct ContentView: View {
                  symbol: "folder.badge.plus") { url in
           Task { await engine.setGame(url) }
         }
+        if engine.needsPatch {
+          patchControls
+        }
       }
+      .disabled(engine.building)
 
       Card(number: 2, title: "Apple's developer tools", state: engine.tools) {
         switch engine.tools {
@@ -73,10 +94,56 @@ struct ContentView: View {
         }
       }
 
+      Card(number: 3, title: "Radio Restoration", state: engine.restoreRadio ? engine.radioCheck : .none) {
+        radioControls
+      }
+      .disabled(engine.building)
+
       Divider()
       buildSection
     }
     .padding(26)
+  }
+
+  private var patchControls: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("The Builder extracts GTAIV.exe 1.0.8.0 into a temporary folder.")
+        .font(.callout)
+      Link("Download Rockstar's GTA IV Patch 8 installer", destination: GameInput.patchURL)
+      if GameInput.extractor == nil {
+        Text("Install 7-Zip in Terminal with `brew install sevenzip`, then choose the installer.")
+          .font(.callout)
+      }
+      DropZone(text: engine.patch?.lastPathComponent ?? "Drop the Patch 8 installer here",
+               symbol: "archivebox", allowsDirectories: false) { url in
+        engine.setPatch(url)
+      }
+    }
+  }
+
+  private var radioControls: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Toggle("Restore the radio", isOn: $engine.restoreRadio)
+      if engine.restoreRadio {
+        Link("Get the original Radio Restoration files", destination: RadioInput.releaseURL)
+        DropZone(text: engine.radioInput?.source.lastPathComponent ?? "Drop data1.dat here",
+                 symbol: "waveform", allowsDirectories: false) { url in
+          engine.setRadio(url)
+        }
+        Text("If you already unpacked data1.dat, choose RADIO_RESTORATION.rpf.")
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        Picker("Base playlist", selection: $engine.radioOptions.postCut) {
+          Text("Pre-cut").tag(false)
+          Text("Pre-cut + post-cut Vladivostok").tag(true)
+        }
+        Toggle("Include restored beta songs", isOn: $engine.radioOptions.beta)
+        Picker("Playlist mode", selection: $engine.radioOptions.split) {
+          Text("Separate GTA IV and Episodes").tag(true)
+          Text("Share GTA IV and Episodes playlists").tag(false)
+        }
+      }
+    }
   }
 
   @ViewBuilder private var buildSection: some View {
@@ -86,6 +153,12 @@ struct ContentView: View {
         VStack(alignment: .leading) {
           Text("Liberty Pro Max is ready").font(.headline)
           Text(app.deletingLastPathComponent().path).font(.caption).foregroundStyle(.secondary)
+          if engine.radioInstalled {
+            Text("Radio Restoration installed").font(.caption).foregroundStyle(.secondary)
+          }
+          if let failure = engine.failure {
+            Text(failure).font(.caption).foregroundStyle(.orange)
+          }
         }
         Spacer()
         Button("Build again") { engine.again() }
@@ -179,6 +252,7 @@ struct Card<Content: View>: View {
 struct DropZone: View {
   let text: String
   let symbol: String
+  var allowsDirectories = true
   let onURL: (URL) -> Void
   @State private var targeted = false
 
@@ -204,7 +278,7 @@ struct DropZone: View {
 
   private func choose() {
     let panel = NSOpenPanel()
-    panel.canChooseDirectories = true
+    panel.canChooseDirectories = allowsDirectories
     panel.canChooseFiles = true
     panel.allowsMultipleSelection = false
     if panel.runModal() == .OK, let url = panel.url { onURL(url) }

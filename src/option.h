@@ -23,6 +23,8 @@ bool EpisodeInstalled(uint32_t episode);
 
 namespace gtaiv {
 void LoadFusionFixSettings(const std::string& data_root);
+int FusionFixChoice(const char* env);
 bool FusionFixOption(const char* env);
+double FusionFixFrameLimit();
 float FusionFixFov();
 }  // namespace gtaiv

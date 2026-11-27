@@ -157,11 +157,13 @@ archive. They download it on first use and verify its SHA-256. For an offline
 build, set `GTAIV_FUSIONFIX_ZIP` to the path of the official ZIP.
 [FusionFix 5.1.2 release](https://github.com/ThirteenAG/GTAIV.EFLC.FusionFix/releases/tag/v5.1.2)
 
-Look in **Controls**, **Display**, and **Audio** in the title and pause
-menus. Liberty Pro Max reads FusionFix's rows and translations for the
-settings it implements natively, such as Always Run, Field of View, and
-Alternate Dialogues. A value changed in-game is saved and takes precedence
-over the launcher on the next run. The build includes the data files for
+FusionFix settings appear under **Controls**, **Display**, **Graphics**,
+**Audio**, and **Game**. The controller and keyboard options each have
+camera recentering sliders and separate look and aim sensitivities. **FPS Limiter** applies as soon as you change
+the preset. **Console Gamma** applies on the next launch. Settings changed
+in the game are saved and take precedence over launcher defaults. The
+**Custom** FPS preset uses the cap supplied by the launcher or
+`GTAIV_FPS_LIMIT`. The build includes the data files for
 mission and model fixes. The PC ASI, DirectX options, and Windows-only
 features are outside the native integration.
 
@@ -689,7 +691,7 @@ turn; flick the same way to turn it off.
 
 Not yet here from FusionFix: its ambient occlusion (SAO), the console gamma's
 dithered variant and its brightness change, HDR output, depth effects through transparent surfaces (pre-alpha depth), MSAA in
-reflections, camera sensitivity ranges and ragdoll on demand. The episodes'
+reflections, custom sensitivity ranges from the Windows INI, and ragdoll on demand. The episodes'
 vehicles and weapons in IV are not here yet. On a Mac, FusionFix's raw input,
 keyboard lighting, graphics API choice and plugin loaders have nothing to do.
 

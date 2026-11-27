@@ -126,8 +126,12 @@ class FallbackTests(unittest.TestCase):
                                                        f'the table says {table[env]}')
         bound = (root / 'src/fusionfix_options.inc').read_text()
         for env, default in re.findall(r'FUSION_OPTION\(PREF_\w+, (GTAIV_\w+), ([01]), 1\)', bound):
+            if env in table:
+                self.assertEqual(default == '1', table[env], env)
+        startup = (root / 'src/fusionfix_menu.cpp').read_text()
+        for env, default in re.findall(r'OptionOn\("(GTAIV_\w+)", (true|false)\)', startup):
             self.assertIn(env, table)
-            self.assertEqual(default == '1', table[env], env)
+            self.assertEqual(default == 'true', table[env], env)
         # A call with a fallback that is not a literal would be skipped.
         self.assertEqual(calls, matched, 'an OptionOn call the check cannot read')
         self.assertIn('GTAIV_EPISODES', seen)

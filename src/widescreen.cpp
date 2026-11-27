@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "hook_util.h"
 #include "option.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
@@ -214,33 +215,31 @@ void hook_00486E9E(Ctx& c) {  // movss xmm3, [k]
   std::memcpy(c.xmm[3].data(), GPtr(0x00E7C6CC), 4);
 }
 
-// The cutscene borders (CCamera's widescreen borders, 007F2630): black
-// bars top and bottom, queued for the render thread (a command of 1C
-// bytes from 85E390, made a rectangle by 861780 (thiscall: rect, colour)
-// and queued by 475920), or drawn at once on the render thread (DrawRect,
-// when its thread-local "queue" pointer is 0). The screen's size: the
-// window's or the full screen's (407600). The game draws them only on a
-// screen no wider than 3:2 (89BB60 says 0). On a screen wider than 16:9
-// two more, left and right of the 16:9 frame, the same way (FusionFix's
-// cutscene pillarbox, by its idea); not while a replay export forces 16:9
-// ([011F8280+454], the other half of 89BB60's test).
+// CCamera::DrawWidescreenBorders, once the game requests cutscene bars.
 void f_007F2630(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_CUTSCENE_PILLARS", true);
-  f_007F2630_lifted(c);
-  if (!on) return;
-  if (Rd8(0x011F8280 + 0x454)) return;
-  const uint32_t ebx = c.ebx, esi = c.esi, edi = c.edi, ebp = c.ebp;
+  if (Rd8(0x011F8280 + 0x454)) return f_007F2630_lifted(c);  // replay export
+  c.esp += 4;  // cdecl, no arguments
+  hook::KeepRegs keep(c);
+  const float aspect = ScreenAspect();
+  const bool pillar = aspect > kDefaultAspect && gtaiv::FusionFixOption("GTAIV_CUTSCENE_PILLARS");
+  const bool letter = aspect < kDefaultAspect && gtaiv::FusionFixOption("GTAIV_FF_CUTSCENE_LETTERBOX");
+  if (!pillar && !letter) return;
   const bool windowed = (CallGuest(c, 0x00407600, {}) & 0xFF) != 0;
-  const float w = float(int32_t(Rd32(windowed ? 0x010A7510 : 0x010A7518)));
-  const float h = float(int32_t(Rd32(windowed ? 0x010A7514 : 0x010A751C)));
-  const float half = (w - h * kDefaultAspect) / 2.0f;
-  if (w <= 0 || h <= 0 || half <= 0.5f) return;
+  const float w = float(int32_t(Rd32(windowed ? 0x010A7510 : kActiveWidth)));
+  const float h = float(int32_t(Rd32(windowed ? 0x010A7514 : kActiveHeight)));
+  if (w <= 0 || h <= 0) return;
+  const float edge = pillar ? w * (1.0f - kDefaultAspect / aspect) / 2.0f
+                            : h * (1.0f - aspect / kDefaultAspect) / 2.0f;
+  if (edge <= 0.5f) return;
   const uint32_t tls = Rd32(c.fs_base + 0x2C);
   const bool queued = Rd32(Rd32(tls + 4 * Rd32(0x01744224)) + 0x80) != 0;
   c.esp -= 32;  // a rectangle and a colour, below the frame
   const uint32_t rect = c.esp, col = c.esp + 16;
   Wr32(col, 0xFF000000);
-  const float bars[2][4] = {{0.0f, 0.0f, half, h}, {w - half, 0.0f, w, h}};
+  const float bars[2][4] = {
+      {0.0f, 0.0f, pillar ? edge : w, pillar ? h : edge},
+      {pillar ? w - edge : 0.0f, pillar ? 0.0f : h - edge, w, h},
+  };
   for (const auto& b : bars) {
     std::memcpy(GPtr(rect), b, 16);
     if (!queued) {
@@ -255,10 +254,6 @@ void f_007F2630(Ctx& c) {
     CallGuest(c, 0x00475920, {});
   }
   c.esp += 32;
-  c.ebx = ebx;
-  c.esi = esi;
-  c.edi = edi;
-  c.ebp = ebp;
 }
 
 // The in-game computer (FusionFix's widescreen web pages, by its idea).

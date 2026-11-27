@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <charconv>
+#include <string_view>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -30,11 +32,45 @@ Preference g_preferences[] = {
 
 std::filesystem::path g_settings;
 std::atomic<float> g_fov{0};
+double g_custom_fps = 0;
+constexpr int kFrameRates[] = {0, 0, 30, 40, 50, 60, 75, 100, 120, 144, 165, 200, 240};
+constexpr uint32_t kNoBlockOnLostFocus = 0x00FE80D3;
+
 
 Preference* FindOption(const char* env) {
   for (auto& pref : g_preferences)
     if (std::strcmp(pref.env, env) == 0) return &pref;
   return nullptr;
+}
+// Seed settings from the existing launchers and command-line options. Once
+// a player changes a FusionFix setting, its saved value takes precedence.
+int InitialChoice(const Preference& pref) {
+  const std::string_view name(pref.env);
+  if (const char* text = std::getenv(pref.env); text && *text) {
+    if (pref.maximum == 1) return *text != '0';
+    const auto end = text + std::strlen(text);
+    int value;
+    const auto parsed = std::from_chars(text, end, value);
+    if (parsed.ec == std::errc{} && parsed.ptr == end)
+      return std::clamp(value, 0, pref.maximum);
+  }
+  if (name == "GTAIV_FF_KB_FOOT_DELAY") return OptionOn("GTAIV_MOUSE_CAMERA_DELAY", true) ? 4 : 0;
+  if (name == "GTAIV_FF_PAD_FOOT_DELAY") return OptionOn("GTAIV_PAD_CAMERA_DELAY", false) ? 4 : 0;
+  if (name == "GTAIV_FF_KB_VEHICLE_DELAY" || name == "GTAIV_FF_PAD_VEHICLE_DELAY")
+    return OptionOn("GTAIV_CAR_CAMERA_DELAY", false) ? 4 : 0;
+  if (name == "GTAIV_FF_KB_VEHICLE_SPEED") return OptionOn("GTAIV_CAR_CAMERA_RETURN", true) ? 3 : 0;
+  if (name == "GTAIV_FF_BLOCK_ON_FOCUS_LOSS") return !OptionOn("GTAIV_RUN_IN_BACKGROUND", false);
+  if (name == "GTAIV_FF_FPS_PRESET" && g_custom_fps > 0) {
+    for (size_t i = 2; i < std::size(kFrameRates); ++i)
+      if (kFrameRates[i] == g_custom_fps) return int(i);
+    return 1;
+  }
+  if (name == "GTAIV_FF_CONSOLE_GAMMA") {
+    const char* curve = std::getenv("RECOMP_OUTPUT_CURVE");
+    if (curve && std::strcmp(curve, "bt709") == 0) return 1;
+    if (curve && std::strcmp(curve, "1.2") == 0) return 2;
+  }
+  return pref.initial;
 }
 }  // namespace
 
@@ -42,8 +78,15 @@ namespace gtaiv {
 
 void LoadFusionFixSettings(const std::string& data_root) {
   g_settings = std::filesystem::path(data_root) / "fusionfix-settings";
+  if (const char* fps = std::getenv("GTAIV_FPS_LIMIT")) {
+    const double requested = std::atof(fps);
+    if (std::isfinite(requested) && requested > 0) g_custom_fps = requested;
+    // Apply the live preset in the game frame hook. Avoid a second limiter
+    // in x86recomp's PresentFrame.
+    unsetenv("GTAIV_FPS_LIMIT");
+  }
   for (auto& pref : g_preferences) {
-    int value = pref.initial;
+    int value = InitialChoice(pref);
     const bool fov = std::strcmp(pref.env, "GTAIV_FOV") == 0;
     if (fov) {
       // The launcher and menu use 5-degree steps. Terminal runs also accept degrees.
@@ -53,21 +96,30 @@ void LoadFusionFixSettings(const std::string& data_root) {
         g_fov.store(requested, std::memory_order_relaxed);
         value = int(std::clamp(requested / 5.0f, 0.0f, float(pref.maximum)));
       }
-    } else {
-      value = OptionOn(pref.env, pref.initial);
     }
     int saved;
     if (std::ifstream(g_settings / pref.name) >> saved && saved >= 0 && saved <= pref.maximum) {
       value = saved;
       if (fov) g_fov.store(float(saved * 5), std::memory_order_relaxed);
+      if (std::strcmp(pref.env, "GTAIV_FF_CONSOLE_GAMMA") == 0) {
+        if (saved == 0) unsetenv("RECOMP_OUTPUT_CURVE");
+        else setenv("RECOMP_OUTPUT_CURVE", saved == 1 ? "bt709" : "1.2", 1);
+      }
     }
     pref.value.store(value, std::memory_order_relaxed);
   }
 }
 
-bool FusionFixOption(const char* env) {
+int FusionFixChoice(const char* env) {
   auto* pref = FindOption(env);
-  return pref && pref->value.load(std::memory_order_relaxed) != 0;
+  return pref ? pref->value.load(std::memory_order_relaxed) : 0;
+}
+
+bool FusionFixOption(const char* env) { return FusionFixChoice(env) != 0; }
+
+double FusionFixFrameLimit() {
+  const int preset = FusionFixChoice("GTAIV_FF_FPS_PRESET");
+  return preset == 1 ? g_custom_fps : kFrameRates[preset];
 }
 
 float FusionFixFov() {
@@ -102,6 +154,8 @@ void WritePreference(uint32_t id, uint32_t value) {
   int next = std::clamp(int32_t(value), 0, pref->maximum);
   if (pref->value.exchange(next, std::memory_order_relaxed) == next) return;
   if (std::strcmp(pref->env, "GTAIV_FOV") == 0) g_fov.store(float(next * 5), std::memory_order_relaxed);
+  if (std::strcmp(pref->env, "GTAIV_FF_BLOCK_ON_FOCUS_LOSS") == 0)
+    Wr8(kNoBlockOnLostFocus, next == 0);
   std::error_code ec;
   std::filesystem::create_directories(g_settings, ec);
   const auto path = g_settings / pref->name;

@@ -38,6 +38,38 @@ class MenuOverlayTests(unittest.TestCase):
         )
         self.assertIsNotNone(menu.find("sMenuDisplayValue/menu[@enum='MENU_DISPLAY_ON_OFF']"))
 
+    def test_custom_displays_use_free_native_slots_for_both_menus(self):
+        stock = """<FrontendMenu><sMenuDisplayValue>
+          <menu enum="MENU_DISPLAY_EXTRA_0"/>
+        </sMenuDisplayValue><sMenuScreen>
+          <menupc enum="SCR_ADVANCED"/><menupc enum="SCR_TGRAPHICS"/>
+        </sMenuScreen></FrontendMenu>"""
+        fusion = b"""<FrontendMenu><sMenuDisplayValue>
+          <menupc enum="MENU_DISPLAY_FRAMELIMIT">
+            <options text="MO_OFF" action="ACTION_NONE" value="0"/>
+            <options text="30" action="ACTION_NONE" value="2"/>
+          </menupc>
+        </sMenuDisplayValue><sMenuScreen>
+          <menupc enum="SCR_ADVANCED">
+            <optionspc value="PREF_FPS_LIMIT_PRESET" displayValue="MENU_DISPLAY_FRAMELIMIT"/>
+          </menupc>
+          <menupc enum="SCR_TGRAPHICS">
+            <optionspc value="PREF_FPS_LIMIT_PRESET" displayValue="MENU_DISPLAY_FRAMELIMIT"/>
+          </menupc>
+        </sMenuScreen></FrontendMenu>"""
+        with tempfile.TemporaryDirectory() as tmp:
+            original = Path(tmp) / "frontend_menus.xml"
+            original.write_text(stock)
+            menu = fusionfix.merge_menu(original, fusion, {"PREF_FPS_LIMIT_PRESET"})
+        self.assertEqual(
+            [x.get("enum") for x in menu.findall("sMenuDisplayValue/*")],
+            ["MENU_DISPLAY_EXTRA_0", "MENU_DISPLAY_EXTRA_1"],
+        )
+        self.assertEqual(
+            [x.get("displayValue") for x in menu.findall("sMenuScreen/*/*")],
+            ["MENU_DISPLAY_EXTRA_1", "MENU_DISPLAY_EXTRA_1"],
+        )
+
     def test_rejects_a_corrupt_archive(self):
         with tempfile.TemporaryDirectory() as tmp:
             archive = Path(tmp) / "FusionFix.zip"

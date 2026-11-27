@@ -60,18 +60,45 @@ def find_path(root, relative):
 
 def merge_menu(original, fusionfix, supported):
     stock = ET.parse(original)
-    menus = {row.get("enum"): row for row in stock.findall("sMenuScreen/*")}
-    for page in ET.fromstring(fusionfix).findall("sMenuScreen/*"):
+    fusion = ET.fromstring(fusionfix)
+    menus = {page.get("enum"): page for page in stock.findall("sMenuScreen/*")}
+    displays = stock.find("sMenuDisplayValue")
+    native_displays = {row.get("enum") for row in displays}
+    # Patch 8 reserves 11 native enum slots for additional display tables.
+    # Keep definitions and references in sync so no guest table grows.
+    reserved = [f"MENU_DISPLAY_EXTRA_{i}" for i in range(11)]
+    in_use = native_displays | {row.get("displayValue") for row in stock.findall("sMenuScreen/*/*")}
+    available = iter(slot for slot in reserved if slot not in in_use)
+    fusion_displays = {row.get("enum"): row for row in fusion.findall("sMenuDisplayValue/*")}
+    assigned = {}
+    for page in fusion.findall("sMenuScreen/*"):
         target = menus.get(page.get("enum"))
         if target is None:
             continue
         for row in page:
             if row.get("value") not in supported:
                 continue
-            position = next(
-                (i for i, item in enumerate(target) if item.get("label") == "MO_EXITGAM"),
-                len(target),
-            )
+            display = row.get("displayValue")
+            if display in fusion_displays and display not in native_displays:
+                if display not in assigned:
+                    slot = next(available, None)
+                    if slot is None:
+                        raise ValueError(f"No free display table for {display}.")
+                    assigned[display] = slot
+                    definition = fusion_displays[display]
+                    definition.set("enum", slot)
+                    displays.append(definition)
+                row.set("displayValue", assigned[display])
+            label = row.get("label")
+            existing = next((item for item in target if label and item.get("label") == label), None)
+            if existing is not None:
+                position = list(target).index(existing)
+                target.remove(existing)
+            else:
+                position = next(
+                    (i for i, item in enumerate(target) if item.get("label") == "MO_EXITGAM"),
+                    len(target),
+                )
             target.insert(position, row)
     return stock
 

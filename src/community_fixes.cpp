@@ -318,9 +318,8 @@ void hook_008F0071(Ctx& c) {
 // (grcDevice::ms_bNoBlockOnLostFocus, [00FE80D3], set from the settings at
 // the start, just before and ax, 3FF). Kept running with the option.
 void hook_004063D2(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_RUN_IN_BACKGROUND", false);
   c.eax = (c.eax & 0xFFFF0000u) | (c.eax & 0x3FF);
-  if (on) Wr8(0x00FE80D3, 1);
+  Wr8(0x00FE80D3, !gtaiv::FusionFixOption("GTAIV_FF_BLOCK_ON_FOCUS_LOSS"));
 }
 
 // Menus take a click of the left button (test reg, 1) to choose and to go
@@ -434,25 +433,6 @@ void hook_009AFC40(Ctx& c) { c.ecx = water_surface::NoiseSetting(WaterTiling(), 
 void hook_00A0DA85(Ctx& c) {
   c.ecx = Rd32(kRenderTargetFactory);
   c.esi = water_surface::TargetSide(WaterTiling(), c.esi);
-}
-
-// CCamFollowPed: how strongly the camera swings back behind the player
-// this frame (movss [esp+48], xmm0). With the mouse it pulls against the
-// player's aim at once; held at 0 for 2 s of game time after the mouse
-// moved (its deltas this frame at [017945D0], [017945C0]). A gamepad
-// leaves the mouse still, and the camera as the game has it.
-void hook_00A8A6E0(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_MOUSE_CAMERA_DELAY", true);
-  static uint32_t until, last;
-  float v = Lane0(c.xmm[0]);
-  if (on) {
-    const uint32_t now = Rd32(0x010FCB6C);  // the game's clock, ms
-    if (now < last) until = 0;               // a save loaded
-    last = now;
-    if (Rd32(0x017945D0) || Rd32(0x017945C0)) until = now + 2000;
-    if (now < until) v = 0.0f;
-  }
-  WrF32(c.esp + 0x48, v);
 }
 
 // A ped's hat in a vehicle stays on for some models: the first two
@@ -687,35 +667,6 @@ void hook_008FC1A5(Ctx& c) {
   }
   SetLane0(c.xmm[0], brake);
   ComissFlags(c, brake, RdF32(0x00DDDCCC));
-}
-
-// CCamFollowVehicle: how fast the camera swings back behind the car this
-// frame, across and up (divss by a time; movss to the frame). With
-// keyboard and mouse divided by 0.7 more (a camera turn speed of 3: 1 -
-// 3 * 0.1), and none on a frame the mouse moves (its deltas at
-// [017945D0], [017945C0]), so it does not pull against the player's
-// look; with a gamepad as it was (the pad, 86A1A0(1), has its "keyboard"
-// byte +328D at 0 then).
-namespace {
-float CarCameraReturn(Ctx& c, float v, float time) {
-  static const bool on = OptionOn("GTAIV_CAR_CAMERA_RETURN", true);
-  if (!on) return v / time;
-  KeepRegs keep(c);  // no call here in the game's code
-  const uint32_t pad = uint32_t(CallGuest(c, 0x0086A1A0, {1}));
-  if (pad && Rd8(pad + 0x328D) == 0) return v / time;
-  if (Rd32(0x017945D0) || Rd32(0x017945C0)) return 0.0f;
-  return v / (time * 0.7f);
-}
-}  // namespace
-void hook_00A813F9(Ctx& c) {  // divss xmm0, xmm1; movss [esp+58], xmm0
-  const float v = CarCameraReturn(c, Lane0(c.xmm[0]), Lane0(c.xmm[1]));
-  SetLane0(c.xmm[0], v);
-  WrF32(c.esp + 0x58, v);
-}
-void hook_00A81108(Ctx& c) {  // divss xmm0, xmm2; movss [esp+BC], xmm0
-  const float v = CarCameraReturn(c, Lane0(c.xmm[0]), Lane0(c.xmm[2]));
-  SetLane0(c.xmm[0], v);
-  WrF32(c.esp + 0xBC, v);
 }
 
 }  // namespace recomp::gen

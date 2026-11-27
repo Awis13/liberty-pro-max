@@ -325,7 +325,9 @@ final class Engine: ObservableObject {
       try? fm.removeItem(at: exe)
       try fm.copyItem(at: work.appendingPathComponent("gtaiv"), to: exe)
     }.value
-    try fm.moveItem(at: fusion, to: staged.appendingPathComponent("Contents/Resources/fusionfix"))
+    let resources = staged.appendingPathComponent("Contents/Resources", isDirectory: true)
+    try fm.createDirectory(at: resources, withIntermediateDirectories: true)
+    try fm.moveItem(at: fusion, to: resources.appendingPathComponent("fusionfix"))
     _ = await Run.run("/usr/bin/xattr", ["-dr", "com.apple.quarantine", staged.path])
     let fw = staged.appendingPathComponent("Contents/Frameworks")
     for d in (try? FileManager.default.contentsOfDirectory(atPath: fw.path)) ?? [] where d.hasSuffix(".dylib") {

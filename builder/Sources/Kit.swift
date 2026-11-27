@@ -6,6 +6,7 @@
 //   src/, include/                    the port's and the runtime's sources
 //   app/Liberty Pro Max.app           the app without its executable
 //   recipe.json                       how to compile and link the game
+//   radio/Catalog.json                sizes and checksums for the radio release
 // Everything that is not the game's code comes built; only the code
 // translated from the player's own GTAIV.exe is compiled on their Mac.
 

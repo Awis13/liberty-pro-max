@@ -1,0 +1,250 @@
+{
+  "data1.dat": {
+    "sha256": "fafcc39a95233bf3d7603389eb8f3be2eb56ebc6f9032172544db59c5cbfe419",
+    "size": 1017215499,
+    "files": [
+      {
+        "path": "update/common/text/americanRR.gxt",
+        "size": 9620,
+        "sha256": "d415517bf06ebea36bd5449e5426580d34c7e7d830a337515615a808d90113e6"
+      },
+      {
+        "path": "update/common/text/frenchRR.gxt",
+        "size": 10544,
+        "sha256": "6a9318353175adf8c1425ffd71fa815ce1378dacbaf08ea19d089435fe9b3100"
+      },
+      {
+        "path": "update/common/text/germanRR.gxt",
+        "size": 9826,
+        "sha256": "2362c2f30fc3c5923c23a6445b3a3c5670f6289e05d2744b7b9aea031b5ad0a3"
+      },
+      {
+        "path": "update/common/text/italianRR.gxt",
+        "size": 9620,
+        "sha256": "881d2e46198624fd94303d9a2813a116bb72790ed575472c0a8177cf4f427c13"
+      },
+      {
+        "path": "update/common/text/japaneseRR.gxt",
+        "size": 26552,
+        "sha256": "4b69a7d029acb021a0a798298cad74883469f2d4ba5f2c9a0481da220b1a8011"
+      },
+      {
+        "path": "update/common/text/russianRR.gxt",
+        "size": 15192,
+        "sha256": "75c81cdbb33fd6f65bf3bae0abe10b81e35189b9a1cd27d29e42bc1958d8c5e1"
+      },
+      {
+        "path": "update/common/text/spanishRR.gxt",
+        "size": 11518,
+        "sha256": "cb6765eb6b72dfbd139b9544e5cbf675bb33b3f3237b9639aadabd190b8f2741"
+      },
+      {
+        "path": "update/pc/audio/config/CATEGORIES.DAT15",
+        "size": 15859,
+        "sha256": "c2b58491e32b4c304e4657e2407bf2aed895d8ec81e3029adefd1c08007e1482"
+      },
+      {
+        "path": "update/pc/audio/config/CURVES.DAT12",
+        "size": 37254,
+        "sha256": "ae970505d401effe99505f0b4bf9bb12027dea4fc2c6e49a8a82d4068023c564"
+      },
+      {
+        "path": "update/pc/audio/config/EFLC_SPEECH.DAT",
+        "size": 4498,
+        "sha256": "d0a1e352f32d9a4b223d1d4aeb4b0baa26a015e8536ac1dc63ec8564c76f563d"
+      },
+      {
+        "path": "update/pc/audio/config/rpf.xml",
+        "size": 6363,
+        "sha256": "dc23e2f306dac492677a0cd4f7eef0a072f0aacadb96390d658c64919abbd600"
+      },
+      {
+        "path": "update/pc/audio/config/SOUNDS.DAT15",
+        "size": 1929323,
+        "sha256": "fae425cd6d0f098a18d670e7f317a59265b3f1e4509bb1ad3d6032d1ca1c7eb1"
+      },
+      {
+        "path": "update/pc/audio/config/speech.dat",
+        "size": 544393,
+        "sha256": "c01e4ae35d4afef5d59dc58978e33feb7601e8870767d96d7aa06c969d5c1594"
+      },
+      {
+        "path": "update/pc/audio/sfx/RADIO_RESTORATION.rpf",
+        "size": 676575232,
+        "sha256": "ef2f89faed522eda17eb4bc1a2cec627fc660141cf4555ce531c1e829969b763"
+      },
+      {
+        "path": "update/TBoGT/e2_audio.xml",
+        "size": 753,
+        "sha256": "6c354d80bb89a93bcdc544d7051bb7a9f192ed236f8b74ec1b4026c693d3311f"
+      },
+      {
+        "path": "update/TBoGT/e2_radio.xml",
+        "size": 415,
+        "sha256": "4b0954a95fe24940f02d6554e309c83f30061eeb176c3e7ef0fab55330d390e6"
+      },
+      {
+        "path": "update/TBoGT/pc/audio/config/EP2_GAME.DAT16",
+        "size": 42818,
+        "sha256": "3386f9976634c52c46ea14b2d18081c1621eabbc86d20c6dbfc3a43a4bea25c5"
+      },
+      {
+        "path": "update/TBoGT/pc/audio/config/EP2_RADIO_GAME.DAT16",
+        "size": 2477,
+        "sha256": "65fd1baa8cf71e99937068c9e56771f669b71f51a2168efde492c970161cd83f"
+      },
+      {
+        "path": "update/TBoGT/pc/audio/config/EP2_RADIO_SOUNDS.DAT15",
+        "size": 53200,
+        "sha256": "e69471efe2971f814eaab502d2726f3dee3e5c78b9b1b379c8faf9335f96a87e"
+      },
+      {
+        "path": "update/TBoGT/pc/audio/config/EP2_SOUNDS.DAT15",
+        "size": 367546,
+        "sha256": "2d07012b69dde69b094b9f33004695d94f3b90ed8a3f50b6b9baba6a4512796c"
+      },
+      {
+        "path": "update/TBoGT/pc/audio/sfx/RR_EP2_SFX.rpf",
+        "size": 296474624,
+        "sha256": "b011d957204a0a425b19c470070ea1e0b362cdf9d4c769f6ab6157c8890af6dd"
+      },
+      {
+        "path": "update/TLAD/e1_radio.xml",
+        "size": 559,
+        "sha256": "79636657161a3c94abfed1274b9c093f38803369e51c1d677e97bcc304035e5d"
+      },
+      {
+        "path": "update/TLAD/pc/audio/config/EP1_GAME.DAT16",
+        "size": 34711,
+        "sha256": "e53774dbc126a2546e26b3a4df2f7062aceee267ddc171ff98a23fda004eb65c"
+      },
+      {
+        "path": "update/TLAD/pc/audio/config/EP1_RADIO_GAME.DAT16",
+        "size": 2648,
+        "sha256": "d8c15a968af1d5a07fbca7dae16a160d850cbe65d9fb269672ae5a1cfc9d14fd"
+      },
+      {
+        "path": "update/TLAD/pc/audio/config/EP1_RADIO_SOUNDS.DAT15",
+        "size": 80587,
+        "sha256": "a291fb11da035baa0a0286808454fdcc682229c149176bc18f76a99959f2bff7"
+      },
+      {
+        "path": "update/TLAD/pc/audio/config/EP1_RADIO_SPEECH.DAT",
+        "size": 1134,
+        "sha256": "d7db985740bf06a711f7a6b4e67d8933c4b724fa062650fed3722f08293556f1"
+      },
+      {
+        "path": "update/TLAD/pc/audio/config/EP1_SOUNDS.DAT15",
+        "size": 205819,
+        "sha256": "fb5be5d336b38eb503996574c6103ff6069b0c2d2917358980c56b8fa1b6da1f"
+      },
+      {
+        "path": "update/TLAD/pc/audio/sfx/RR_EP1_SFX.rpf",
+        "size": 221806592,
+        "sha256": "5d384365b308184db86d161be6550fb27f86c23f42ab8b57da88e9da7f417213"
+      }
+    ]
+  },
+  "opALL.dat": {
+    "sha256": "c63269b255ad08f9d6ee76bdb8a809465293c80dcd1106bea5d884ea32702c7d",
+    "size": 69209,
+    "files": [
+      {
+        "path": "update/pc/audio/config/GAME.DAT16",
+        "size": 268352
+      }
+    ]
+  },
+  "opCLASSIC.dat": {
+    "sha256": "0345a725b1366f04a169163cacb654fdfb3560ddf30373b225ac668425b1a08a",
+    "size": 69190,
+    "files": [
+      {
+        "path": "update/pc/audio/config/GAME.DAT16",
+        "size": 268320
+      }
+    ]
+  },
+  "opSPLITBETA.dat": {
+    "sha256": "5a85600477e4943115fd4a6a4135c46ac3c48dd2c20625b7a255150bf5a2ac45",
+    "size": 68558,
+    "files": [
+      {
+        "path": "update/pc/audio/config/eflc_GAME.DAT16",
+        "size": 266976
+      }
+    ]
+  },
+  "opSPLITVANILLA.dat": {
+    "sha256": "0601952783fb131969335f8f74ae339b681ffca349f76732262a62ef51692fcf",
+    "size": 68543,
+    "files": [
+      {
+        "path": "update/pc/audio/config/eflc_GAME.DAT16",
+        "size": 266944
+      }
+    ]
+  },
+  "opSPLITbase.dat": {
+    "sha256": "570241b91d5ccfbdfd0c117f4295e1e950d2e560786cae74e45cdab52106d000",
+    "size": 527308,
+    "files": [
+      {
+        "path": "update/pc/audio/config/EFLC_SOUNDS.DAT15",
+        "size": 1929203
+      },
+      {
+        "path": "update/TBOGT/downsplit.dat",
+        "size": 100
+      },
+      {
+        "path": "update/TBOGT/e2_audio.xml",
+        "size": 1349
+      },
+      {
+        "path": "update/TBOGT/e2_radio.xml",
+        "size": 195
+      },
+      {
+        "path": "update/TBOGT/setup2.xml",
+        "size": 784
+      },
+      {
+        "path": "update/tlad/downsplit.dat",
+        "size": 102
+      },
+      {
+        "path": "update/tlad/e1_audio.xml",
+        "size": 1229
+      },
+      {
+        "path": "update/tlad/e1_radio.xml",
+        "size": 268
+      },
+      {
+        "path": "update/tlad/setup2.xml",
+        "size": 781
+      }
+    ]
+  },
+  "opVANILLA.dat": {
+    "sha256": "6d18f09ecb3e981934c928a09a13f6bb59720cf2502d825de0622ca1cd2545be",
+    "size": 69060,
+    "files": [
+      {
+        "path": "update/pc/audio/config/GAME.DAT16",
+        "size": 268136
+      }
+    ]
+  },
+  "opVANILLABETA.dat": {
+    "sha256": "1bb3301e9fa2a82797db2fd39c7caf60823e8d2db868084f1722073fa27cac09",
+    "size": 68687,
+    "files": [
+      {
+        "path": "update/pc/audio/config/GAME.DAT16",
+        "size": 268168
+      }
+    ]
+  }
+}

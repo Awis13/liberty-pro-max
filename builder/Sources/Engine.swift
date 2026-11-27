@@ -23,6 +23,11 @@ final class Engine: ObservableObject {
   @Published private(set) var patch: URL?
   @Published var game: Check = .none
   private var selection = UUID()
+  @Published var restoreRadio = false
+  @Published var radioOptions = RadioOptions()
+  @Published private(set) var radioInput: RadioInput?
+  @Published private(set) var radioCheck: Check = .none
+  @Published private(set) var radioInstalled = false
   // The Command Line Tools (clang, the macOS SDK, objdump, python3).
   @Published var tools: Check = .none
   @Published var toolsOutdated = false  // installed but too old: the installer cannot help
@@ -44,7 +49,8 @@ final class Engine: ObservableObject {
   private var buildTask: Task<Void, Never>?
 
   var canBuild: Bool {
-    if building || (needsPatch && (patch == nil || GameInput.extractor == nil)) {
+    if building || (needsPatch && (patch == nil || GameInput.extractor == nil))
+      || (restoreRadio && radioInput == nil) {
       return false
     }
     if case .ok = game, case .ok = tools { return true }
@@ -66,15 +72,21 @@ final class Engine: ObservableObject {
   private var echo = false
 
   /// The build without the window: checks, builds, prints the log.
-  static func headless(game: URL, patch: URL?) async -> Int32 {
+  static func headless(game: URL, patch: URL?, radio: URL?, options: RadioOptions) async -> Int32 {
     let e = Engine(loadSavedGame: false)
     e.echo = true
     await e.setGame(game)
     if let patch { e.setPatch(patch) }
+    if let radio {
+      e.restoreRadio = true
+      e.radioOptions = options
+      e.setRadio(radio)
+    }
     await e.checkTools()
     guard e.canBuild else {
       if e.needsPatch && e.patch == nil { print("Supply --patch PATCH_8_INSTALLER.") }
       if e.needsPatch && GameInput.extractor == nil { print("Run brew install sevenzip.") }
+      if case .bad(let message) = e.radioCheck { print(message) }
       print("not ready: game \(e.game), tools \(e.tools)")
       return 2
     }
@@ -124,6 +136,18 @@ final class Engine: ObservableObject {
     guard !building else { return }
     patch = url
     failure = nil
+  }
+
+  func setRadio(_ url: URL) {
+    guard !building else { return }
+    failure = nil
+    do {
+      radioInput = try RadioInput(url)
+      radioCheck = .none
+    } catch {
+      radioInput = nil
+      radioCheck = .bad(error.localizedDescription)
+    }
   }
 
   // MARK: The developer tools
@@ -177,13 +201,15 @@ final class Engine: ObservableObject {
   func build() {
     guard canBuild, let input = gameInput else { return }
     let installer = patch
+    let request = restoreRadio ? radioInput.map { RadioRequest(input: $0, options: radioOptions) } : nil
     building = true
     failure = nil
     built = nil
+    radioInstalled = false
     log.removeAll()
     buildTask = Task {
       do {
-        let app = try await runBuild(input: input, patch: installer)
+        let app = try await runBuild(input: input, patch: installer, radio: request)
         built = app
         step = "Done"
         progress = 1
@@ -199,16 +225,17 @@ final class Engine: ObservableObject {
 
   func again() { built = nil }
 
-  private func runBuild(input: GameInput, patch: URL?) async throws -> URL {
+  private func runBuild(input: GameInput, patch: URL?, radio: RadioRequest?) async throws -> URL {
     let work = Engine.work
     let gen = work.appendingPathComponent("generated")
     try FileManager.default.createDirectory(at: gen.appendingPathComponent("native"), withIntermediateDirectories: true)
     try FileManager.default.createDirectory(at: work.appendingPathComponent("obj"), withIntermediateDirectories: true)
 
     // Room: the translated code, its objects and the app take about 3 GB.
+    let gbNeeded: Int64 = radio == nil ? 4 : 7
     if let free = try? work.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-      .volumeAvailableCapacityForImportantUsage, free < 4_000_000_000 {
-      throw Failure("About 4 GB of free disk space is needed to build; \(free / 1_000_000_000) GB is free.")
+      .volumeAvailableCapacityForImportantUsage, free < gbNeeded * 1_000_000_000 {
+      throw Failure("The build needs about \(gbNeeded) GB. \(free / 1_000_000_000) GB is free.")
     }
     guard let sdk = await Run.line("/usr/bin/xcrun", ["--show-sdk-path"]),
           let objdump = await Run.line("/usr/bin/xcrun", ["--find", "objdump"]) else {
@@ -227,6 +254,9 @@ final class Engine: ObservableObject {
     let executable = try await input.executable(patch: patch, staging: staging)
     try Task.checkCancellation()
     let game = input.folder
+    let restored = try await prepareRadio(radio)
+    defer { restored?.discard() }
+    try Task.checkCancellation()
 
     // 1. The game's code, translated from its x86 to C++.
     step = "Translating the game's code"
@@ -311,8 +341,28 @@ final class Engine: ObservableObject {
 
     // The game folder, so the launcher does not ask for it.
     CFPreferencesSetAppValue("GameFolder" as CFString, game.path as CFString, Kit.gameDomain)
+    if let restored, let radio {
+      do {
+        let destination = try restored.install()
+        let own = radio.options.split ? kCFBooleanTrue : kCFBooleanFalse
+        CFPreferencesSetAppValue("EpisodeRadioOwn" as CFString, own, Kit.gameDomain)
+        radioInstalled = true
+        say("== radio restored: \(destination.path)")
+      } catch {
+        failure = "The game was installed. Radio Restoration failed. " + error.localizedDescription
+      }
+    }
     CFPreferencesAppSynchronize(Kit.gameDomain)
     return dest
+  }
+
+  private func prepareRadio(_ radio: RadioRequest?) async throws -> PreparedRadio? {
+    guard let radio else { return nil }
+    step = "Preparing Radio Restoration"
+    progress = -1
+    say("== verifying Radio Restoration files")
+    return try await PreparedRadio.prepare(
+      radio, in: PreparedRadio.modsFolder, catalog: Kit.root.appendingPathComponent("radio/Catalog.json"))
   }
 
   /// Runs `body` over `items`, as many at once as the Mac has cores; a

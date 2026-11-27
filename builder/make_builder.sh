@@ -84,6 +84,7 @@ DEVELOPER_DIR=$dev xcrun swiftc -O -warnings-as-errors -parse-as-library \
   -target arm64-apple-macos14.0 -swift-version 5 \
   builder/Sources/*.swift -o "$b/Contents/MacOS/Builder"
 cp builder/Info.plist "$b/Contents/Info.plist"
+cp -R builder/RadioResources "$kit/radio"
 mv $kit "$b/Contents/Resources/kit"
 # SIGN_ID: a Developer ID Application identity (timestamped, for
 # notarization: NOTARY_PROFILE, a notarytool keychain profile); default ad hoc.

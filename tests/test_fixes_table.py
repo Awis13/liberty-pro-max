@@ -111,7 +111,7 @@ class FallbackTests(unittest.TestCase):
         seen = set()
         calls = matched = 0
         for path in sorted((root / 'src').iterdir()):
-            if path.suffix not in ('.cpp', '.mm', '.h') or path.name == 'option.h':
+            if path.suffix not in ('.cpp', '.mm', '.h') or path.name in ('option.h', 'fusionfix_menu.cpp'):
                 continue
             text = path.read_text(errors='replace')
             calls += len(re.findall(r'\bOptionOn\(', text))
@@ -124,6 +124,10 @@ class FallbackTests(unittest.TestCase):
                 self.assertIn(env, table, f'{path.name}: {env} is in neither the table nor NOT_IN_TABLE')
                 self.assertEqual(fallback, table[env], f'{path.name}: {env} falls back to {fallback}, '
                                                        f'the table says {table[env]}')
+        bound = (root / 'src/fusionfix_options.inc').read_text()
+        for env, default in re.findall(r'FUSION_OPTION\(PREF_\w+, (GTAIV_\w+), ([01]), 1\)', bound):
+            self.assertIn(env, table)
+            self.assertEqual(default == '1', table[env], env)
         # A call with a fallback that is not a literal would be skipped.
         self.assertEqual(calls, matched, 'an OptionOn call the check cannot read')
         self.assertIn('GTAIV_EPISODES', seen)

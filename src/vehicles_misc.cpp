@@ -106,7 +106,7 @@ bool BlinkOn(uint32_t veh, uint32_t clock) {
 }
 
 bool TurnIndicatorsOn() {
-  static const bool on = OptionOn("GTAIV_TURN_INDICATORS", false);
+  const bool on = gtaiv::FusionFixOption("GTAIV_TURN_INDICATORS");
   return on;
 }
 

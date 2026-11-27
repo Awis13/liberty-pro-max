@@ -47,17 +47,6 @@ std::string Lower(std::string s) {
   return s;
 }
 
-// The port's per-user data directory, mirroring the runtime's DataDir()
-// with this game's id ("gtaiv", main.cpp): that one reads g_proc, which
-// does not exist yet when main wires the config up.
-std::string DataRoot() {
-  if (const char* x = std::getenv("XDG_DATA_HOME"); x && *x)
-    return std::string(x) + "/gtaiv";
-  if (const char* h = std::getenv("HOME"); h && *h)
-    return std::string(h) + recomp::platform::kUserDataDir + "gtaiv";
-  return "/tmp/gtaiv";
-}
-
 // The files below `dir` (rel: its path in the mod, guest: the mod's folder).
 void Scan(const std::string& dir, const std::string& rel, const std::string& guest) {
   DIR* d = opendir(dir.c_str());
@@ -82,6 +71,17 @@ void Scan(const std::string& dir, const std::string& rel, const std::string& gue
 
 }  // namespace
 
+// The port's per-user data directory, mirroring the runtime's DataDir()
+// with this game's id ("gtaiv", main.cpp): that one reads g_proc, which
+// does not exist yet when main wires the config up.
+std::string GtaivDataRoot() {
+  if (const char* x = std::getenv("XDG_DATA_HOME"); x && *x)
+    return std::string(x) + "/gtaiv";
+  if (const char* h = std::getenv("HOME"); h && *h)
+    return std::string(h) + recomp::platform::kUserDataDir + "gtaiv";
+  return "/tmp/gtaiv";
+}
+
 // Called from main.cpp before the game starts.
 void GtaivModsInit() {
   g_log = [] {
@@ -89,7 +89,7 @@ void GtaivModsInit() {
     return e && *e && *e != '0';
   }();
   if (!OptionOn("GTAIV_MODS", true)) return;
-  const std::string root = DataRoot() + "/drive_c/mods";
+  const std::string root = GtaivDataRoot() + "/drive_c/mods";
   std::vector<std::string> mods;
   if (DIR* d = opendir(root.c_str())) {
     while (dirent* e = readdir(d))

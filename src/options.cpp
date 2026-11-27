@@ -386,10 +386,7 @@ void hook_004A346B(Ctx& c) {
 // of view, at this+60, as the game sets it; GTAIV_FOV degrees are added
 // (FusionFix's custom FOV, by its idea).
 void f_00A777C0(Ctx& c) {
-  static const float extra = [] {
-    const char* e = std::getenv("GTAIV_FOV");
-    return e ? float(std::atof(e)) : 0.0f;
-  }();
+  const float extra = gtaiv::FusionFixFov();
   const uint32_t self = c.ecx;
   f_00A777C0_lifted(c);
   if (extra != 0.0f) {

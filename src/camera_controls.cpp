@@ -158,7 +158,7 @@ void hook_00A80538(Ctx& c) {
 // the player got off one (CTaskSimpleClimbLadder's clean-up, C78090).
 namespace {
 bool AutoLadders() {
-  static const bool on = OptionOn("GTAIV_AUTO_LADDERS", false);
+  const bool on = gtaiv::FusionFixOption("GTAIV_AUTO_LADDERS");
   return on;
 }
 constexpr float kAutoLadderRange = 1.5f;

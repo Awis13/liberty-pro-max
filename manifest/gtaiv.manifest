@@ -868,3 +868,18 @@ replace 008906B0 ExtraContent_LoadAudio   #   the same, the audio lists alone
 hook 0088798D 0088798E   # the game's button textures loaded (push ebp): the other pads' sets beside them (GTAIV_PAD_ICONS)
 replace 00887E80 MenuManager_ReleaseButtonTextures   # the other pad sets released, the game's own given back
 hook 007BC38E 007BC393   # the speaker setting the game mixes by: a surround placement for headphones or stereo while its output is 5.1 (GTAIV_SPATIAL_AUDIO)
+
+# FusionFix's menu preferences (src/fusionfix_menu.cpp): XML names/scalers
+# and the frontend's shared readers and writers for custom preference IDs.
+replace 0049BD90 FusionFixPreferenceName
+hook 0048DB56 0048DB5D
+hook 0048E4B7 0048E4BE
+hook 0049BD38 0049BD3F
+hook 007BEF34 007BEF3B
+hook 007C3F0F 007C3F16
+hook 007C4785 007C478E
+hook 007C9CE4 007C9CEB
+hook 007C9DDB 007C9DE3
+hook 007C9E47 007C9E4E
+hook 007CA193 007CA19A
+hook 007CA1A0 007CA1A7

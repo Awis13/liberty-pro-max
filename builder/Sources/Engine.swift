@@ -244,16 +244,27 @@ final class Engine: ObservableObject {
 
     let fm = FileManager.default
     let staging = work.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try fm.createDirectory(at: staging, withIntermediateDirectories: false,
+                           attributes: [.posixPermissions: 0o700])
+    defer { try? fm.removeItem(at: staging) }
     if input.needsPatch {
       step = "Extracting GTAIV.exe from Patch 8"
       progress = -1
-      try fm.createDirectory(at: staging, withIntermediateDirectories: false,
-                             attributes: [.posixPermissions: 0o700])
     }
-    defer { if input.needsPatch { try? fm.removeItem(at: staging) } }
     let executable = try await input.executable(patch: patch, staging: staging)
     try Task.checkCancellation()
     let game = input.folder
+
+    step = "Preparing FusionFix"
+    progress = -1
+    let fusion = staging.appendingPathComponent("fusionfix")
+    let downloads = work.deletingLastPathComponent().appendingPathComponent("Liberty Pro Max Downloads")
+    let dependencies = await Run.run("/usr/bin/python3",
+      [Kit.path("tools/fusionfix.py"), game.path, fusion.path, "--cache", downloads.path])
+    try Task.checkCancellation()
+    guard dependencies.ok else { throw Failure("Preparing FusionFix failed:\n" + dependencies.output.suffix(2000)) }
+    say("== FusionFix data and in-game menus prepared")
+
     let restored = try await prepareRadio(radio)
     defer { restored?.discard() }
     try Task.checkCancellation()
@@ -314,6 +325,7 @@ final class Engine: ObservableObject {
       try? fm.removeItem(at: exe)
       try fm.copyItem(at: work.appendingPathComponent("gtaiv"), to: exe)
     }.value
+    try fm.moveItem(at: fusion, to: staged.appendingPathComponent("Contents/Resources/fusionfix"))
     _ = await Run.run("/usr/bin/xattr", ["-dr", "com.apple.quarantine", staged.path])
     let fw = staged.appendingPathComponent("Contents/Frameworks")
     for d in (try? FileManager.default.contentsOfDirectory(atPath: fw.path)) ?? [] where d.hasSuffix(".dylib") {

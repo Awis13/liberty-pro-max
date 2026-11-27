@@ -32,6 +32,9 @@ say() { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 say "macOS libraries from source"
 [[ -f $deps/lib/libSDL3.0.dylib ]] || PLATFORMS=macos tools/apple_deps.sh
 
+say "FusionFix for the reference build"
+python3 tools/fusionfix.py "$GTAIV_GAME_DIR" out/fusionfix --cache out/downloads
+
 say "Reference build"
 PKG_CONFIG_LIBDIR=$deps/lib/pkgconfig PKG_CONFIG_SYSROOT_DIR= cmake -S . -B $kitbuild -G Ninja \
   -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
@@ -53,7 +56,7 @@ say "Kit"
 kit=$outdir/kit
 rm -rf $outdir && mkdir -p $kit/bin $kit/tools $kit/manifest $kit/include $kit/lib $kit/app
 cp $kitbuild/x86recomp/tools/lifter/recomp_lift $kit/bin/
-cp tools/x86n.py $kit/tools/
+cp tools/x86n.py tools/fusionfix.py $kit/tools/
 cp manifest/gtaiv.manifest manifest/native.list $kit/manifest/
 cp -R symbols $kit/symbols
 cp -R src $kit/src
@@ -65,6 +68,7 @@ ditto "$kitbuild/Liberty Pro Max.app" "$app"
 rm -f "$app/Contents/MacOS/gtaiv"
 # Nothing of the game in the kit: not the icon made from its artwork either.
 rm -f "$app/Contents/Resources/AppIcon.icns"
+rm -rf "$app/Contents/Resources/fusionfix"
 cp $deps/lib/libSDL3.0.dylib "$app/Contents/Frameworks/"
 # No run paths of this machine in what ships.
 for f in "$app"/Contents/Frameworks/*.dylib $kit/bin/recomp_lift; do

@@ -355,7 +355,7 @@ void hook_0086648D(Ctx& c) {  // add esp, 1C (then test al, al: "back")
 // cut to it): CIntermezzoEventVaultWall and ...PlayerJackVehicle.
 namespace {
 bool ActionCamera() {
-  static const bool on = OptionOn("GTAIV_ACTION_CAMERA", true);
+  const bool on = gtaiv::FusionFixOption("GTAIV_ACTION_CAMERA");
   return on;
 }
 }  // namespace
@@ -375,7 +375,7 @@ void f_00A8C920(Ctx& c) {
 // unless (call 6C1A10; test al, al; jne) says not. Both skipped when off.
 namespace {
 bool StuntJumpCamera() {
-  static const bool on = OptionOn("GTAIV_STUNT_JUMP_CAMERA", true);
+  const bool on = gtaiv::FusionFixOption("GTAIV_STUNT_JUMP_CAMERA");
   return on;
 }
 }  // namespace
@@ -508,7 +508,7 @@ void hook_00BCB925(Ctx& c) { CmpFlags<4>(c, BikeFeet() ? c.eax : Rd32(0x0112D754
 // bytes at +27EE / +27FE), with the stick's dead zone of a quarter.
 namespace {
 bool SniperMovement() {
-  static const bool on = OptionOn("GTAIV_SNIPER_MOVEMENT", true);
+  const bool on = gtaiv::FusionFixOption("GTAIV_SNIPER_MOVEMENT");
   return on;
 }
 }  // namespace
@@ -595,11 +595,11 @@ void f_008C31B0(Ctx& c) {
 // looks past the player's shoulder by ms_targetOffset (0.2; movss xmm4,
 // [00F4C2E0]).
 void hook_00A7BF8D(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_CENTERED_CAR_CAMERA", false);
+  const bool on = gtaiv::FusionFixOption("GTAIV_CENTERED_CAR_CAMERA");
   CmpFlags<1>(c, on ? 0 : Rd8(0x00F4B56F), 0);
 }
 void hook_00A89930(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_CENTERED_FOOT_CAMERA", false);
+  const bool on = gtaiv::FusionFixOption("GTAIV_CENTERED_FOOT_CAMERA");
   LoadSs(c.xmm[4], on ? 0.0f : RdF32(0x00F4C2E0));
 }
 

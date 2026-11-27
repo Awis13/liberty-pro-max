@@ -112,7 +112,7 @@ struct ShakeTicks {
 
 void f_008CEF80(Ctx& c) {
   static const bool fix = OptionOn("GTAIV_SHAKE_FIX", true);
-  static const bool shake = OptionOn("GTAIV_CAMERA_SHAKE", true);
+  const bool shake = gtaiv::FusionFixOption("GTAIV_CAMERA_SHAKE");
   if (!fix) {
     // The game's own shaker; without the shake its matrix is made from
     // angles times 0 (the scale is used for nothing else).

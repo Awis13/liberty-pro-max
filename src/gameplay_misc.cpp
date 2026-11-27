@@ -84,7 +84,7 @@ void hook_00AB79AE(Ctx& c) { Push(c, GlassShardColours() ? 0x00D78D18 : 0x00DB95
 // option the jump is never taken. The random number is still drawn, as
 // in the game.
 void hook_009D22B2(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_BULLET_TRACERS", false);
+  const bool on = gtaiv::FusionFixOption("GTAIV_BULLET_TRACERS");
   const auto r = x87::CompareStEFlags(c.fpu, 1, false);
   x87::Pop(c.fpu);  // fcomip
   x87::StoreSt(c.fpu, 0);  // fstp st(0)

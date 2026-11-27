@@ -55,9 +55,6 @@ GROUPS = [
     ('Wide screens and the interface', '',
      'PAUSE_MAP_ASPECT CUTSCENE_PILLARS WEB_PAGES CURSOR_SIZE HIDE_CURSOR_ON_PAD RETICLE_HEALTH RADAR_ZOOM_DELAY '
      'INSTANT_MENUS MENU_RIGHT_CLICK MENU_EXTRA_INFO PAUSE_INFO_SPACING LONG_MENU_LISTS'),
-    ("FusionFix", "Its mission and model fixes need its update folder in the game folder. Its shaders do not "
-     "work in the port yet, so their options are not listed.",
-     'FF_DATA'),
     ('Lights, shadows and effects', '',
      'SIGN_GLOW_FIX LOD_LIGHTS CONSOLE_REFLECTIONS MIRROR_OFFSET WATER_TILING CORONA_LIMIT REVERSING_LIGHTS RAIN_LIGHTING '
      'HELI_SEARCHLIGHTS NIGHT_SHADOW_RESOLUTION NIGHT_SHADOW_STABLE BRAKE_LIGHTS_STOPPED BLOOM DEPTH_OF_FIELD '
@@ -86,7 +83,7 @@ def table(fixes, choices):
     out = []
     named = set()
     # FusionFix's shader options are hidden in the launchers too (FixShown).
-    shown = lambda e: e == 'FF_DATA' or not e.startswith('FF_')
+    shown = lambda e: not e.startswith('FF_')
     rows = {f.env: f'| {f.title} | {"on" if f.on else "off"} |' for f in fixes
             if not f.extra and not f.hidden and shown(f.env) and 'needs FusionFix shaders' not in f.title}
     extras = [f'| {f.title} | {"on" if f.on else "off"} |' for f in fixes if f.extra and not f.hidden]

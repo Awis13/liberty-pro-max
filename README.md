@@ -28,8 +28,9 @@ Expect rough edges, and please report what you find in the
    Install Apple's Command Line Tools if the Builder asks.
 3. To restore the radio, select the [optional radio settings](#restore-the-radio)
    in the Builder.
-4. Click **Build Liberty Pro Max**. The app goes in Applications after about
-   5 to 20 minutes.
+4. Click **Build Liberty Pro Max**. The Builder downloads and verifies
+   FusionFix 5.1.2, then bundles its data with the app. The app goes in
+   Applications after about 5 to 20 minutes.
 5. Open Liberty Pro Max and click **Play**.
 
 For the iPad, the iPhone and the Apple TV, see [Install](#install).
@@ -148,6 +149,21 @@ running `install-ios.sh` to copy it to another Apple device.
 
 Tomasak, ICan'tReadYourMind and the Radio Restoration contributors made
 the radio mod. [Original project and credits](https://downgraders.rockstarvision.com/)
+
+### FusionFix in the game
+
+The Builder and terminal installers require the official FusionFix 5.1.2
+archive. They download it on first use and verify its SHA-256. For an offline
+build, set `GTAIV_FUSIONFIX_ZIP` to the path of the official ZIP.
+[FusionFix 5.1.2 release](https://github.com/ThirteenAG/GTAIV.EFLC.FusionFix/releases/tag/v5.1.2)
+
+Look in **Controls**, **Display**, and **Audio** in the title and pause
+menus. Liberty Pro Max reads FusionFix's rows and translations for the
+settings it implements natively, such as Always Run, Field of View, and
+Alternate Dialogues. A value changed in-game is saved and takes precedence
+over the launcher on the next run. The build includes the data files for
+mission and model fixes. The PC ASI, DirectX options, and Windows-only
+features are outside the native integration.
 
 ### Mac, from the Terminal
 
@@ -512,7 +528,7 @@ Audio in Control Center) and have no switch for it.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-107 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
+106 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
 
 #### High frame rates
 
@@ -572,14 +588,6 @@ The game was made for 30 fps; these keep it right at any frame rate.
 | Pause menu shows the game's version, the archives open and memory use | off |
 | Pause menu time and money spaced as on consoles | on |
 | Menu lists show 32 rows before scrolling | on |
-
-#### FusionFix
-
-Its mission and model fixes need its update folder in the game folder. Its shaders do not work in the port yet, so their options are not listed.
-
-| Option | Default |
-|---|---|
-| Use FusionFix's mission and model fixes if installed (update folder) | on |
 
 #### Lights, shadows and effects
 
@@ -711,12 +719,13 @@ export GTAIV_GAME_DIR="/path/to/Grand Theft Auto IV"
 
 cmake --preset release && cmake --build --preset release   # the lifter and runtime
 tools/lift.sh                                              # the game's code to C++ (generated/)
+python3 tools/fusionfix.py "$GTAIV_GAME_DIR" out/fusionfix --cache out/downloads
 cmake --preset release && cmake --build --preset release   # the game
 ```
 
 The app is `out/build/release/Liberty Pro Max.app`; the plain executable,
-`out/build/release/gtaiv --game-dir "$GTAIV_GAME_DIR"`, starts without the
-launcher. For the app's icon, before the last build (with Pillow):
+`GTAIV_FUSIONFIX_DIR="$PWD/out/fusionfix" out/build/release/gtaiv --game-dir "$GTAIV_GAME_DIR"`,
+starts without the launcher. For the app's icon, before the last build (with Pillow):
 `python3 tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons --mac`.
 
 Building and testing: `cmake --preset release -DGTAIV_TESTS=ON`, build, then

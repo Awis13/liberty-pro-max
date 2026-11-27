@@ -23,10 +23,12 @@ Expect rough edges, and please report what you find in the
    [releases](https://github.com/Awis13/liberty-pro-max/releases) and open it.
    It is not signed by Apple: the first time, go to System Settings, Privacy &
    Security, and press **Open Anyway**.
-2. Drop your Grand Theft Auto IV folder (or `GTAIV.exe`) on it. If asked,
-   install Apple's Command Line Tools with its button (free).
-3. Press **Build Liberty Pro Max**. About 5 to 20 minutes later it is in
-   Applications: open it, check the options, press **Play**.
+2. Drop your GTA IV folder or `GTAIV.exe` on the Builder. For the Complete
+   Edition, follow the [Patch 8 steps](#complete-edition-with-the-builder).
+   Install Apple's Command Line Tools if the Builder asks.
+3. Click **Build Liberty Pro Max**. The app goes in Applications after about
+   5 to 20 minutes.
+4. Open Liberty Pro Max and click **Play**.
 
 For the iPad, the iPhone and the Apple TV, see [Install](#install).
 
@@ -51,11 +53,11 @@ iPad's touch controls are there too, but small on a phone).
 
 ## What you need
 
-- **Your own GTA IV for PC, version 1.0.8.0**: the folder with `GTAIV.exe`
-  (SHA-256 `3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f`)
-  and the game's data next to it (`pc/`, `common/`, …). Only this file, as
-  Rockstar signed it, works: a changed or cracked exe does not. The Complete
-  Edition (1.2.0.x) is not supported.
+- **Your own GTA IV for PC.** Use the folder with `GTAIV.exe`, `pc/` and
+  `common/`. The Complete Edition also has `TLAD/` and `TBoGT/`.
+  Liberty Pro Max compiles Rockstar's signed `GTAIV.exe` version 1.0.8.0.
+  Check its SHA-256 against
+  `3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f`.
 
   If you own the game on Steam, you can download this version from your own
   account with [DepotDownloader](https://github.com/SteamRE/DepotDownloader)
@@ -91,12 +93,54 @@ iPad's touch controls are there too, but small on a phone).
 
 ### Mac, with the Builder
 
-See [Quick start](#quick-start). The Builder carries everything that is not
-the game's code (the runtime, its libraries, the translator) and compiles only
-what it translates from your own `GTAIV.exe`, with Apple's compiler; no
-Homebrew. `builder/make_builder.sh` makes it.
+See [Quick start](#quick-start). The Builder carries the runtime, libraries
+and translator. It uses Apple's compiler. Run `builder/make_builder.sh` to
+package the Builder from source.
+
+Run `builder/check_builder.sh` on macOS with Apple's Command Line Tools
+to check Complete Edition detection and rejection of malformed executables.
+
+#### Complete Edition with the Builder
+
+1. Install [7-Zip](https://www.7-zip.org/) with
+   `brew install sevenzip`, or put the standalone `7zz` in `/usr/local/bin`.
+   A game folder that already has Rockstar's 1.0.8.0 executable can skip
+   this step.
+2. Drop the Complete Edition folder on the Builder. Use the folder that
+   contains `GTAIV.exe`, or its parent if it contains a `GTAIV` subfolder.
+3. Click **Download Rockstar's GTA IV Patch 8 installer**. Choose the
+   downloaded `GTA_IV_EFIGS_PATCH_8.exe` in the Builder.
+   [Rockstar Patch 8 notes](https://support.rockstargames.com/articles/4DH92vTMXDygNI5nFQGoy6/grand-theft-auto-iv-patch-8-title-update-notes-pc-only)
+4. Click **Build Liberty Pro Max**. The Builder checks the installer and the
+   extracted executable before it compiles the game. The Builder writes the
+   executable to a temporary folder and the launcher reads the game data
+   from your Complete Edition folder.
+
+To play an episode, enable **Episodes** in the launcher's **Extras**. The
+game uses the 1.0.8.0 save format. See [Saves from elsewhere](#saves-from-elsewhere)
+for details.
 
 ### Mac, from the Terminal
+
+If your game is the Complete Edition, duplicate the game folder in Finder
+first. Extract the executable from Rockstar's Patch 8 installer. Use
+`7zz` from the [Builder steps](#complete-edition-with-the-builder).
+
+```sh
+(
+  set -e
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  7zz x -so -bsp0 -- "/path/to/GTA_IV_EFIGS_PATCH_8.exe" '$0/GTAIV.exe' > "$tmp/GTAIV.exe"
+  cd "$tmp"
+  printf '%s  GTAIV.exe\n' \
+    3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f | shasum -a 256 -c
+  cp GTAIV.exe "/path/to/GTAIV-copy/GTAIV.exe"
+)
+```
+
+Use the duplicate in the next command and when the launcher asks for the
+game folder.
 
 ```bash
 git clone https://github.com/Awis13/liberty-pro-max

@@ -12,7 +12,7 @@
 #   1. SDL3, FFmpeg, glslang, SPIRV-Cross for macOS from source
 #      (tools/apple_deps.sh, PLATFORMS=macos): no Homebrew in what ships;
 #   2. the reference build against them (out/kit): lifter, runtime, game;
-#   3. the kit: lifter, 7-Zip, x86n.py, symbols, manifest, the port's and the
+#   3. the kit: lifter, x86n.py, symbols, manifest, the port's and the
 #      runtime's sources, static libraries, the app without its executable,
 #      and the recipe (builder/make_recipe.py);
 #   4. the Builder (SwiftUI) with the kit in its Resources, signed
@@ -80,7 +80,8 @@ say "Builder"
 dev=${XCODE_DEVELOPER_DIR:-$(xcode-select -p)}
 b="$outdir/Liberty Pro Max Builder.app"
 mkdir -p "$b/Contents/MacOS" "$b/Contents/Resources"
-DEVELOPER_DIR=$dev xcrun swiftc -O -parse-as-library -target arm64-apple-macos14.0 -swift-version 5 \
+DEVELOPER_DIR=$dev xcrun swiftc -O -warnings-as-errors -parse-as-library \
+  -target arm64-apple-macos14.0 -swift-version 5 \
   builder/Sources/*.swift -o "$b/Contents/MacOS/Builder"
 cp builder/Info.plist "$b/Contents/Info.plist"
 mv $kit "$b/Contents/Resources/kit"

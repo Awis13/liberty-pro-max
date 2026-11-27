@@ -3,7 +3,6 @@
 // puts Liberty Pro Max.app in Applications.
 
 import AppKit
-import CryptoKit
 import Foundation
 
 enum Check: Equatable {
@@ -19,8 +18,11 @@ struct Failure: LocalizedError {
 @MainActor
 final class Engine: ObservableObject {
   // The game.
-  @Published var gameFolder: URL?
+  private var gameInput: GameInput?
+  @Published private(set) var needsPatch = false
+  @Published private(set) var patch: URL?
   @Published var game: Check = .none
+  private var selection = UUID()
   // The Command Line Tools (clang, the macOS SDK, objdump, python3).
   @Published var tools: Check = .none
   @Published var toolsOutdated = false  // installed but too old: the installer cannot help
@@ -42,16 +44,18 @@ final class Engine: ObservableObject {
   private var buildTask: Task<Void, Never>?
 
   var canBuild: Bool {
-    if building { return false }
+    if building || (needsPatch && (patch == nil || GameInput.extractor == nil)) {
+      return false
+    }
     if case .ok = game, case .ok = tools { return true }
     return false
   }
 
-  init() {
-    if let saved = UserDefaults.standard.string(forKey: "GameFolder") {
+  init(loadSavedGame: Bool = true) {
+    if loadSavedGame, let saved = UserDefaults.standard.string(forKey: "GameFolder") {
       Task { await self.setGame(URL(fileURLWithPath: saved)) }
     }
-    Task { await checkTools() }
+    if loadSavedGame { Task { await checkTools() } }
     // Quitting stops the compilers too.
     NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil,
                                            queue: .main) { [weak self] _ in
@@ -62,12 +66,15 @@ final class Engine: ObservableObject {
   private var echo = false
 
   /// The build without the window: checks, builds, prints the log.
-  static func headless(game: URL) async -> Int32 {
-    let e = Engine()
+  static func headless(game: URL, patch: URL?) async -> Int32 {
+    let e = Engine(loadSavedGame: false)
     e.echo = true
     await e.setGame(game)
+    if let patch { e.setPatch(patch) }
     await e.checkTools()
     guard e.canBuild else {
+      if e.needsPatch && e.patch == nil { print("Supply --patch PATCH_8_INSTALLER.") }
+      if e.needsPatch && GameInput.extractor == nil { print("Run brew install sevenzip.") }
       print("not ready: game \(e.game), tools \(e.tools)")
       return 2
     }
@@ -92,39 +99,31 @@ final class Engine: ObservableObject {
 
   /// A dropped or chosen folder, or GTAIV.exe itself.
   func setGame(_ url: URL) async {
-    var folder = url
-    var isDir: ObjCBool = false
-    if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), !isDir.boolValue {
-      folder = url.deletingLastPathComponent()
-    }
-    let exe = folder.appendingPathComponent("GTAIV.exe")
-    guard FileManager.default.fileExists(atPath: exe.path) else {
-      game = .bad("No GTAIV.exe in this folder. Drop the folder Grand Theft Auto IV is installed in.")
-      return
-    }
-    for sub in ["pc", "common"] where !FileManager.default.fileExists(atPath: folder.appendingPathComponent(sub).path) {
-      game = .bad("The game's \(sub) folder is missing next to GTAIV.exe: drop the whole installed game.")
-      return
-    }
-    gameFolder = folder
-    game = .busy("Checking GTAIV.exe…")
-    let hash = await Task.detached { Engine.sha256(exe) }.value
-    guard gameFolder == folder else { return }  // another one was dropped meanwhile
-    if hash == Kit.exeSHA256 {
-      game = .ok("GTAIV.exe 1.0.8.0: \(folder.path)")
-      UserDefaults.standard.set(folder.path, forKey: "GameFolder")
-    } else {
-      game = .bad("This GTAIV.exe is not the one Liberty Pro Max supports: version 1.0.8.0 as Rockstar "
-                  + "signed it. A changed exe or the Complete Edition (1.2.0.x) is not accepted.")
+    guard !building else { return }
+    let current = UUID()
+    selection = current
+    gameInput = nil
+    needsPatch = false
+    failure = nil
+    game = .busy("Checking GTA IV…")
+    let result = await Task.detached { Result { try GameInput.inspect(url) } }.value
+    guard selection == current else { return }
+    switch result {
+    case .success(let input):
+      gameInput = input
+      needsPatch = input.needsPatch
+      let version = input.needsPatch ? "Complete Edition" : "GTAIV.exe 1.0.8.0"
+      game = .ok("\(version) at \(input.folder.path)")
+      if !echo { UserDefaults.standard.set(input.folder.path, forKey: "GameFolder") }
+    case .failure(let error):
+      game = .bad(error.localizedDescription)
     }
   }
 
-  nonisolated static func sha256(_ url: URL) -> String {
-    guard let h = try? FileHandle(forReadingFrom: url) else { return "" }
-    defer { try? h.close() }
-    var hasher = SHA256()
-    while let chunk = try? h.read(upToCount: 1 << 22), !chunk.isEmpty { hasher.update(data: chunk) }
-    return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+  func setPatch(_ url: URL) {
+    guard !building else { return }
+    patch = url
+    failure = nil
   }
 
   // MARK: The developer tools
@@ -176,14 +175,15 @@ final class Engine: ObservableObject {
   // MARK: The build
 
   func build() {
-    guard canBuild, let folder = gameFolder else { return }
+    guard canBuild, let input = gameInput else { return }
+    let installer = patch
     building = true
     failure = nil
     built = nil
     log.removeAll()
     buildTask = Task {
       do {
-        let app = try await runBuild(game: folder)
+        let app = try await runBuild(input: input, patch: installer)
         built = app
         step = "Done"
         progress = 1
@@ -199,7 +199,7 @@ final class Engine: ObservableObject {
 
   func again() { built = nil }
 
-  private func runBuild(game: URL) async throws -> URL {
+  private func runBuild(input: GameInput, patch: URL?) async throws -> URL {
     let work = Engine.work
     let gen = work.appendingPathComponent("generated")
     try FileManager.default.createDirectory(at: gen.appendingPathComponent("native"), withIntermediateDirectories: true)
@@ -215,12 +215,25 @@ final class Engine: ObservableObject {
       throw Failure("Apple's Command Line Tools are not ready.")
     }
 
+    let fm = FileManager.default
+    let staging = work.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    if input.needsPatch {
+      step = "Extracting GTAIV.exe from Patch 8"
+      progress = -1
+      try fm.createDirectory(at: staging, withIntermediateDirectories: false,
+                             attributes: [.posixPermissions: 0o700])
+    }
+    defer { if input.needsPatch { try? fm.removeItem(at: staging) } }
+    let executable = try await input.executable(patch: patch, staging: staging)
+    try Task.checkCancellation()
+    let game = input.folder
+
     // 1. The game's code, translated from its x86 to C++.
     step = "Translating the game's code"
     progress = -1
     say("== translating GTAIV.exe")
     let lift = await Run.run(Kit.path("bin/recomp_lift"),
-                             ["--exe", "GTAIV.exe", "--symbols", Kit.path("symbols/gtaiv"),
+                             ["--exe", executable.path, "--symbols", Kit.path("symbols/gtaiv"),
                               "--manifest", Kit.path("manifest/gtaiv.manifest"), "--out", gen.path],
                              cwd: game.path)
     lift.output.split(separator: "\n").suffix(20).forEach { say(String($0)) }
@@ -231,7 +244,7 @@ final class Engine: ObservableObject {
     let natives = try String(contentsOfFile: Kit.path("manifest/native.list"), encoding: .utf8)
       .split(separator: "\n").map { $0.split(separator: " ").map(String.init) }.filter { $0.count >= 3 }
     say("== \(natives.count) hot functions")
-    let exe = game.appendingPathComponent("GTAIV.exe").path
+    let exe = executable.path
     try await parallel(natives, label: "Translating the hottest functions") { n in
       let end = String(format: "%08X", (UInt32(n[1], radix: 16) ?? 0) + 1)
       let r = await Run.run("/usr/bin/python3", [Kit.path("tools/x86n.py"), n[0], end, n[2]],

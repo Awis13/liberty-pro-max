@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 @main
 enum Main {
   static func main() {
-    // Liberty Pro Max Builder --build GAME_FOLDER: the same build without the
+    // Builder --build GAME_FOLDER [--patch PATCH_8_INSTALLER] runs without the
     // window, its log on stdout (for testing the kit); exit status 0 when
     // the app was installed.
     let args = CommandLine.arguments
@@ -25,7 +25,12 @@ enum Main {
       dispatchMain()
     }
     if let i = args.firstIndex(of: "--build"), i + 1 < args.count {
-      Task { @MainActor in exit(await Engine.headless(game: URL(fileURLWithPath: args[i + 1]))) }
+      let patch = args.firstIndex(of: "--patch").flatMap { index in
+        args.indices.contains(index + 1) ? URL(fileURLWithPath: args[index + 1]) : nil
+      }
+      Task { @MainActor in
+        exit(await Engine.headless(game: URL(fileURLWithPath: args[i + 1]), patch: patch))
+      }
       dispatchMain()
     }
     BuilderApp.main()
@@ -63,7 +68,11 @@ struct ContentView: View {
                  symbol: "folder.badge.plus") { url in
           Task { await engine.setGame(url) }
         }
+        if engine.needsPatch {
+          patchControls
+        }
       }
+      .disabled(engine.building)
 
       Card(number: 2, title: "Apple's developer tools", state: engine.tools) {
         switch engine.tools {
@@ -77,6 +86,22 @@ struct ContentView: View {
       buildSection
     }
     .padding(26)
+  }
+
+  private var patchControls: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      Text("The Builder extracts GTAIV.exe 1.0.8.0 into a temporary folder.")
+        .font(.callout)
+      Link("Download Rockstar's GTA IV Patch 8 installer", destination: GameInput.patchURL)
+      if GameInput.extractor == nil {
+        Text("Install 7-Zip in Terminal with `brew install sevenzip`, then choose the installer.")
+          .font(.callout)
+      }
+      DropZone(text: engine.patch?.lastPathComponent ?? "Drop the Patch 8 installer here",
+               symbol: "archivebox", allowsDirectories: false) { url in
+        engine.setPatch(url)
+      }
+    }
   }
 
   @ViewBuilder private var buildSection: some View {
@@ -179,6 +204,7 @@ struct Card<Content: View>: View {
 struct DropZone: View {
   let text: String
   let symbol: String
+  var allowsDirectories = true
   let onURL: (URL) -> Void
   @State private var targeted = false
 
@@ -204,7 +230,7 @@ struct DropZone: View {
 
   private func choose() {
     let panel = NSOpenPanel()
-    panel.canChooseDirectories = true
+    panel.canChooseDirectories = allowsDirectories
     panel.canChooseFiles = true
     panel.allowsMultipleSelection = false
     if panel.runModal() == .OK, let url = panel.url { onURL(url) }

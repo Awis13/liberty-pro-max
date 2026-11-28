@@ -100,13 +100,12 @@ constexpr uint32_t kShadowQuality = 0x010FC31C;  // 0-4, 4 Very High
 constexpr uint32_t kWaterQuality = 0x010FC324;   // 0-3
 
 struct Settings {
-  bool no_bloom_shift, definition, shorelines, light_volumes;
+  bool no_bloom_shift, shorelines, light_volumes;
 };
 
 const Settings& Prefs() {
   static const Settings s = {
       OptionOn("GTAIV_FF_NO_BLOOM_COLOR_SHIFT", true),
-      OptionOn("GTAIV_FF_DEFINITION", true),
       OptionOn("GTAIV_FF_SMOOTH_SHORELINES", true),
       OptionOn("GTAIV_FF_SMOOTH_LIGHT_VOLUMES", true),
   };
@@ -184,7 +183,7 @@ void FrameConstants(Ctx& c) {
   SetConstant(c, true, 220, water);
   // Definition, snow, menu blur, the trees' alpha scale (PC, PC+, console).
   static constexpr float kTreeAlpha[3] = {0.625f, 1.0f, 4.0f};
-  const float definition = s.definition ? 1.0f : 0.0f;
+  const float definition = gtaiv::FusionFixOption("GTAIV_FF_DEFINITION") ? 1.0f : 0.0f;
   // The menu's background is blurred behind the map tab.
   const float menu_blur = Rd8(kMenuActive) && Rd32(kMenuTab) == 3 ? 1.0f : 0.0f;
   const int tree_alpha = gtaiv::FusionFixChoice("GTAIV_FF_TREE_ALPHA");

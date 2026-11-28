@@ -866,10 +866,12 @@ hook 0088798D 0088798E   # load FusionFix's controller button sets beside the st
 hook 007C5B03 007C5B08   # retain the stock diagram load, alongside FusionFix's earlier diagram loads
 hook 007C2465 007C246A   # draw the chosen controller diagram in controller options
 replace 00887E80 MenuManager_ReleaseButtonTextures   # the other pad sets released, the game's own given back
+replace 00B4DB30 FusionFixScriptButtonStyle       # scripts read the active icon set through GET_CONTROL_VALUE
 hook 007BC38E 007BC393   # the speaker setting the game mixes by: a surround placement for headphones or stereo while its output is 5.1 (GTAIV_SPATIAL_AUDIO)
 
 # FusionFix's menu preferences (src/fusionfix_menu.cpp): XML names/scalers
 # and the frontend's shared readers and writers for custom preference IDs.
+replace 00B1B350 FusionFixScriptPreference   # streamed scripts read PREF_* through their native
 replace 0049BD90 FusionFixPreferenceName
 hook 0048DB56 0048DB5D
 hook 0048E4B7 0048E4BE

@@ -22,6 +22,7 @@ namespace recomp::gen {
 using namespace hook;
 
 void f_00887E80_lifted(Ctx& c);
+void f_00B4DB30_lifted(Ctx& c);
 
 namespace {
 
@@ -220,6 +221,19 @@ void GtaivPadIconsFrame() {
   for (size_t s = 0; s < kSlotCount; s++) Wr32(kSlots[s].at, Rd32(SlotOf(size_t(wanted), s)));
   g_shown = wanted;
   WarnF("gtaiv: pad icons: %s\n", wanted ? kPrefixes[wanted] : "Xbox 360");
+}
+
+// FusionFix's scripts ask GET_CONTROL_VALUE(99, 99) for the active art set
+// and (99, 98) whether that query is available. An Automatic selection uses
+// the detected set currently shown in the frontend.
+void f_00B4DB30(Ctx& c) {
+  const uint32_t script_ctx = Rd32(c.esp + 4);
+  const uint32_t args = Rd32(script_ctx + 8);
+  if (Rd32(args) != 99) return f_00B4DB30_lifted(c);
+  const uint32_t control = Rd32(args + 4);
+  if (control != 98 && control != 99) return f_00B4DB30_lifted(c);
+  Wr32(Rd32(script_ctx), control == 98 ? 1u : uint32_t(g_shown));
+  c.esp += 4;
 }
 
 }  // namespace recomp::gen

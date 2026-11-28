@@ -45,6 +45,11 @@ Preference* FindOption(const char* env) {
     if (std::strcmp(pref.env, env) == 0) return &pref;
   return nullptr;
 }
+Preference* FindOptionName(const char* name) {
+  for (auto& pref : g_preferences)
+    if (strcasecmp(pref.name, name) == 0) return &pref;
+  return nullptr;
+}
 // Seed settings from the existing launchers and command-line options. Once
 // a player changes a FusionFix setting, its saved value takes precedence.
 int InitialChoice(const Preference& pref) {
@@ -188,6 +193,23 @@ void WriteScaler(uint32_t id, uint32_t value) {
   if (!MenuPreference(id)) Wr32(kScalers + id * 4, value);
 }
 }  // namespace
+
+void f_00B1B350_lifted(Ctx& c);
+// FusionFix's streamed scripts query settings by passing a PREF_* name to
+// GET_NUMBER_OF_INSTANCES_OF_STREAMED_SCRIPT. Preserve the game's answer for
+// real scripts, then expose only preferences this native port implements.
+void f_00B1B350(Ctx& c) {
+  const uint32_t script_ctx = Rd32(c.esp + 4);
+  const uint32_t name_at = Rd32(Rd32(script_ctx + 8));
+  f_00B1B350_lifted(c);
+  if (!name_at) return;
+  const char* name = reinterpret_cast<const char*>(GPtr(name_at));
+  if (std::strncmp(name, "PREF_", 5) != 0) return;
+  const uint32_t out = Rd32(script_ctx);
+  if (Rd32(out) != 0) return;
+  if (auto* pref = FindOptionName(name))
+    Wr32(out, uint32_t(pref->value.load(std::memory_order_relaxed)));
+}
 
 // The main loop calls this after the render thread is done with the old
 // frame. The game's initializer reads the current episode's timecycle.

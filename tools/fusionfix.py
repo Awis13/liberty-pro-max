@@ -70,14 +70,22 @@ def merge_menu(original, fusionfix, supported):
     in_use = native_displays | {row.get("displayValue") for row in stock.findall("sMenuScreen/*/*")}
     available = iter(slot for slot in reserved if slot not in in_use)
     fusion_displays = {row.get("enum"): row for row in fusion.findall("sMenuDisplayValue/*")}
+    if "PREF_BUTTONS" in supported and (buttons := fusion_displays.get("MENU_DISPLAY_BUTTONS")) is not None:
+        ET.SubElement(buttons, "options", text="Automatic", action="ACTION_NONE", value="8")
     assigned = {}
     for page in fusion.findall("sMenuScreen/*"):
         target = menus.get(page.get("enum"))
         if target is None:
             continue
+        if "PREF_CONSOLECAR" in supported and page.get("enum") in ("SCR_ADVANCED", "SCR_TGRAPHICS"):
+            # The 5.1.2 plugin inserts this setting after it loads the legacy XML.
+            ET.SubElement(page, "optionspc", action="MENUOPT_ADJUST", label="Car Refl & Dirt",
+                          value="PREF_CONSOLECAR", scaler="2", displayValue="MENU_DISPLAY_ON_OFF")
         for row in page:
             if row.get("value") not in supported:
                 continue
+            if row.get("value") == "PREF_BUTTONS":
+                row.set("scaler", "9")
             display = row.get("displayValue")
             if display in fusion_displays and display not in native_displays:
                 if display not in assigned:

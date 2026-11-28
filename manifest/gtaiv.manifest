@@ -862,7 +862,8 @@ replace 008AE060 RegisterNatives   # the Complete Edition scripts' multiplayer n
 replace 008905E0 ExtraContent_Load   # an episode's radio only in that episode (GTAIV_EPISODE_RADIO_OWN)
 replace 008906B0 ExtraContent_LoadAudio   #   the same, the audio lists alone
 # The icons of the pad in use (src/pad_icons.cpp).
-hook 0088798D 0088798E   # the game's button textures loaded (push ebp): the other pads' sets beside them (GTAIV_PAD_ICONS)
+hook 0088798D 0088798E   # load FusionFix's controller button sets beside the stock textures
+hook 007C2465 007C246A   # draw the chosen controller diagram in controller options
 replace 00887E80 MenuManager_ReleaseButtonTextures   # the other pad sets released, the game's own given back
 hook 007BC38E 007BC393   # the speaker setting the game mixes by: a surround placement for headphones or stereo while its output is 5.1 (GTAIV_SPATIAL_AUDIO)
 

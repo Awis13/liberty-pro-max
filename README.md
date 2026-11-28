@@ -167,6 +167,13 @@ in the game are saved and take precedence over launcher defaults. The
 mission and model fixes. The PC ASI, DirectX options, and Windows-only
 features are outside the native integration.
 
+**Display** includes Bloom and the IV, TLAD and TBoGT Screen Filter
+presets. The game reloads its timecycle when either changes during play.
+Under **Controller Options**, Gamepad Icons can show any
+of the eight FusionFix art sets. **Automatic** follows the first connected
+controller. **Graphics** also has a toggle for console-style car reflections
+and dirt. New cars use the selected setting when they spawn.
+
 On Mac, **FusionFix shader preview** in the launcher's **Advanced** tab
 enables tree lighting, tree alpha, shadow filtering, extended sunlight
 reach, auto exposure, tone mapping, motion blur and volumetric fog under

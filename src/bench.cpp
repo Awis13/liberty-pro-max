@@ -128,10 +128,12 @@ bool PlayLogDue() {
 
 void GtaivPadIconsFrame();  // pad_icons.cpp
 void GtaivPadFeedbackFrame(Ctx& c);  // pad_feedback.cpp
+void GtaivTimecycleSettingsFrame(Ctx& c);  // fusionfix_menu.cpp
 
 // The main loop's wait for the render thread (thiscall, no arguments).
 void f_008A1860(Ctx& c) {
   MainLoopWaitRender(c);
+  GtaivTimecycleSettingsFrame(c);
   GtaivPadIconsFrame();
   GtaivPadFeedbackFrame(c);
 #if defined(TARGET_OS_IOS) && TARGET_OS_IOS && !TARGET_OS_TV

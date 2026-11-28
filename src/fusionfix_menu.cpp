@@ -34,6 +34,7 @@ Preference g_preferences[] = {
 
 std::filesystem::path g_settings;
 std::atomic<float> g_fov{0};
+std::atomic<bool> g_timecycle_dirty{false};
 double g_custom_fps = 0;
 constexpr int kFrameRates[] = {0, 0, 30, 40, 50, 60, 75, 100, 120, 144, 165, 200, 240};
 constexpr uint32_t kNoBlockOnLostFocus = 0x00FE80D3;
@@ -72,6 +73,7 @@ int InitialChoice(const Preference& pref) {
     return OptionOn("GTAIV_CAR_CAMERA_DELAY", false) ? 4 : 0;
   if (name == "GTAIV_FF_KB_VEHICLE_SPEED") return OptionOn("GTAIV_CAR_CAMERA_RETURN", true) ? 3 : 0;
   if (name == "GTAIV_FF_BLOCK_ON_FOCUS_LOSS") return !OptionOn("GTAIV_RUN_IN_BACKGROUND", false);
+  if (name == "GTAIV_FF_BUTTON_STYLE" && OptionOn("GTAIV_PAD_ICONS", false)) return 8;
   if (name == "GTAIV_FF_FPS_PRESET" && g_custom_fps > 0) {
     for (size_t i = 2; i < std::size(kFrameRates); ++i)
       if (kFrameRates[i] == g_custom_fps) return int(i);
@@ -168,6 +170,8 @@ void WritePreference(uint32_t id, uint32_t value) {
   if (std::strcmp(pref->env, "GTAIV_FOV") == 0) g_fov.store(float(next * 5), std::memory_order_relaxed);
   if (std::strcmp(pref->env, "GTAIV_FF_BLOCK_ON_FOCUS_LOSS") == 0)
     Wr8(kNoBlockOnLostFocus, next == 0);
+  if (std::strcmp(pref->name, "PREF_BLOOM") == 0 || std::strcmp(pref->name, "PREF_TIMECYC") == 0)
+    g_timecycle_dirty.store(true, std::memory_order_release);
   std::error_code ec;
   std::filesystem::create_directories(g_settings, ec);
   const auto path = g_settings / pref->name;
@@ -184,6 +188,16 @@ void WriteScaler(uint32_t id, uint32_t value) {
   if (!MenuPreference(id)) Wr32(kScalers + id * 4, value);
 }
 }  // namespace
+
+// The main loop calls this after the render thread is done with the old
+// frame. The game's initializer reads the current episode's timecycle.
+void GtaivTimecycleSettingsFrame(Ctx& c) {
+  if (!g_timecycle_dirty.load(std::memory_order_acquire) || !Rd32(0x00F488EC) || Rd8(0x018CB06C)) return;
+  if (!g_timecycle_dirty.exchange(false, std::memory_order_acq_rel)) return;
+  hook::KeepRegs keep(c);
+  CallGuest(c, 0x00A3B450, {});
+  if (OptionOn("GTAIV_LOAD_LOG", false)) WarnF("gtaiv: FusionFix timecycle reloaded\n");
+}
 
 void f_0049BD90_lifted(Ctx& c);
 void f_0049BD90(Ctx& c) {

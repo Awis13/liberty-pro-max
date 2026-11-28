@@ -79,6 +79,28 @@ class MenuOverlayTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
                 fusionfix.verify(archive)
 
+    def test_controller_icons_keep_upstream_values_and_add_automatic(self):
+        stock = """<FrontendMenu><sMenuDisplayValue/><sMenuScreen>
+          <menu enum="SCR_CONTROLLER_OPTIONS"/>
+        </sMenuScreen></FrontendMenu>"""
+        upstream = b"""<FrontendMenu><sMenuDisplayValue>
+          <menupc enum="MENU_DISPLAY_BUTTONS">
+            <options text="Xbox 360" value="0"/>
+            <options text="Steam Deck" value="6"/>
+          </menupc>
+        </sMenuDisplayValue><sMenuScreen><menu enum="SCR_CONTROLLER_OPTIONS">
+          <optionspc value="PREF_BUTTONS" scaler="8" displayValue="MENU_DISPLAY_BUTTONS"/>
+        </menu></sMenuScreen></FrontendMenu>"""
+        with tempfile.TemporaryDirectory() as tmp:
+            original = Path(tmp) / "frontend_menus.xml"
+            original.write_text(stock)
+            menu = fusionfix.merge_menu(original, upstream, {"PREF_BUTTONS"})
+        row = menu.find("sMenuScreen/menu/optionspc")
+        self.assertEqual(row.get("scaler"), "9")
+        display = menu.find(f"sMenuDisplayValue/menupc[@enum='{row.get('displayValue')}']")
+        self.assertEqual([(item.get("text"), item.get("value")) for item in display],
+                         [("Xbox 360", "0"), ("Steam Deck", "6"), ("Automatic", "8")])
+
     def test_shader_rows_are_bundled_separately_for_each_episode(self):
         stock = """<FrontendMenu><sMenuDisplayValue/><sMenuScreen>
           <menupc enum="SCR_ADVANCED"/>

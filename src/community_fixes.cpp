@@ -90,6 +90,7 @@
 #include "option.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
+#include "screen_filter_palettes.h"
 #include "script_natives.h"
 #include "water_surface.h"
 
@@ -394,8 +395,7 @@ void hook_00CC3F45(Ctx& c) {
 // eax; jne): any car can spawn dirty, as on the consoles.
 namespace {
 bool ConsoleReflections() {
-  static const bool on = OptionOn("GTAIV_CONSOLE_REFLECTIONS", true);
-  return on;
+  return gtaiv::FusionFixOption("GTAIV_CONSOLE_REFLECTIONS");
 }
 }  // namespace
 void hook_00A38B65(Ctx& c) { LoadSs(c.xmm[1], ConsoleReflections() ? 1.0f : RdF32(0x00F498F0)); }
@@ -587,11 +587,13 @@ void hook_00A89930(Ctx& c) {
 // format, then a pointer per column). Its bloom intensity (column 38) and
 // near and far depth of field blur (123, 124) zeroed after it when the
 // options turn them off.
-// And its colour filter with ray tracing (GTAIV_COLOUR_FILTER=natural, the
+// The FusionFix Screen Filter replaces only the keyframe's three colour
+// correction channels. For Default, preserve the port's ray-traced filter
+// (GTAIV_COLOUR_FILTER=natural, the
 // default while rays are traced; game: as the game has it, the default
 // without them): colour_filter.h, the colour correction only.
 void hook_00A3B995(Ctx& c) {
-  static const bool bloom = OptionOn("GTAIV_BLOOM", true);
+  const bool bloom = gtaiv::FusionFixOption("GTAIV_BLOOM");
   static const bool dof = OptionOn("GTAIV_DEPTH_OF_FIELD", true);
   // (Natural only with ray tracing, whose picture it was made for; without
   // it the game's own, as before. GTAIV_COLOUR_FILTER=natural|game says
@@ -603,15 +605,29 @@ void hook_00A3B995(Ctx& c) {
   }();
   c.eax = uint32_t(CallGuest(c, 0x00CF874F, {}));  // the arguments are already pushed
   auto column = [&](uint32_t k) { return Rd32(c.esp + 8 + 4 * k); };
-  if (natural && c.eax >= gtaiv_colour_filter::kColumns) {
-    namespace cf = gtaiv_colour_filter;
-    cf::Line l{};
-    for (uint32_t k = 0; k < 3; k++) l.cc[k] = int32_t(Rd32(column(cf::kColourCorrect + k)));
-    cf::Natural(&l);
-    for (uint32_t k = 0; k < 3; k++) Wr32(column(cf::kColourCorrect + k), uint32_t(l.cc[k]));
+  namespace cf = gtaiv_colour_filter;
+  if (c.eax >= cf::kColumns) {
+    constexpr uint32_t kFirstWeather = 0x013F1238, kKeyframeStride = 0x210;
+    const uint32_t slot = (c.esi - kFirstWeather) / kKeyframeStride;
+    const uint32_t hour = slot / cf::kWeatherCount;
+    const uint32_t weather = slot % cf::kWeatherCount;
+    const uint32_t episode = Rd32(0x0112D788);
+    const int filter = gtaiv::FusionFixChoice("GTAIV_FF_SCREEN_FILTER");
+    if (episode < std::size(cf::kScreenFilters) && hour < cf::kHourCount) {
+      const auto* palette = cf::kScreenFilters[episode][filter];
+      if (palette) {
+        for (uint32_t channel = 0; channel < 3; ++channel)
+          Wr32(column(cf::kColourCorrect + channel), (*palette)[channel][weather * cf::kHourCount + hour]);
+      } else if (!filter && natural) {
+        cf::Line line{};
+        cf::Natural(&line);
+        for (uint32_t channel = 0; channel < 3; ++channel)
+          Wr32(column(cf::kColourCorrect + channel), uint32_t(line.cc[channel]));
+      }
+    }
   }
-  if (!bloom) WrF32(column(38), 0.0f);
-  if (!dof) {
+  if (!bloom && c.eax >= 39) WrF32(column(38), 0.0f);
+  if (!dof && c.eax >= 125) {
     WrF32(column(123), 0.0f);
     WrF32(column(124), 0.0f);
   }

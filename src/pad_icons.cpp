@@ -1,8 +1,7 @@
 // The button icons of the pad in use: Xbox 360 (the game's own), Xbox One and
-// Series, PS3, PS4, PS5 and Switch, when the update folder's button texture
-// dictionary (update/pc/textures/buttons_360.wtd) has those sets beside the
-// game's own, with a prefix on their names. GTAIV_PAD_ICONS turns it on, off
-// by default.
+// Series, PS3, PS4, PS5, Switch, Steam Deck and Steam Controller, from
+// FusionFix's buttons_360.wtd. The in-game preference can also pick a set
+// based on the first connected controller.
 
 #include <SDL3/SDL.h>
 
@@ -28,6 +27,8 @@ namespace {
 
 constexpr gaddr kLoadTexture = 0x0085DF40;     // thiscall: where to put it; its name
 constexpr gaddr kReleaseTexture = 0x0085CE80;  // thiscall: the slot (empty ones too)
+constexpr gaddr kControllerDiagram = 0x010FC6F0;
+constexpr gaddr kDrawTexture = 0x0085CF20;     // thiscall: the slot to draw
 
 // The slots the game fills with its button textures, in its order.
 struct Slot {
@@ -77,12 +78,13 @@ constexpr Slot kSlots[] = {
     {"B_BUTT", 0x011EFC00},
 };
 
-const char* const kPrefixes[] = {"", "XBONE_", "PS3_", "PS4_", "PS5_", "SWITCH_"};
+const char* const kPrefixes[] = {"", "XBONE_", "PS3_", "PS4_", "PS5_", "SWITCH_", "SD_", "SC_"};
 constexpr size_t kPrefixCount = sizeof kPrefixes / sizeof kPrefixes[0];
 constexpr size_t kSlotCount = sizeof kSlots / sizeof kSlots[0];
+constexpr size_t kSetSize = kSlotCount + 1;  // the controller diagram follows the button icons
 
 gaddr g_slots = 0;
-uint32_t SlotOf(size_t prefix, size_t slot) { return g_slots + uint32_t(prefix * kSlotCount + slot) * 4; }
+uint32_t SlotOf(size_t prefix, size_t slot) { return g_slots + uint32_t(prefix * kSetSize + slot) * 4; }
 bool Complete(size_t prefix) {
   for (size_t s = 0; s < kSlotCount; s++)
     if (!Rd32(SlotOf(prefix, s))) return false;
@@ -90,11 +92,6 @@ bool Complete(size_t prefix) {
 }
 bool g_loaded = false;
 int g_shown = 0;
-
-bool On() {
-  static const bool on = OptionOn("GTAIV_PAD_ICONS", false);
-  return on;
-}
 
 int PrefixFor(SDL_GamepadType type) {
   switch (type) {
@@ -111,9 +108,14 @@ int PrefixFor(SDL_GamepadType type) {
 }
 
 int Wanted() {
+  const int style = gtaiv::FusionFixChoice("GTAIV_FF_BUTTON_STYLE");
+  if (style < int(kPrefixCount)) return style;
+  static unsigned frames = 0;
+  static int prefix = 0;
+  if ((frames++ % 30) != 0) return prefix;
   int count = 0;
   SDL_JoystickID* ids = SDL_GetGamepads(&count);
-  const int prefix = count ? PrefixFor(SDL_GetGamepadTypeForID(ids[0])) : 0;
+  prefix = ids && count ? PrefixFor(SDL_GetGamepadTypeForID(ids[0])) : 0;
   SDL_free(ids);
   return prefix;
 }
@@ -123,7 +125,6 @@ int Wanted() {
 // After the game has loaded its own button textures (push ebp, replaced): the others.
 void hook_0088798D(Ctx& c) {
   Push(c, c.ebp);
-  if (!On()) return;
   KeepRegs keep(c);
   const uint32_t esp = c.esp;  // (KeepRegs leaves it)
   const uint32_t base = (esp - 0x200) & ~0xFu;
@@ -131,24 +132,22 @@ void hook_0088798D(Ctx& c) {
   const uint32_t name = base + 0x110;
   // In lasting memory: the game keeps where a texture's pointer is, to clear it
   // later. Made once: a reload fills the same slots again.
-  if (!g_slots) g_slots = HeapAllocProcess(kPrefixCount * kSlotCount * 4, true);
-  int complete = 0;
-  for (size_t p = 0; p < kPrefixCount; p++) {
-    bool all = true;
-    for (size_t s = 0; s < kSlotCount; s++) {
-      const uint32_t slot = SlotOf(p, s);
-      if (p == 0) {
-        Wr32(slot, Rd32(kSlots[s].at));
-        continue;
-      }
-      const std::string text = std::string(kPrefixes[p]) + kSlots[s].name;
+  if (!g_slots) g_slots = HeapAllocProcess(kPrefixCount * kSetSize * 4, true);
+  if (!g_slots) {
+    c.esp = esp;
+    return;
+  }
+  for (size_t s = 0; s < kSlotCount; ++s) Wr32(SlotOf(0, s), Rd32(kSlots[s].at));
+  int complete = Complete(0) ? 1 : 0;
+  for (size_t p = 1; p < kPrefixCount; ++p) {
+    for (size_t s = 0; s < kSetSize; ++s) {
+      const std::string text = std::string(kPrefixes[p]) + (s == kSlotCount ? "CONTROLLER" : kSlots[s].name);
       std::strncpy(reinterpret_cast<char*>(GPtr(name)), text.c_str(), 47);
       c.esp = base;  // (the callee takes its argument off, and CallGuest again)
-      c.ecx = slot;
+      c.ecx = SlotOf(p, s);
       CallGuest(c, kLoadTexture, {name});
-      all = all && Rd32(slot);
     }
-    complete += all;
+    complete += Complete(p);
   }
   c.esp = esp;
   g_loaded = true;
@@ -166,7 +165,7 @@ void f_00887E80(Ctx& c) {
     KeepRegs keep(c);
     for (size_t s = 0; s < kSlotCount; s++) Wr32(kSlots[s].at, Rd32(SlotOf(0, s)));
     for (size_t p = 1; p < kPrefixCount; p++) {
-      for (size_t s = 0; s < kSlotCount; s++) {
+      for (size_t s = 0; s < kSetSize; s++) {
         c.ecx = SlotOf(p, s);
         CallGuest(c, kReleaseTexture, {});
         Wr32(SlotOf(p, s), 0);
@@ -178,13 +177,23 @@ void f_00887E80(Ctx& c) {
   f_00887E80_lifted(c);
 }
 
+// The controller options draw the diagram from a separate stock slot.
+// Substitute the selected texture only for the draw, preserving ownership.
+void hook_007C2465(Ctx& c) {
+  const uint32_t selected = g_loaded && g_shown ? Rd32(SlotOf(g_shown, kSlotCount)) : 0;
+  const uint32_t stock = Rd32(kControllerDiagram);
+  if (selected) Wr32(kControllerDiagram, selected);
+  CallGuest(c, kDrawTexture, {});
+  if (selected) Wr32(kControllerDiagram, stock);
+}
+
 // Once a frame: the set of the pad in use.
 void GtaivPadIconsFrame() {
-  if (!On() || !g_loaded) return;
-  static uint32_t frames = 0;
-  if (++frames % 30 != 1) return;
-  const int wanted = Wanted();
-  if (wanted == g_shown || !Complete(size_t(wanted))) return;
+  if (!g_loaded) return;
+  const int requested = Wanted();
+  if (requested == g_shown) return;
+  const int wanted = Complete(size_t(requested)) ? requested : 0;
+  if (wanted == g_shown) return;
   for (size_t s = 0; s < kSlotCount; s++) Wr32(kSlots[s].at, Rd32(SlotOf(size_t(wanted), s)));
   g_shown = wanted;
   WarnF("gtaiv: pad icons: %s\n", wanted ? kPrefixes[wanted] : "Xbox 360");

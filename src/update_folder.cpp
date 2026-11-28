@@ -89,6 +89,10 @@ bool EpisodePath(const std::string& lower) {
          lower.rfind("tlad\\", 0) == 0 || lower.rfind("tbogt\\", 0) == 0;
 }
 
+size_t EpisodePrefix(const std::string& lower) {
+  return lower.rfind("tlad\\", 0) == 0 ? 5 : lower.rfind("tbogt\\", 0) == 0 ? 6 : 0;
+}
+
 // A mod's own folder (<mod>\pc\...): its files count from the first of the
 // game's top folders in their path.
 std::string GameKey(std::string key) {
@@ -259,6 +263,12 @@ void ScanFolder(UpdateFolder& f, const std::filesystem::path& root, const std::s
       if (lower != "update.img") archives.push_back(rel);
       continue;
     }
+    if (const auto prefix = EpisodePrefix(lower)) {
+      const auto relative = lower.substr(prefix);
+      if ((relative == "pc\\data\\timecyc.dat" || relative == "pc\\data\\timecycext.dat") &&
+          !Excluded(relative) && !Excluded(lower)) f.files[lower] = guest + rel;
+      continue;
+    }
     if (!EpisodePath(lower)) loose.emplace_back(lower, rel);
   }
   // Direct paths win within a pack, then the last mod by archive order.
@@ -386,7 +396,7 @@ std::string UpdateFolderRedirect(const std::string& guest_path) {
   if (rel.rfind("update\\", 0) == 0) return {};
   // These overlays keep the game's stock rows, plus the supported rows
   // from each FusionFix frontend. Nothing else in update may replace them.
-  const size_t prefix = rel.rfind("tlad\\", 0) == 0 ? 5 : rel.rfind("tbogt\\", 0) == 0 ? 6 : 0;
+  const size_t prefix = EpisodePrefix(rel);
   const std::string base = rel.substr(prefix);
   if (base == "common\\data\\frontend_menus.xml" || base == "common\\data\\frontend_pc.dat") {
     std::error_code ec;

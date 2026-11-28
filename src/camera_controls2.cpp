@@ -109,7 +109,7 @@ constexpr uint32_t kPrefSprint = 0x010FC32C;
 constexpr uint32_t kTapMs = 200;
 
 bool AlwaysRun() {
-  static const bool on = OptionOn("GTAIV_ALWAYS_RUN", false);
+  const bool on = gtaiv::FusionFixOption("GTAIV_ALWAYS_RUN");
   return on;
 }
 bool SprintHeld() { return Rd32(kPrefSprint) != 0; }
@@ -189,7 +189,7 @@ namespace {
 constexpr uint32_t kTaskAimGun = 0x411; // CTaskSimpleAimGun (1041)
 
 bool ExtendedSniper() {
-  static const bool on = OptionOn("GTAIV_EXTENDED_SNIPER", false);
+  const bool on = gtaiv::FusionFixOption("GTAIV_EXTENDED_SNIPER");
   return on;
 }
 

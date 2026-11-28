@@ -35,6 +35,10 @@ add_subdirectory("${X86RECOMP_DIR}" x86recomp)
 # recomp_lift from the user's own install; see README.md).
 recomp_add_lifted(gtaiv_lifted "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 if(TARGET gtaiv_lifted)
+  set(GTAIV_FUSIONFIX_DIR "${CMAKE_CURRENT_SOURCE_DIR}/out/fusionfix" CACHE PATH "Prepared FusionFix data")
+  if(NOT EXISTS "${GTAIV_FUSIONFIX_DIR}/version")
+    message(FATAL_ERROR "Prepare FusionFix with tools/fusionfix.py GAME_DIR out/fusionfix --cache out/downloads")
+  endif()
   add_executable(gtaiv src/main.cpp src/game_args.cpp src/language.cpp src/paul.cpp src/integrity.cpp src/diagnostics.cpp src/widescreen.cpp src/crt_math.cpp
     src/bench.cpp src/fixes.cpp src/jobs.cpp src/options.cpp src/perf.cpp src/episodes.cpp src/mods.cpp src/threads.cpp src/native.cpp src/pad_icons.cpp
     src/saves.cpp
@@ -46,11 +50,13 @@ if(TARGET gtaiv_lifted)
     src/community_fixes.cpp
     src/high_fps_fixes.cpp
     src/update_folder.cpp
+    src/fusionfix_menu.cpp
     src/ff_shaders.cpp
     src/coronas.cpp
     src/camera_controls.cpp src/shadows_lights.cpp src/render_misc.cpp src/gameplay_misc.cpp src/stability.cpp src/vehicles_misc.cpp
     src/camera_controls2.cpp src/tree_shadows.cpp src/render_misc2.cpp src/ff_timecycext.cpp src/gameplay_misc2.cpp src/stability2.cpp
     $<TARGET_OBJECTS:gtaiv_lifted>)
+  set_property(TARGET gtaiv APPEND PROPERTY LINK_DEPENDS "${GTAIV_FUSIONFIX_DIR}/version")
   if(RECOMP_LTO)
     # (The lifted code's -mcpu travels in its bitcode.)
     target_link_options(gtaiv PRIVATE -flto=thin "LINKER:-cache_path_lto,${CMAKE_BINARY_DIR}/lto-cache")
@@ -85,6 +91,11 @@ if(TARGET gtaiv_lifted)
       MACOSX_BUNDLE_INFO_PLIST "${GTAIV_INFO_PLIST}"
       INSTALL_RPATH "@executable_path/Frameworks"
       BUILD_WITH_INSTALL_RPATH ON)
+    add_custom_command(TARGET gtaiv POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E rm -rf "$<TARGET_BUNDLE_DIR:gtaiv>/fusionfix"
+      COMMAND ${CMAKE_COMMAND} -E copy_directory "${GTAIV_FUSIONFIX_DIR}"
+              "$<TARGET_BUNDLE_DIR:gtaiv>/fusionfix"
+      VERBATIM)
     # The settings screen before the game (Objective-C++, ARC).
     target_sources(gtaiv PRIVATE src/launcher_ios.mm)
     set_source_files_properties(src/launcher_ios.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
@@ -118,6 +129,8 @@ if(TARGET gtaiv_lifted)
       COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:gtaiv>" "${app}/Contents/MacOS/gtaiv"
       COMMAND sh -c "cp -f '${CMAKE_BINARY_DIR}'/x86recomp/*.dylib '${app}/Contents/Frameworks/' && codesign --force --sign - '${app}/Contents/Frameworks/'*.dylib"
       COMMAND sh -c "[ ! -f '${CMAKE_CURRENT_SOURCE_DIR}/out/icons/AppIcon.icns' ] || { mkdir -p '${app}/Contents/Resources' && cp -f '${CMAKE_CURRENT_SOURCE_DIR}/out/icons/AppIcon.icns' '${app}/Contents/Resources/'; }"
+      COMMAND ${CMAKE_COMMAND} -E rm -rf "${app}/Contents/Resources/fusionfix"
+      COMMAND ${CMAKE_COMMAND} -E copy_directory "${GTAIV_FUSIONFIX_DIR}" "${app}/Contents/Resources/fusionfix"
       COMMAND codesign --force --sign - "${app}"
       VERBATIM)
   endif()

@@ -90,6 +90,7 @@
 #include "option.h"
 #include "runtime/lifted.h"
 #include "runtime/runtime.h"
+#include "screen_filter_palettes.h"
 #include "script_natives.h"
 #include "water_surface.h"
 
@@ -318,9 +319,8 @@ void hook_008F0071(Ctx& c) {
 // (grcDevice::ms_bNoBlockOnLostFocus, [00FE80D3], set from the settings at
 // the start, just before and ax, 3FF). Kept running with the option.
 void hook_004063D2(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_RUN_IN_BACKGROUND", false);
   c.eax = (c.eax & 0xFFFF0000u) | (c.eax & 0x3FF);
-  if (on) Wr8(0x00FE80D3, 1);
+  Wr8(0x00FE80D3, !gtaiv::FusionFixOption("GTAIV_FF_BLOCK_ON_FOCUS_LOSS"));
 }
 
 // Menus take a click of the left button (test reg, 1) to choose and to go
@@ -355,7 +355,7 @@ void hook_0086648D(Ctx& c) {  // add esp, 1C (then test al, al: "back")
 // cut to it): CIntermezzoEventVaultWall and ...PlayerJackVehicle.
 namespace {
 bool ActionCamera() {
-  static const bool on = OptionOn("GTAIV_ACTION_CAMERA", true);
+  const bool on = gtaiv::FusionFixOption("GTAIV_ACTION_CAMERA");
   return on;
 }
 }  // namespace
@@ -375,7 +375,7 @@ void f_00A8C920(Ctx& c) {
 // unless (call 6C1A10; test al, al; jne) says not. Both skipped when off.
 namespace {
 bool StuntJumpCamera() {
-  static const bool on = OptionOn("GTAIV_STUNT_JUMP_CAMERA", true);
+  const bool on = gtaiv::FusionFixOption("GTAIV_STUNT_JUMP_CAMERA");
   return on;
 }
 }  // namespace
@@ -395,8 +395,7 @@ void hook_00CC3F45(Ctx& c) {
 // eax; jne): any car can spawn dirty, as on the consoles.
 namespace {
 bool ConsoleReflections() {
-  static const bool on = OptionOn("GTAIV_CONSOLE_REFLECTIONS", true);
-  return on;
+  return gtaiv::FusionFixOption("GTAIV_CONSOLE_REFLECTIONS");
 }
 }  // namespace
 void hook_00A38B65(Ctx& c) { LoadSs(c.xmm[1], ConsoleReflections() ? 1.0f : RdF32(0x00F498F0)); }
@@ -434,25 +433,6 @@ void hook_009AFC40(Ctx& c) { c.ecx = water_surface::NoiseSetting(WaterTiling(), 
 void hook_00A0DA85(Ctx& c) {
   c.ecx = Rd32(kRenderTargetFactory);
   c.esi = water_surface::TargetSide(WaterTiling(), c.esi);
-}
-
-// CCamFollowPed: how strongly the camera swings back behind the player
-// this frame (movss [esp+48], xmm0). With the mouse it pulls against the
-// player's aim at once; held at 0 for 2 s of game time after the mouse
-// moved (its deltas this frame at [017945D0], [017945C0]). A gamepad
-// leaves the mouse still, and the camera as the game has it.
-void hook_00A8A6E0(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_MOUSE_CAMERA_DELAY", true);
-  static uint32_t until, last;
-  float v = Lane0(c.xmm[0]);
-  if (on) {
-    const uint32_t now = Rd32(0x010FCB6C);  // the game's clock, ms
-    if (now < last) until = 0;               // a save loaded
-    last = now;
-    if (Rd32(0x017945D0) || Rd32(0x017945C0)) until = now + 2000;
-    if (now < until) v = 0.0f;
-  }
-  WrF32(c.esp + 0x48, v);
 }
 
 // A ped's hat in a vehicle stays on for some models: the first two
@@ -508,7 +488,7 @@ void hook_00BCB925(Ctx& c) { CmpFlags<4>(c, BikeFeet() ? c.eax : Rd32(0x0112D754
 // bytes at +27EE / +27FE), with the stick's dead zone of a quarter.
 namespace {
 bool SniperMovement() {
-  static const bool on = OptionOn("GTAIV_SNIPER_MOVEMENT", true);
+  const bool on = gtaiv::FusionFixOption("GTAIV_SNIPER_MOVEMENT");
   return on;
 }
 }  // namespace
@@ -595,11 +575,11 @@ void f_008C31B0(Ctx& c) {
 // looks past the player's shoulder by ms_targetOffset (0.2; movss xmm4,
 // [00F4C2E0]).
 void hook_00A7BF8D(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_CENTERED_CAR_CAMERA", false);
+  const bool on = gtaiv::FusionFixOption("GTAIV_CENTERED_CAR_CAMERA");
   CmpFlags<1>(c, on ? 0 : Rd8(0x00F4B56F), 0);
 }
 void hook_00A89930(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_CENTERED_FOOT_CAMERA", false);
+  const bool on = gtaiv::FusionFixOption("GTAIV_CENTERED_FOOT_CAMERA");
   LoadSs(c.xmm[4], on ? 0.0f : RdF32(0x00F4C2E0));
 }
 
@@ -607,11 +587,13 @@ void hook_00A89930(Ctx& c) {
 // format, then a pointer per column). Its bloom intensity (column 38) and
 // near and far depth of field blur (123, 124) zeroed after it when the
 // options turn them off.
-// And its colour filter with ray tracing (GTAIV_COLOUR_FILTER=natural, the
+// The FusionFix Screen Filter replaces only the keyframe's three colour
+// correction channels. For Default, preserve the port's ray-traced filter
+// (GTAIV_COLOUR_FILTER=natural, the
 // default while rays are traced; game: as the game has it, the default
 // without them): colour_filter.h, the colour correction only.
 void hook_00A3B995(Ctx& c) {
-  static const bool bloom = OptionOn("GTAIV_BLOOM", true);
+  const bool bloom = gtaiv::FusionFixOption("GTAIV_BLOOM");
   static const bool dof = OptionOn("GTAIV_DEPTH_OF_FIELD", true);
   // (Natural only with ray tracing, whose picture it was made for; without
   // it the game's own, as before. GTAIV_COLOUR_FILTER=natural|game says
@@ -623,15 +605,29 @@ void hook_00A3B995(Ctx& c) {
   }();
   c.eax = uint32_t(CallGuest(c, 0x00CF874F, {}));  // the arguments are already pushed
   auto column = [&](uint32_t k) { return Rd32(c.esp + 8 + 4 * k); };
-  if (natural && c.eax >= gtaiv_colour_filter::kColumns) {
-    namespace cf = gtaiv_colour_filter;
-    cf::Line l{};
-    for (uint32_t k = 0; k < 3; k++) l.cc[k] = int32_t(Rd32(column(cf::kColourCorrect + k)));
-    cf::Natural(&l);
-    for (uint32_t k = 0; k < 3; k++) Wr32(column(cf::kColourCorrect + k), uint32_t(l.cc[k]));
+  namespace cf = gtaiv_colour_filter;
+  if (c.eax >= cf::kColumns) {
+    constexpr uint32_t kFirstWeather = 0x013F1238, kKeyframeStride = 0x210;
+    const uint32_t slot = (c.esi - kFirstWeather) / kKeyframeStride;
+    const uint32_t hour = slot / cf::kWeatherCount;
+    const uint32_t weather = slot % cf::kWeatherCount;
+    const uint32_t episode = Rd32(0x0112D788);
+    const int filter = gtaiv::FusionFixChoice("GTAIV_FF_SCREEN_FILTER");
+    if (episode < std::size(cf::kScreenFilters) && hour < cf::kHourCount) {
+      const auto* palette = cf::kScreenFilters[episode][filter];
+      if (palette) {
+        for (uint32_t channel = 0; channel < 3; ++channel)
+          Wr32(column(cf::kColourCorrect + channel), (*palette)[channel][weather * cf::kHourCount + hour]);
+      } else if (!filter && natural) {
+        cf::Line line{};
+        cf::Natural(&line);
+        for (uint32_t channel = 0; channel < 3; ++channel)
+          Wr32(column(cf::kColourCorrect + channel), uint32_t(line.cc[channel]));
+      }
+    }
   }
-  if (!bloom) WrF32(column(38), 0.0f);
-  if (!dof) {
+  if (!bloom && c.eax >= 39) WrF32(column(38), 0.0f);
+  if (!dof && c.eax >= 125) {
     WrF32(column(123), 0.0f);
     WrF32(column(124), 0.0f);
   }
@@ -687,35 +683,6 @@ void hook_008FC1A5(Ctx& c) {
   }
   SetLane0(c.xmm[0], brake);
   ComissFlags(c, brake, RdF32(0x00DDDCCC));
-}
-
-// CCamFollowVehicle: how fast the camera swings back behind the car this
-// frame, across and up (divss by a time; movss to the frame). With
-// keyboard and mouse divided by 0.7 more (a camera turn speed of 3: 1 -
-// 3 * 0.1), and none on a frame the mouse moves (its deltas at
-// [017945D0], [017945C0]), so it does not pull against the player's
-// look; with a gamepad as it was (the pad, 86A1A0(1), has its "keyboard"
-// byte +328D at 0 then).
-namespace {
-float CarCameraReturn(Ctx& c, float v, float time) {
-  static const bool on = OptionOn("GTAIV_CAR_CAMERA_RETURN", true);
-  if (!on) return v / time;
-  KeepRegs keep(c);  // no call here in the game's code
-  const uint32_t pad = uint32_t(CallGuest(c, 0x0086A1A0, {1}));
-  if (pad && Rd8(pad + 0x328D) == 0) return v / time;
-  if (Rd32(0x017945D0) || Rd32(0x017945C0)) return 0.0f;
-  return v / (time * 0.7f);
-}
-}  // namespace
-void hook_00A813F9(Ctx& c) {  // divss xmm0, xmm1; movss [esp+58], xmm0
-  const float v = CarCameraReturn(c, Lane0(c.xmm[0]), Lane0(c.xmm[1]));
-  SetLane0(c.xmm[0], v);
-  WrF32(c.esp + 0x58, v);
-}
-void hook_00A81108(Ctx& c) {  // divss xmm0, xmm2; movss [esp+BC], xmm0
-  const float v = CarCameraReturn(c, Lane0(c.xmm[0]), Lane0(c.xmm[2]));
-  SetLane0(c.xmm[0], v);
-  WrF32(c.esp + 0xBC, v);
 }
 
 }  // namespace recomp::gen

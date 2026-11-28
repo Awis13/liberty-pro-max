@@ -29,9 +29,13 @@ enum Run {
     var out: Drain?
     var file: FileHandle?
     if let stdoutFile {
-      FileManager.default.createFile(atPath: stdoutFile, contents: nil)
-      file = FileHandle(forWritingAtPath: stdoutFile)
-      p.standardOutput = file
+      guard FileManager.default.createFile(atPath: stdoutFile, contents: nil),
+            let handle = FileHandle(forWritingAtPath: stdoutFile) else {
+        err.close()
+        return RunResult(status: -1, output: "Could not write \(stdoutFile).")
+      }
+      file = handle
+      p.standardOutput = handle
     } else {
       out = Drain(done)
       p.standardOutput = out!.pipe

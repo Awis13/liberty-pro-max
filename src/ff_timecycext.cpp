@@ -52,6 +52,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -97,7 +98,8 @@ constexpr uint32_t kModifiers = 0x013E67D0, kModifierSize = 0xBC, kModifierCount
 constexpr uint32_t kInteriorFade = 0x00F498E0;  // the interior modifiers' blend
 
 bool VolumetricFog() {
-  static const bool on = FfShadersOn() && OptionOn("GTAIV_FF_VOLUMETRIC_FOG", false);
+  // Keep the choice used to read the timecycle tables until the next launch.
+  static const bool on = FfShadersOn() && gtaiv::FusionFixOption("GTAIV_FF_VOLUMETRIC_FOG");
   return on;
 }
 
@@ -187,12 +189,18 @@ void FillGaps(Tables& t, int w, int p) {
   } while (a != start);
 }
 
-Tables* LoadTables() {
-  auto* t = new Tables;
+std::unique_ptr<Tables> LoadTables(uint32_t episode) {
+  auto t = std::make_unique<Tables>();
   for (auto& h : t->v)
     for (auto& w : h) std::copy(std::begin(kDefaults), std::end(kDefaults), w);
   // One line per hour, the weathers one after another.
-  const std::vector<std::string> lines = DataLines(DataFile("timecycext.dat"));
+  static constexpr const char* kEpisodes[] = {"", "TLAD", "TBoGT"};
+  std::vector<std::string> lines;
+  if (episode) {
+    const auto path = Game().guest_dir + "\\" + kEpisodes[episode] + "\\pc\\data\\timecycext.dat";
+    lines = DataLines(HostPath(path));
+  }
+  if (lines.empty()) lines = DataLines(DataFile("timecycext.dat"));
   size_t next = 0;
   for (int w = 0; w < kWeathers; w++)
     for (int h = 0; h < kHours && next < lines.size(); h++) Floats(lines[next++].c_str(), t->v[h][w], kParams);
@@ -261,7 +269,10 @@ std::array<float, 4> SunLight(uint32_t hour, uint32_t weather) {
 // CClock::Update: the values for this frame from the hour, the weather and
 // the modifiers applied since the last.
 void Update() {
-  static Tables* const t = LoadTables();
+  static std::array<std::unique_ptr<Tables>, 3> tables;
+  const uint32_t episode = Rd32(0x0112D788);
+  auto& t = tables[episode < tables.size() ? episode : 0];
+  if (!t) t = LoadTables(episode < tables.size() ? episode : 0);
   // The timecycle's hour (00A39420): the clock's, or its override.
   const int32_t ho = int32_t(Rd32(kHoursOverride)), mo = int32_t(Rd32(kMinutesOverride));
   const int32_t hours = ho != -1 ? ho : int32_t(Rd32(kClockHours));

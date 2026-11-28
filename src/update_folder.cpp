@@ -1,20 +1,9 @@
-// A mod pack's data, from the player's own install of it: the "update"
-// folder in the game folder (its files are not part of the port). Its
-// files are read in place of the game's own (the folder's common\ over the
-// game's common\, pc\ over pc\; so is an archive at the path of one the
-// game has), its other IMG archives (fixed mission scripts, models and
-// animations) are added to the game's after its own update.img, and its
-// texts (<language>RR, CV, FF and 1 to 9 .gxt in common\text) are found
-// before the game's. GTAIV_FF_DATA=0 turns it off.
-//
-// Left out until the port can draw with them: the folder's shaders
-// (common\shaders: they need their own per-frame shader constants), and
-// its menu layout (common\data\frontend_menus.xml: rows for in-game
-// settings, which the launcher has instead, and common\data\frontend_pc.dat,
-// its menu text made smaller to fit those rows). The episodes' folders
-// (TLAD, TBoGT) are not IV's.
+// FusionFix's bundled data and the player's update folder. Loose files
+// overlay the installed game, IMG archives are added to its streaming list,
+// and the selected language's extra GXT files extend its text table.
 
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <algorithm>
 #include <atomic>
@@ -43,15 +32,20 @@ namespace recomp::gen {
 
 namespace {
 
-bool FfData() {
-  static const bool on = OptionOn("GTAIV_FF_DATA", true);
-  return on;
-}
-
-// FusionFix's shaders too (GTAIV_FF_SHADERS, off for now: they need its
-// shader constants, work in progress).
+// The extended effects are tested with the native Metal renderer. The
+// ray-tracing hooks still match the game's original shader bytecode.
 bool FfShaders() {
-  static const bool on = FfData() && OptionOn("GTAIV_FF_SHADERS", false);
+  static const bool on = [] {
+    if (!OptionOn("GTAIV_FF_SHADERS", false)) return false;
+#if defined(__APPLE__)
+    const char* backend = std::getenv("GTAIV_GFX");
+    const char* rays = std::getenv("GTAIV_RT");
+    if (backend && std::strcmp(backend, "metal") == 0 &&
+        (!rays || !*rays || std::strcmp(rays, "off") == 0)) return true;
+#endif
+    WarnF("gtaiv: FusionFix shader preview requires native Metal with ray tracing off\n");
+    return false;
+  }();
   return on;
 }
 
@@ -93,6 +87,10 @@ bool NaturalLess(const std::string& a, const std::string& b) {
 bool EpisodePath(const std::string& lower) {
   return lower.find("\\tlad\\") != std::string::npos || lower.find("\\tbogt\\") != std::string::npos ||
          lower.rfind("tlad\\", 0) == 0 || lower.rfind("tbogt\\", 0) == 0;
+}
+
+size_t EpisodePrefix(const std::string& lower) {
+  return lower.rfind("tlad\\", 0) == 0 ? 5 : lower.rfind("tbogt\\", 0) == 0 ? 6 : 0;
 }
 
 // A mod's own folder (<mod>\pc\...): its files count from the first of the
@@ -210,7 +208,7 @@ std::vector<std::pair<std::string, std::string>> g_this_mod_imgs;
 // the path as it is on disk; and its IMG archives for IV, in load order.
 struct UpdateFolder {
   std::unordered_map<std::string, std::string> files;
-  std::vector<std::string> imgs;
+  std::vector<std::pair<std::string, std::string>> imgs;  // relative path, guest path
 };
 
 // GTAIV_UPDATE_EXCLUDE=prefix,prefix: files below the game's folder
@@ -240,57 +238,105 @@ bool LeftOut(const std::string& lower_rel) {
   // Its stipple texture goes with its shaders: with the game's own, trees are
   // flat rectangles with lines across them.
   if (lower_rel == "pc\\textures\\stipple.wtd" && !FfShaders()) return true;
-  // Its post-processing effect has a layout the game's loader misreads
-  // (named entries after the header; the game then hands Direct3D no
-  // shader): the game's own stays.
-  if (lower_rel == "common\\shaders\\win32_30\\rage_postfx.fxc") return true;
   return lower_rel == "common\\data\\frontend_menus.xml" || lower_rel == "common\\data\\frontend_pc.dat" ||
          lower_rel == "update.txt" || lower_rel == "update.img";
 }
 
-const UpdateFolder& Folder() {
-  static UpdateFolder f;
-  static std::once_flag once;
-  std::call_once(once, [] {
-    namespace fs = std::filesystem;
-    const fs::path root = fs::path(g_proc->game_dir) / "update";
-    std::error_code ec;
-    if (!fs::is_directory(root, ec)) return;
-    std::vector<std::pair<std::string, std::string>> loose;  // lower case, as on disk
-    for (auto it = fs::recursive_directory_iterator(root, fs::directory_options::follow_directory_symlink, ec);
-         !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
-      if (!it->is_regular_file(ec)) continue;
-      std::string rel = it->path().lexically_relative(root).string();
-      std::replace(rel.begin(), rel.end(), '/', '\\');
-      const std::string lower = Lower(rel);
-      // An archive is added to the game's, except one at the path of an
-      // archive the game has itself (IV's): that is read in its place.
-      if (lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".img") == 0 &&
-          (EpisodePath(lower) || !GameHasFile(lower))) {
-        if (lower != "update.img") f.imgs.push_back(rel);
-        continue;
-      }
-      if (EpisodePath(lower)) continue;
-      loose.emplace_back(lower, rel);
+std::filesystem::path g_fusion_root, g_mount;
+std::string g_fusion_guest;
+
+void ScanFolder(UpdateFolder& f, const std::filesystem::path& root, const std::string& guest) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  if (!fs::is_directory(root, ec)) return;
+  std::vector<std::string> archives;
+  std::vector<std::pair<std::string, std::string>> loose;
+  for (auto it = fs::recursive_directory_iterator(root, fs::directory_options::follow_directory_symlink, ec);
+       !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+    if (!it->is_regular_file(ec)) continue;
+    std::string rel = it->path().lexically_relative(root).string();
+    std::replace(rel.begin(), rel.end(), '/', '\\');
+    const std::string lower = Lower(rel);
+    // An archive at a path the game already has replaces that archive.
+    if (lower.size() > 4 && lower.compare(lower.size() - 4, 4, ".img") == 0 &&
+        (EpisodePath(lower) || !GameHasFile(lower))) {
+      if (lower != "update.img") archives.push_back(rel);
+      continue;
     }
-    // The same file in more than one place: the one at its own path below
-    // the folder first, then the mod's folder that loads last.
-    std::sort(loose.begin(), loose.end(), [](const auto& a, const auto& b) {
-      const bool da = GameKey(a.first) == a.first, db = GameKey(b.first) == b.first;
-      return da != db ? da : ArchiveLess(b.first, a.first);
-    });
-    for (const auto& [lower, rel] : loose) {
-      const std::string key = GameKey(lower);
-      if (!Excluded(key)) NoteShaderFile(key, "update\\" + rel, false);
-      if (!LeftOut(key) && !f.files.count(key)) f.files[key] = rel;
+    if (const auto prefix = EpisodePrefix(lower)) {
+      const auto relative = lower.substr(prefix);
+      if ((relative == "pc\\data\\timecyc.dat" || relative == "pc\\data\\timecycext.dat") &&
+          !Excluded(relative) && !Excluded(lower)) f.files[lower] = guest + rel;
+      continue;
     }
-    std::sort(f.imgs.begin(), f.imgs.end(), ArchiveLess);
-    WarnF("gtaiv: update folder: %zu files read over the game's, %zu archives\n", f.files.size(), f.imgs.size());
+    if (!EpisodePath(lower)) loose.emplace_back(lower, rel);
+  }
+  // Direct paths win within a pack, then the last mod by archive order.
+  std::sort(loose.begin(), loose.end(), [](const auto& a, const auto& b) {
+    const bool da = GameKey(a.first) == a.first, db = GameKey(b.first) == b.first;
+    return da != db ? da : ArchiveLess(b.first, a.first);
   });
-  return f;
+  std::set<std::string> added;
+  for (const auto& [lower, rel] : loose) {
+    const std::string key = GameKey(lower);
+    if (!Excluded(key)) NoteShaderFile(key, guest + rel, false);
+    if (!LeftOut(key) && added.insert(key).second) f.files[key] = guest + rel;
+  }
+  std::sort(archives.begin(), archives.end(), ArchiveLess);
+  for (const std::string& rel : archives) {
+    const std::string lower = Lower(rel);
+    if (std::none_of(f.imgs.begin(), f.imgs.end(), [&](const auto& img) { return img.first == lower; }))
+      f.imgs.emplace_back(lower, guest + rel);
+  }
+}
+
+const UpdateFolder& Folder() {
+  static const UpdateFolder folder = [] {
+    UpdateFolder f;
+    // A player's update folder may supplement the bundled release.
+    const auto extra = std::filesystem::path(g_proc->game_dir) / "update";
+    ScanFolder(f, g_fusion_root / "update", g_fusion_guest + "update\\");
+    ScanFolder(f, extra, Game().guest_dir + "\\update\\");
+    WarnF("gtaiv: update folder: %zu files read over the game's, %zu archives\n", f.files.size(), f.imgs.size());
+    return f;
+  }();
+  return folder;
 }
 
 }  // namespace
+
+// The runtime resolves normal guest paths below drive_c. Mount the app's
+// read-only assets there for this process using a unique symlink.
+bool MountFusionFix(const std::string& resource, const std::string& data_root) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  g_fusion_root = fs::canonical(resource, ec);
+  const auto frontend = FfShaders() ? "frontend/shaders" : "frontend";
+  if (ec || !fs::is_regular_file(g_fusion_root / "update/common/text/americanFF.gxt", ec) ||
+      !fs::is_regular_file(g_fusion_root / frontend / "common/data/frontend_menus.xml", ec)) return false;
+  const fs::path drive = fs::path(data_root) / "drive_c";
+  fs::create_directories(drive, ec);
+  if (ec) return false;
+  std::string path = (drive / ".liberty-fusionfix-XXXXXX").string();
+  if (!mkdtemp(path.data())) return false;
+  g_mount = path;
+  fs::create_directory_symlink(g_fusion_root, g_mount / "assets", ec);
+  if (ec) {
+    fs::remove(g_mount, ec);
+    g_mount.clear();
+    return false;
+  }
+  g_fusion_guest = "C:\\" + g_mount.filename().string() + "\\assets\\";
+  return true;
+}
+
+void UnmountFusionFix() {
+  if (g_mount.empty()) return;
+  std::error_code ec;
+  std::filesystem::remove(g_mount / "assets", ec);
+  std::filesystem::remove(g_mount, ec);
+  g_mount.clear();
+}
 
 bool FfShadersOn() { return FfShaders(); }
 
@@ -341,7 +387,6 @@ bool UpdateFolderEpisodeData(const std::string& rel) {
 // GameConfig::read_redirect: a file below the install read from the update
 // folder when it has one.
 std::string UpdateFolderRedirect(const std::string& guest_path) {
-  if (!FfData()) return {};
   const std::string& dir = Game().guest_dir;
   if (guest_path.size() <= dir.size() + 1 || Lower(guest_path.substr(0, dir.size())) != Lower(dir) ||
       guest_path[dir.size()] != '\\')
@@ -349,12 +394,26 @@ std::string UpdateFolderRedirect(const std::string& guest_path) {
   std::string rel = Lower(guest_path.substr(dir.size() + 1));
   std::replace(rel.begin(), rel.end(), '/', '\\');
   if (rel.rfind("update\\", 0) == 0) return {};
+  // These overlays keep the game's stock rows, plus the supported rows
+  // from each FusionFix frontend. Nothing else in update may replace them.
+  const size_t prefix = EpisodePrefix(rel);
+  const std::string base = rel.substr(prefix);
+  if (base == "common\\data\\frontend_menus.xml" || base == "common\\data\\frontend_pc.dat") {
+    std::error_code ec;
+    const bool shaders = FfShaders() && base == "common\\data\\frontend_menus.xml";
+    const auto path = g_fusion_guest + (shaders ? "frontend\\shaders\\" : "frontend\\") + rel;
+    if (std::filesystem::is_regular_file(HostPath(path), ec)) {
+      WarnF("gtaiv: FusionFix frontend: %s\n", rel.c_str());
+      return path;
+    }
+    return {};
+  }
   const UpdateFolder& f = Folder();
   if (!FfShaders()) {
     const std::string own = ModShaderFile(rel);
     if (!own.empty()) {
       WarnF("gtaiv: mods: %s read from %s\n", rel.c_str(), own.c_str());
-      return own.rfind("update\\", 0) == 0 ? dir + "\\" + own : own;
+      return own;
     }
   }
   auto it = f.files.find(rel);
@@ -366,10 +425,10 @@ std::string UpdateFolderRedirect(const std::string& guest_path) {
     std::lock_guard<std::mutex> l(mu);
     if (!told[rel]) {
       told[rel] = true;
-      WarnF("gtaiv: update folder: %s read from update\\%s\n", rel.c_str(), it->second.c_str());
+      WarnF("gtaiv: update folder: %s read from %s\n", rel.c_str(), it->second.c_str());
     }
   }
-  return dir + "\\update\\" + it->second;
+  return it->second;
 }
 
 // Whether an archive (lower case) is for the episode being started (0: IV).
@@ -396,7 +455,7 @@ void hook_00AC659A(Ctx& c) {
   // The episode being started; the game reads the list again for another.
   const uint32_t episode = Rd32(0x0112D788);
   static uint32_t added_for = 0xFFFFFFFFu;
-  if (FfData() && added_for != episode) {
+  if (added_for != episode) {
     added_for = episode;
     const auto add = [&c](const std::string& path) {
       const uint32_t room = (uint32_t(path.size()) + 1 + 15) & ~15u;
@@ -406,10 +465,11 @@ void hook_00AC659A(Ctx& c) {
       c.esp += room;
       WarnF("gtaiv: update folder: archive %s added\n", path.c_str());
     };
-    for (std::string rel : Folder().imgs) {
-      if (!ArchiveForEpisode(Lower(rel), episode)) continue;
-      std::replace(rel.begin(), rel.end(), '\\', '/');
-      add("update:/" + rel);
+    for (const auto& [rel, guest] : Folder().imgs) {
+      if (!ArchiveForEpisode(rel, episode)) continue;
+      std::string path = guest;
+      std::replace(path.begin(), path.end(), '\\', '/');
+      add(path);
     }
     if (episode == 0) {
       for (const std::string& path : g_mod_imgs) add(path);  // after: a mod's files win
@@ -476,7 +536,7 @@ uint32_t FindText(uint32_t hash) {
 void f_008A3F70_lifted(Ctx& c);
 void f_008A3F70(Ctx& c) {
   f_008A3F70_lifted(c);
-  if (!FfData() || !c.eax) return;
+  if (!c.eax) return;
   std::string name(reinterpret_cast<const char*>(GPtr(c.eax)));
   name = name.substr(name.find_last_of("/\\:") + 1);
   const size_t dot = name.find_last_of('.');
@@ -527,9 +587,9 @@ void f_008A3CF0_lifted(Ctx& c);
 void f_008A3CF0(Ctx& c) {
   const uint32_t key = Rd32(c.esp + 4), self = c.ecx;
   const bool russian = RussianText();
-  if (key && (FfData() || russian)) {
+  if (key) {
     const uint32_t hash = uint32_t(CallGuest(c, 0x0045CF50, {key, 0}));
-    if (FfData() && FindText(hash)) {
+    if (FindText(hash)) {
       c.eax = 1;
       c.esp += 8;  // ret 4
       return;
@@ -584,7 +644,7 @@ void f_00418820(Ctx& c) {
 
 void hook_0041E550(Ctx& c) {  // cmp [edi+14], ebx
   static bool done = false;
-  if (FfData() && !done) {
+  if (!done) {
     done = true;
     static const char* const kOwn[] = {"rage_im",        "rage_bink",       "shadowsmartblit", "shadowz",
                                        "mirror",         "water",           "rmptfx_default",  "rmptfx_litsprite",

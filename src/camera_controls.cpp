@@ -1,11 +1,7 @@
 // Camera and controls options from FusionFix (ThirteenAG and contributors,
-// GPL-3.0; done again for 1.0.8.0 by its ideas, its code not taken). Off
-// by default unless said otherwise, as FusionFix has them:
-//   GTAIV_PAD_CAMERA_DELAY: on foot with a gamepad the camera does not
-//     swing back behind Niko for 2 s after the right stick moved it (the
-//     mouse's own delay is GTAIV_MOUSE_CAMERA_DELAY);
-//   GTAIV_CAR_CAMERA_DELAY: in vehicles the camera does not swing back
-//     behind the car for 2 s after the mouse or the right stick moved it;
+// GPL-3.0) for patch 1.0.8.0. Keyboard and controller camera delays and
+// vehicle recentering speeds are independent FusionFix preferences.
+// The other options are off by default unless noted:
 //   GTAIV_AIM_ZOOM_MEMORY: the aiming zoom is remembered from one aim to
 //     the next in every episode, as on the Xbox (on the PC only The Ballad
 //     of Gay Tony reads it back, and starts every aim zoomed in; that
@@ -21,6 +17,7 @@
 //     change the radio station meanwhile.
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 
@@ -68,44 +65,99 @@ struct Delay {
   }
 };
 
-constexpr uint32_t kCameraDelayMs = 2000;
-
 // An input's value (ioValue: +4 and +6 xored) is down past its middle.
 bool Down(uint32_t io) { return uint8_t(Rd8(io + 6) ^ Rd8(io + 4)) > 0x7F; }
 
 }  // namespace
 
-// CCamFollowPed: how strongly the camera swings back behind the player
-// this frame, (target - current heading) / time (divss xmm0, xmm1; stored
-// next by the mouse delay's hook). With a gamepad held at 0 for 2 s after
-// the right stick moved.
-void hook_00A8A6DA(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_PAD_CAMERA_DELAY", false);
-  static Delay delay;
-  float v = Lane0(c.xmm[0]) / Lane0(c.xmm[1]);
-  if (on && UsingPad(c) && delay.Hold(RightStickMoved(c) ? kCameraDelayMs : 0)) v = 0.0f;
-  SetLane0(c.xmm[0], v);
+// A delay step is half a second of game time. Keep separate timers for
+// keyboard and controller input so switching devices cannot inherit a delay.
+namespace {
+bool HoldCamera(Ctx& c, int steps, bool pad, Delay& delay) {
+  if (!steps) return false;
+  const bool moved = pad ? RightStickMoved(c) : MouseMoved();
+  return delay.Hold(moved ? uint32_t(steps) * 500 : 0);
 }
 
-// CCamFollowVehicle: the same across and up, (target - current) before the
-// division by a time (subss; the turn speed's hooks divide next). Held at 0
-// for 2 s after the right stick (with a gamepad) or the mouse moved.
-namespace {
-bool CarCameraHold(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_CAR_CAMERA_DELAY", false);
-  static Delay delay;
-  if (!on) return false;
-  const bool moved = UsingPad(c) ? RightStickMoved(c) : MouseMoved();
-  return delay.Hold(moved ? kCameraDelayMs : 0);
+float CarCameraReturn(Ctx& c, float delta, float time) {
+  static Delay keyboard, controller;
+  const bool pad = UsingPad(c);
+  const int delay = gtaiv::FusionFixChoice(pad ? "GTAIV_FF_PAD_VEHICLE_DELAY" : "GTAIV_FF_KB_VEHICLE_DELAY");
+  if (HoldCamera(c, delay, pad, pad ? controller : keyboard) || (!pad && MouseMoved())) return 0;
+  const int speed = gtaiv::FusionFixChoice(pad ? "GTAIV_FF_PAD_VEHICLE_SPEED" : "GTAIV_FF_KB_VEHICLE_SPEED");
+  return delta / (time * (1.0f - float(speed) * 0.1f));
 }
 }  // namespace
-void hook_00A813F1(Ctx& c) {  // subss xmm0, [esi+194]
-  const float v = Lane0(c.xmm[0]) - RdF32(c.esi + 0x194);
-  SetLane0(c.xmm[0], CarCameraHold(c) ? 0.0f : v);
+
+// CCamFollowPed's auto-centering value for this frame, after the division.
+void hook_00A8A6E0(Ctx& c) {
+  static Delay keyboard, controller;
+  const bool pad = UsingPad(c);
+  const int delay = gtaiv::FusionFixChoice(pad ? "GTAIV_FF_PAD_FOOT_DELAY" : "GTAIV_FF_KB_FOOT_DELAY");
+  WrF32(c.esp + 0x48, HoldCamera(c, delay, pad, pad ? controller : keyboard) ? 0.0f : Lane0(c.xmm[0]));
 }
-void hook_00A81104(Ctx& c) {  // subss xmm0, xmm1
-  const float v = Lane0(c.xmm[0]) - Lane0(c.xmm[1]);
-  SetLane0(c.xmm[0], CarCameraHold(c) ? 0.0f : v);
+
+// CCamFollowVehicle's horizontal and vertical auto-centering values.
+void hook_00A813F9(Ctx& c) {
+  const float v = CarCameraReturn(c, Lane0(c.xmm[0]), Lane0(c.xmm[1]));
+  SetLane0(c.xmm[0], v);
+  WrF32(c.esp + 0x58, v);
+}
+void hook_00A81108(Ctx& c) {
+  const float v = CarCameraReturn(c, Lane0(c.xmm[0]), Lane0(c.xmm[2]));
+  SetLane0(c.xmm[0], v);
+  WrF32(c.esp + 0xBC, v);
+}
+
+// FusionFix 5.1.2's look and aim ranges (rawinput.ixx). These hooks use the
+// game's native input paths, with a separate sensitivity for each context.
+namespace {
+float Sensitivity(const char* option) {
+  return std::lerp(0.1f, 2.0f, float(gtaiv::FusionFixChoice(option)) / 21.0f);
+}
+float PadLook() { return Sensitivity("GTAIV_FF_PAD_LOOK_SENSITIVITY"); }
+float PadAim() { return Sensitivity("GTAIV_FF_PAD_AIM_SENSITIVITY"); }
+float MouseAim() { return Sensitivity("GTAIV_FF_MOUSE_AIM_SENSITIVITY") * 0.1f; }
+}  // namespace
+
+void hook_00A8A80A(Ctx& c) { WrF32(c.esp + 0x14, Lane0(c.xmm[0]) * PadLook()); }
+void hook_00A8A81E(Ctx& c) { SetLane0(c.xmm[1], Lane0(c.xmm[1]) * Lane0(c.xmm[0]) * PadLook()); }
+void hook_00A7CF90(Ctx& c) {
+  if (c.ebx && !Rd8(c.ebx + 0x3289)) {
+    const float scale = PadLook();
+    WrF32(c.esp + 0x20, RdF32(c.esp + 0x20) * scale);
+    WrF32(c.esp + 0x24, RdF32(c.esp + 0x24) * scale);
+  }
+  LoadSs(c.xmm[0], RdF32(c.esi));
+}
+
+void hook_00A7DAC0(Ctx& c) { LoadSs(c.xmm[2], 1.0f); }
+void hook_00A7DB1C(Ctx& c) { LoadSs(c.xmm[1], 1.0f); }
+void hook_00A7D993(Ctx& c) { WrF32(c.esp + 0x24, Lane0(c.xmm[0]) * PadLook()); }
+
+void hook_00A9C051(Ctx&) {}  // Skip the jump over the aim sensitivity path.
+void hook_00A9C124(Ctx& c) {
+  const float scale = MouseAim();
+  SetLane0(c.xmm[0], scale);
+  c.xmm[3] = c.xmm[0];  // movaps
+}
+void hook_00A82123(Ctx& c) {
+  const float scale = MouseAim();
+  SetLane0(c.xmm[0], scale);
+  c.xmm[2] = c.xmm[0];  // movaps
+}
+void hook_00A9C13A(Ctx& c) {
+  const float scale = PadAim();
+  LoadSs(c.xmm[2], scale * 0.015f);
+  SetLane0(c.xmm[3], scale * 0.02f);
+}
+void hook_00A8204A(Ctx& c) { LoadSs(c.xmm[1], 1.0f); }
+void hook_00A8206B(Ctx& c) { LoadSs(c.xmm[2], 1.0f); }
+void hook_00A820CA(Ctx& c) { LoadSs(c.xmm[0], 1.0f); }
+void hook_00A82142(Ctx& c) {
+  const float scale = PadAim() / 45.0f;
+  LoadSs(c.xmm[5], scale);
+  SetLane0(c.xmm[2], scale);
 }
 
 // The aiming camera's zoom is bit 0 of its byte +200. Starting an aim, The
@@ -158,7 +210,7 @@ void hook_00A80538(Ctx& c) {
 // the player got off one (CTaskSimpleClimbLadder's clean-up, C78090).
 namespace {
 bool AutoLadders() {
-  static const bool on = OptionOn("GTAIV_AUTO_LADDERS", false);
+  const bool on = gtaiv::FusionFixOption("GTAIV_AUTO_LADDERS");
   return on;
 }
 constexpr float kAutoLadderRange = 1.5f;

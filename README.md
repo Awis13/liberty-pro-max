@@ -23,10 +23,15 @@ Expect rough edges, and please report what you find in the
    [releases](https://github.com/Awis13/liberty-pro-max/releases) and open it.
    It is not signed by Apple: the first time, go to System Settings, Privacy &
    Security, and press **Open Anyway**.
-2. Drop your Grand Theft Auto IV folder (or `GTAIV.exe`) on it. If asked,
-   install Apple's Command Line Tools with its button (free).
-3. Press **Build Liberty Pro Max**. About 5 to 20 minutes later it is in
-   Applications: open it, check the options, press **Play**.
+2. Drop your GTA IV folder or `GTAIV.exe` on the Builder. For the Complete
+   Edition, follow the [Patch 8 steps](#complete-edition-with-the-builder).
+   Install Apple's Command Line Tools if the Builder asks.
+3. To restore the radio, select the [optional radio settings](#restore-the-radio)
+   in the Builder.
+4. Click **Build Liberty Pro Max**. The Builder downloads and verifies
+   FusionFix 5.1.2, then bundles its data with the app. The app goes in
+   Applications after about 5 to 20 minutes.
+5. Open Liberty Pro Max and click **Play**.
 
 For the iPad, the iPhone and the Apple TV, see [Install](#install).
 
@@ -51,11 +56,11 @@ iPad's touch controls are there too, but small on a phone).
 
 ## What you need
 
-- **Your own GTA IV for PC, version 1.0.8.0**: the folder with `GTAIV.exe`
-  (SHA-256 `3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f`)
-  and the game's data next to it (`pc/`, `common/`, …). Only this file, as
-  Rockstar signed it, works: a changed or cracked exe does not. The Complete
-  Edition (1.2.0.x) is not supported.
+- **Your own GTA IV for PC.** Use the folder with `GTAIV.exe`, `pc/` and
+  `common/`. The Complete Edition also has `TLAD/` and `TBoGT/`.
+  Liberty Pro Max compiles Rockstar's signed `GTAIV.exe` version 1.0.8.0.
+  Check its SHA-256 against
+  `3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f`.
 
   If you own the game on Steam, you can download this version from your own
   account with [DepotDownloader](https://github.com/SteamRE/DepotDownloader)
@@ -91,12 +96,114 @@ iPad's touch controls are there too, but small on a phone).
 
 ### Mac, with the Builder
 
-See [Quick start](#quick-start). The Builder carries everything that is not
-the game's code (the runtime, its libraries, the translator) and compiles only
-what it translates from your own `GTAIV.exe`, with Apple's compiler; no
-Homebrew. `builder/make_builder.sh` makes it.
+See [Quick start](#quick-start). The Builder carries the runtime, libraries
+and translator. It uses Apple's compiler. Run `builder/make_builder.sh` to
+package the Builder from source.
+
+Run `builder/check_builder.sh` on macOS with Apple's Command Line Tools
+to check Complete Edition detection, rejection of malformed executables,
+the radio preset mappings and build readiness with radio disabled.
+The checks use test data in place of game files and radio archives.
+
+#### Complete Edition with the Builder
+
+1. Install [7-Zip](https://www.7-zip.org/) with
+   `brew install sevenzip`, or put the standalone `7zz` in `/usr/local/bin`.
+   A game folder that already has Rockstar's 1.0.8.0 executable can skip
+   this step.
+2. Drop the Complete Edition folder on the Builder. Use the folder that
+   contains `GTAIV.exe`, or its parent if it contains a `GTAIV` subfolder.
+3. Click **Download Rockstar's GTA IV Patch 8 installer**. Choose the
+   downloaded `GTA_IV_EFIGS_PATCH_8.exe` in the Builder.
+   [Rockstar Patch 8 notes](https://support.rockstargames.com/articles/4DH92vTMXDygNI5nFQGoy6/grand-theft-auto-iv-patch-8-title-update-notes-pc-only)
+4. Choose the optional radio settings before you click **Build Liberty Pro Max**.
+   The Builder verifies the installer and writes the verified executable to
+   a temporary folder. The launcher reads your Complete Edition game data.
+
+To play an episode, enable **Episodes** in the launcher's **Extras**. The
+game uses the 1.0.8.0 save format. See [Saves from elsewhere](#saves-from-elsewhere)
+for details.
+
+#### Restore the radio
+
+1. Download Tomasak's 23 May 2025 release. Extract `Resources/Radio Restorer`
+   and keep its DAT files together.
+   [Original Radio Restoration release](https://github.com/Tomasak/GTA-Downgraders/releases/tag/iv-latest)
+2. In the Builder, turn on **Restore the radio** and choose `data1.dat`.
+   The Builder extracts the radio archive, station listings and episode
+   audio. If you already unpacked `data1.dat`, you can choose
+   `update/pc/audio/sfx/RADIO_RESTORATION.rpf` instead. Keep the extracted
+   `update` folder beside the playlist DAT files.
+3. Choose **Pre-cut** or **Pre-cut + post-cut Vladivostok**. You can include
+   restored beta songs. **Separate GTA IV and Episodes** gives GTA IV its
+   original station lineup and uses a different playlist for the episodes.
+   **Share GTA IV and Episodes playlists** keeps all stations available.
+4. Click **Build Liberty Pro Max**. The Builder installs the radio files
+   under `Radio Restoration` in the Mods folder and applies the playlist
+   mode in the launcher. Leave **Load mods** enabled in the launcher.
+
+To change the playlist, close the game and move the existing
+`Radio Restoration` folder out of Mods before building again. The launcher's
+**Open Mods Folder** button opens its location. Set up the radio before
+running `install-ios.sh` to copy it to another Apple device.
+
+Tomasak, ICan'tReadYourMind and the Radio Restoration contributors made
+the radio mod. [Original project and credits](https://downgraders.rockstarvision.com/)
+
+### FusionFix in the game
+
+The Builder and terminal installers require the official FusionFix 5.1.2
+archive. They download it on first use and verify its SHA-256. For an offline
+build, set `GTAIV_FUSIONFIX_ZIP` to the path of the official ZIP.
+[FusionFix 5.1.2 release](https://github.com/ThirteenAG/GTAIV.EFLC.FusionFix/releases/tag/v5.1.2)
+
+FusionFix settings appear under **Controls**, **Display**, **Graphics**,
+**Audio**, and **Game**. The controller and keyboard options each have
+camera recentering sliders and separate look and aim sensitivities. **FPS Limiter** applies as soon as you change
+the preset. **Console Gamma** applies on the next launch. Settings changed
+in the game are saved and take precedence over launcher defaults. The
+**Custom** FPS preset uses the cap supplied by the launcher or
+`GTAIV_FPS_LIMIT`. The build includes the data files for
+mission and model fixes. The PC ASI, DirectX options, and Windows-only
+features are outside the native integration.
+
+**Display** includes Bloom and the IV, TLAD and TBoGT Screen Filter
+presets. The game reloads its timecycle when either changes during play.
+Under **Controller Options**, Gamepad Icons can show any
+of the eight FusionFix art sets. **Automatic** follows the first connected
+controller. **Graphics** also has a toggle for console-style car reflections
+and dirt. New cars use the selected setting when they spawn.
+
+On Mac, **FusionFix shader preview** in the launcher's **Advanced** tab
+enables tree lighting, tree alpha, shadow filtering, extended sunlight
+reach, auto exposure, tone mapping, motion blur and volumetric fog under
+**Display** and **Graphics**. Changes save across launches. Restart the
+game after changing volumetric fog so the game reloads its timecycle.
+Contact-hardening shadows require Very High shadow quality. Use the
+native Metal renderer with ray tracing off. For terminal builds, set
+`GTAIV_GFX=metal GTAIV_FF_SHADERS=1`.
 
 ### Mac, from the Terminal
+
+If your game is the Complete Edition, duplicate the game folder in Finder
+first. Extract the executable from Rockstar's Patch 8 installer. Use
+`7zz` from the [Builder steps](#complete-edition-with-the-builder).
+
+```sh
+(
+  set -e
+  tmp=$(mktemp -d)
+  trap 'rm -rf "$tmp"' EXIT
+  7zz x -so -bsp0 -- "/path/to/GTA_IV_EFIGS_PATCH_8.exe" '$0/GTAIV.exe' > "$tmp/GTAIV.exe"
+  cd "$tmp"
+  printf '%s  GTAIV.exe\n' \
+    3d90e7c516fa450ca002e5031e62c0f66b404590f33e6cc9793b0da4fffbfd0f | shasum -a 256 -c
+  cp GTAIV.exe "/path/to/GTAIV-copy/GTAIV.exe"
+)
+```
+
+Use the duplicate in the next command and when the launcher asks for the
+game folder.
 
 ```bash
 git clone https://github.com/Awis13/liberty-pro-max
@@ -344,9 +451,10 @@ folder is not changed, and **Load mods** turns them off.
 The game's own `update` folder is read the same way, so mods already there keep
 working.
 
-Only files are loaded: mods with Windows code (`.asi`, `.dll`) do not run. Mods
-are not part of this project, and it does not supply or support any. Add them
-before `install-ios.sh` to have them on the iPad, iPhone or Apple TV too.
+Liberty Pro Max loads mod data files. Windows `.asi` plugins and `.dll`
+libraries require the Windows game. Get mod data from its original
+distributor. Add mods before `install-ios.sh` to copy them to the iPad,
+iPhone or Apple TV.
 
 ## Fixes and options
 
@@ -438,7 +546,7 @@ Audio in Control Center) and have no switch for it.
 <summary>All fixes and options</summary>
 
 <!-- fixes:begin -->
-107 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
+106 switches in the launcher (Advanced and Extras tabs; the iPad and iPhone have them on their settings screen). Each one is also an environment variable, `GTAIV_` and the name in capitals in `src/launcher_options.h`. The shader choices there, motion blur among them, are not listed: no launcher shows them, as the extended shaders they belong to are not finished. The launcher sets them to their defaults too; another value takes effect only in a game started without it (see If something goes wrong).
 
 #### High frame rates
 
@@ -498,14 +606,6 @@ The game was made for 30 fps; these keep it right at any frame rate.
 | Pause menu shows the game's version, the archives open and memory use | off |
 | Pause menu time and money spaced as on consoles | on |
 | Menu lists show 32 rows before scrolling | on |
-
-#### FusionFix
-
-Its mission and model fixes need its update folder in the game folder. Its shaders do not work in the port yet, so their options are not listed.
-
-| Option | Default |
-|---|---|
-| Use FusionFix's mission and model fixes if installed (update folder) | on |
 
 #### Lights, shadows and effects
 
@@ -607,7 +707,7 @@ turn; flick the same way to turn it off.
 
 Not yet here from FusionFix: its ambient occlusion (SAO), the console gamma's
 dithered variant and its brightness change, HDR output, depth effects through transparent surfaces (pre-alpha depth), MSAA in
-reflections, camera sensitivity ranges and ragdoll on demand. The episodes'
+reflections, custom sensitivity ranges from the Windows INI, and ragdoll on demand. The episodes'
 vehicles and weapons in IV are not here yet. On a Mac, FusionFix's raw input,
 keyboard lighting, graphics API choice and plugin loaders have nothing to do.
 
@@ -637,12 +737,13 @@ export GTAIV_GAME_DIR="/path/to/Grand Theft Auto IV"
 
 cmake --preset release && cmake --build --preset release   # the lifter and runtime
 tools/lift.sh                                              # the game's code to C++ (generated/)
+python3 tools/fusionfix.py "$GTAIV_GAME_DIR" out/fusionfix --cache out/downloads
 cmake --preset release && cmake --build --preset release   # the game
 ```
 
 The app is `out/build/release/Liberty Pro Max.app`; the plain executable,
-`out/build/release/gtaiv --game-dir "$GTAIV_GAME_DIR"`, starts without the
-launcher. For the app's icon, before the last build (with Pillow):
+`GTAIV_FUSIONFIX_DIR="$PWD/out/fusionfix" out/build/release/gtaiv --game-dir "$GTAIV_GAME_DIR"`,
+starts without the launcher. For the app's icon, before the last build (with Pillow):
 `python3 tools/make_ios_icon.py "$GTAIV_GAME_DIR" out/icons --mac`.
 
 Building and testing: `cmake --preset release -DGTAIV_TESTS=ON`, build, then

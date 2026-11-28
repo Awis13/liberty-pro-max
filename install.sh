@@ -52,6 +52,9 @@ if ! { python3 -m venv out/venv && out/venv/bin/pip -q install pillow &&
   echo "No icon could be made from the game's files: the app has the standard one."
 fi
 
+say "FusionFix"
+python3 tools/fusionfix.py "$GTAIV_GAME_DIR" out/fusionfix --cache out/downloads
+
 say "The game"
 cmake --preset release >/dev/null
 cmake --build --preset release

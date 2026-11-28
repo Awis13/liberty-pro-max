@@ -13,6 +13,7 @@
 // (launcher_mac.mm); --no-launcher skips it.
 
 #include <sys/stat.h>
+#include <limits.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -55,6 +56,7 @@ bool GtaivSendMessage(uint32_t hwnd, uint32_t msg, uint32_t wparam, uint32_t lpa
 bool GtaivThreadQos(recomp::gaddr entry, uint64_t param, recomp::platform::ThreadQos* out);
 
 // mods.cpp: the player's mods; the game's reads are pointed at their files.
+std::string GtaivDataRoot();
 void GtaivModsInit();
 std::string GtaivModsRedirect(const std::string& guest_path);
 
@@ -76,6 +78,8 @@ void GtaivTouchStart();  // touch_ios.mm
 namespace recomp::gen {
 // update_folder.cpp: FusionFix's files from the game's update folder.
 std::string UpdateFolderRedirect(const std::string& guest_path);
+bool MountFusionFix(const std::string& resource, const std::string& data_root);
+void UnmountFusionFix();
 // ff_shaders.cpp: the current viewport's near and far planes.
 bool GtaivDepthPlanes(float* near_plane, float* far_plane);
 // pad_feedback.cpp: a DualSense's triggers freed as the game exits.
@@ -97,6 +101,21 @@ bool GtaivRayLightVolumeConsumer(const std::vector<uint32_t>& tokens, recomp::gf
 bool GtaivRayOcclusionConsumer(const std::vector<uint32_t>& tokens, recomp::gfx::RayOcclusion* out);
 
 namespace {
+std::string FusionFixResources() {
+  if (const char* dir = std::getenv("GTAIV_FUSIONFIX_DIR"); dir && *dir) return dir;
+#if defined(__APPLE__)
+  if (CFBundleRef bundle = CFBundleGetMainBundle()) {
+    if (CFURLRef resources = CFBundleCopyResourcesDirectoryURL(bundle)) {
+      UInt8 path[PATH_MAX];
+      const bool ok = CFURLGetFileSystemRepresentation(resources, true, path, sizeof path);
+      CFRelease(resources);
+      if (ok) return std::string(reinterpret_cast<const char*>(path)) + "/fusionfix";
+    }
+  }
+#endif
+  return {};
+}
+
 std::string ReadRedirect(const std::string& guest_path) {
   std::string r = GtaivModsRedirect(guest_path);
   if (r.empty()) r = recomp::gen::UpdateFolderRedirect(guest_path);
@@ -249,6 +268,14 @@ int main(int argc, char** argv) {
     return 2;
   }
 
+  const std::string data = GtaivDataRoot();
+  const std::string fusion = FusionFixResources();
+  if (fusion.empty() || !recomp::gen::MountFusionFix(fusion, data)) {
+    std::fprintf(stderr, "gtaiv: cannot mount the required FusionFix data at %s. Rebuild Liberty Pro Max.\n",
+                 fusion.c_str());
+    return 2;
+  }
+  gtaiv::LoadFusionFixSettings(data);
   recomp::GameConfig game;
   game.id = "gtaiv";
   game.guest_dir = "C:\\Program Files\\Rockstar Games\\Grand Theft Auto IV";
@@ -370,6 +397,7 @@ int main(int argc, char** argv) {
 #if !GTAIV_IOS
   // Saves to the player's iPad and Apple TV (save_sync_mac.mm).
   game.before_exit = [] {
+    recomp::gen::UnmountFusionFix();
 #ifdef GTAIV_PGO_GENERATE
     WriteProfile();
 #endif
@@ -381,6 +409,7 @@ int main(int argc, char** argv) {
   // The iPad: saves up to iCloud (save_cloud.mm); quitting through the
   // game's own menu never sends the app to the background.
   game.before_exit = [] {
+    recomp::gen::UnmountFusionFix();
 #ifdef GTAIV_PGO_GENERATE
     WriteProfile();
 #endif
@@ -389,6 +418,7 @@ int main(int argc, char** argv) {
   };
 #else
   game.before_exit = [] {
+    recomp::gen::UnmountFusionFix();
 #ifdef GTAIV_PGO_GENERATE
     WriteProfile();
 #endif
@@ -399,5 +429,7 @@ int main(int argc, char** argv) {
   // The newest saves from iCloud before the game reads any (save_cloud.mm).
   GtaivCloudSavesStart();
 #endif
-  return recomp::RunProcess(game, exe, game_dir, command_line);
+  const int status = recomp::RunProcess(game, exe, game_dir, command_line);
+  recomp::gen::UnmountFusionFix();
+  return status;
 }

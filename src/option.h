@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <string>
 
 inline bool OptionOn(const char* name, bool def) {
   const char* e = std::getenv(name);
@@ -19,3 +20,11 @@ bool EpisodesOn();
 // the game takes it (src/episode_files.h; src/episodes.cpp).
 bool EpisodeInstalled(uint32_t episode);
 }  // namespace recomp::gen
+
+namespace gtaiv {
+void LoadFusionFixSettings(const std::string& data_root);
+int FusionFixChoice(const char* env);
+bool FusionFixOption(const char* env);
+double FusionFixFrameLimit();
+float FusionFixFov();
+}  // namespace gtaiv

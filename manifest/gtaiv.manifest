@@ -586,7 +586,7 @@ hook 00C9FF04 00C9FF0B   # distant lights: TBoGT halves them too (CmpFlags in co
 hook 009AD73B 009AD740   # water buffers: the flip held until the render wait
 hook 008A187C 008A1883   # CMainLoop::Synchronise after its wait: the held flip
 hook 00B4F179 00B4F180   # SET_MINIGAME_IN_PROGRESS: which script
-hook 00855651 00855656   # once a frame: 30 fps in those minigames
+hook 00855651 00855656   # once a frame: FusionFix FPS limiter and 30 fps minigames
 hook 004B2C45 004B2C48   # radar: every frame, not every 30 ms
 hook 004B2CAA 004B2CB2   # radar zoom in: per time
 hook 004B2CB7 004B2CBF   # radar zoom out: per time
@@ -719,9 +719,6 @@ hook 00A7D08A 00A7D092   # its inverse time step: 30
 hook 00A813F9 00A81403   # car camera swing back: faster with keyboard and mouse
 hook 00A81108 00A81115
 # Camera and controls (src/camera_controls.cpp).
-hook 00A8A6DA 00A8A6DE   # on-foot camera: no recentring 2 s after the right stick (option)
-hook 00A813F1 00A813F9   # car camera across: no recentring 2 s after mouse/stick (option)
-hook 00A81104 00A81108   # car camera up: the same
 hook 00A9B948 00A9B94F   # aim zoom memory: read back in IV too (option; TBoGT always)
 hook 009DD486 009DD48C   # aim zoom memory: reset to 0, not 1
 hook 00A98F9D 00A98FA3   # aim zoom memory: zoom in followed
@@ -865,6 +862,41 @@ replace 008AE060 RegisterNatives   # the Complete Edition scripts' multiplayer n
 replace 008905E0 ExtraContent_Load   # an episode's radio only in that episode (GTAIV_EPISODE_RADIO_OWN)
 replace 008906B0 ExtraContent_LoadAudio   #   the same, the audio lists alone
 # The icons of the pad in use (src/pad_icons.cpp).
-hook 0088798D 0088798E   # the game's button textures loaded (push ebp): the other pads' sets beside them (GTAIV_PAD_ICONS)
+hook 0088798D 0088798E   # load FusionFix's controller button sets beside the stock textures
+hook 007C5B03 007C5B08   # retain the stock diagram load, alongside FusionFix's earlier diagram loads
+hook 007C2465 007C246A   # draw the chosen controller diagram in controller options
 replace 00887E80 MenuManager_ReleaseButtonTextures   # the other pad sets released, the game's own given back
+replace 00B4DB30 FusionFixScriptButtonStyle       # scripts read the active icon set through GET_CONTROL_VALUE
 hook 007BC38E 007BC393   # the speaker setting the game mixes by: a surround placement for headphones or stereo while its output is 5.1 (GTAIV_SPATIAL_AUDIO)
+
+# FusionFix's menu preferences (src/fusionfix_menu.cpp): XML names/scalers
+# and the frontend's shared readers and writers for custom preference IDs.
+replace 00B1B350 FusionFixScriptPreference   # streamed scripts read PREF_* through their native
+replace 0049BD90 FusionFixPreferenceName
+hook 0048DB56 0048DB5D
+hook 0048E4B7 0048E4BE
+hook 0049BD38 0049BD3F
+hook 007BEF34 007BEF3B
+hook 007C3F0F 007C3F16
+hook 007C4785 007C478E
+hook 007C9CE4 007C9CEB
+hook 007C9DDB 007C9DE3
+hook 007C9E47 007C9E4E
+hook 007CA193 007CA19A
+hook 007CA1A0 007CA1A7
+
+# FusionFix's controller look and separate controller/mouse aim sensitivities.
+hook 00A8A80A 00A8A810   # on-foot controller look, horizontal
+hook 00A8A81E 00A8A822   # on-foot controller look, vertical
+hook 00A7CF90 00A7CF94   # in-vehicle controller look
+hook 00A7DAC0 00A7DAC9   # in-vehicle first-person look: remove native sensitivity multiplier
+hook 00A7DB1C 00A7DB25
+hook 00A7D993 00A7D999   # in-vehicle first-person look: apply the new sensitivity
+hook 00A9C051 00A9C053   # allow the aim sensitivity path for all weapons
+hook 00A9C124 00A9C127   # third-person mouse aim
+hook 00A82123 00A82126   # scoped mouse aim
+hook 00A9C13A 00A9C142   # third-person controller aim
+hook 00A8204A 00A82053   # scoped controller aim: remove native sensitivity multiplier
+hook 00A8206B 00A82074
+hook 00A820CA 00A820D3
+hook 00A82142 00A8214A   # scoped controller aim: apply the new sensitivity

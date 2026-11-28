@@ -279,7 +279,7 @@ bool SameName(const std::string& a, const char* b) {
 }  // namespace
 
 void f_008B3A30(Ctx& c) {
-  static const bool on = OptionOn("GTAIV_ALT_DIALOGUE", false);
+  const bool on = gtaiv::FusionFixOption("GTAIV_ALT_DIALOGUE");
   const uint32_t name = Rd32(c.esp + 4);
   const uint32_t globals = Rd32(kGlobals);
   if (on && name && globals && Rd32(kEpisode) == 0) {

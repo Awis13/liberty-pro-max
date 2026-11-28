@@ -112,7 +112,7 @@ struct ShakeTicks {
 
 void f_008CEF80(Ctx& c) {
   static const bool fix = OptionOn("GTAIV_SHAKE_FIX", true);
-  static const bool shake = OptionOn("GTAIV_CAMERA_SHAKE", true);
+  const bool shake = gtaiv::FusionFixOption("GTAIV_CAMERA_SHAKE");
   if (!fix) {
     // The game's own shaker; without the shake its matrix is made from
     // angles times 0 (the scale is used for nothing else).
@@ -322,15 +322,19 @@ void hook_00B4F179(Ctx& c) {
   Wr32(0x0120A680, Rd32(0x0120A680) + 1);  // the flags of add are not used: ret follows
 }
 void hook_00855651(Ctx& c) {  // mov eax, [0112EAC0]
-  using clock = std::chrono::steady_clock;
-  static clock::time_point last;
-  if (g_minigame_capped && Rd32(0x0120A680)) {
-    const auto next = last + std::chrono::microseconds(33333);
-    const auto now = clock::now();
-    if (now < next) std::this_thread::sleep_until(next);
-    last = std::max(next, now - std::chrono::milliseconds(100));  // no bursts after a long frame
+  using Clock = std::chrono::steady_clock;
+  static auto last = Clock::now();
+  const double preset = gtaiv::FusionFixFrameLimit();
+  const bool minigame = g_minigame_capped && Rd32(0x0120A680);
+  const double limit = minigame && (preset <= 0 || preset > 30) ? 30 : preset;
+  if (limit > 0) {
+    const auto period = std::chrono::duration_cast<Clock::duration>(
+        std::chrono::duration<double>(1.0 / std::max(1.0, limit)));
+    const auto next = last + period;
+    std::this_thread::sleep_until(next);
+    last = std::max(next, Clock::now() - period);
   } else {
-    last = clock::now();
+    last = Clock::now();
   }
   c.eax = Rd32(0x0112EAC0);
 }

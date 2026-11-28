@@ -51,11 +51,6 @@ void f_00859070_lifted(Ctx& c);
 
 namespace {
 
-bool Option(const char* name) {
-  const char* e = std::getenv(name);
-  return e && *e == '1';
-}
-
 bool g_menu_reached = false;  // the first menu has been asked for
 
 bool FastLoading() {
@@ -244,7 +239,7 @@ bool HasSave() {
 // (first_menu.h).
 void hook_0047D255(Ctx& c) {
   constexpr uint32_t kChooserUp = 0x010FBBB1;  // the episode chooser is up
-  static const bool cont = Option("GTAIV_CONTINUE");
+  const bool cont = gtaiv::FusionFixOption("GTAIV_CONTINUE");
   const bool chooser = Rd8(kChooserUp) != 0;
   bool has_save = false;
   if (cont && !g_menu_reached && chooser) {
@@ -376,7 +371,7 @@ void f_004944E0(Ctx& c) {
 // short ones (logos, legal text) before the first menu are skipped with
 // GTAIV_SKIP_INTRO.
 void hook_004A346B(Ctx& c) {
-  static const bool skip = Option("GTAIV_SKIP_INTRO");
+  const bool skip = gtaiv::FusionFixOption("GTAIV_SKIP_INTRO");
   c.ecx = Rd32(0x018CB07C);
   c.edx = Rd32(c.esp + 0x1C);
   if (skip && !g_menu_reached && int32_t(c.edx) < 8000) c.edx = 0;
@@ -386,10 +381,7 @@ void hook_004A346B(Ctx& c) {
 // of view, at this+60, as the game sets it; GTAIV_FOV degrees are added
 // (FusionFix's custom FOV, by its idea).
 void f_00A777C0(Ctx& c) {
-  static const float extra = [] {
-    const char* e = std::getenv("GTAIV_FOV");
-    return e ? float(std::atof(e)) : 0.0f;
-  }();
+  const float extra = gtaiv::FusionFixFov();
   const uint32_t self = c.ecx;
   f_00A777C0_lifted(c);
   if (extra != 0.0f) {

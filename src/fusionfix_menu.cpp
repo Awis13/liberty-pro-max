@@ -196,7 +196,8 @@ void GtaivTimecycleSettingsFrame(Ctx& c) {
   if (!g_timecycle_dirty.exchange(false, std::memory_order_acq_rel)) return;
   hook::KeepRegs keep(c);
   CallGuest(c, 0x00A3B450, {});
-  if (OptionOn("GTAIV_LOAD_LOG", false)) WarnF("gtaiv: FusionFix timecycle reloaded\n");
+  if (const char* log = std::getenv("GTAIV_LOAD_LOG"); log && *log && *log != '0')
+    WarnF("gtaiv: FusionFix timecycle reloaded\n");
 }
 
 void f_0049BD90_lifted(Ctx& c);

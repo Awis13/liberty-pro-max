@@ -91,6 +91,7 @@ bool Complete(size_t prefix) {
   return true;
 }
 bool g_loaded = false;
+bool g_diagrams_loaded = false;
 int g_shown = 0;
 
 int PrefixFor(SDL_GamepadType type) {
@@ -139,6 +140,7 @@ void hook_0088798D(Ctx& c) {
   }
   for (size_t s = 0; s < kSlotCount; ++s) Wr32(SlotOf(0, s), Rd32(kSlots[s].at));
   int complete = Complete(0) ? 1 : 0;
+  int diagrams = 0;
   for (size_t p = 1; p < kPrefixCount; ++p) {
     for (size_t s = 0; s < kSetSize; ++s) {
       const std::string text = std::string(kPrefixes[p]) + (s == kSlotCount ? "CONTROLLER" : kSlots[s].name);
@@ -148,11 +150,27 @@ void hook_0088798D(Ctx& c) {
       CallGuest(c, kLoadTexture, {name});
     }
     complete += Complete(p);
+    diagrams += Rd32(SlotOf(p, kSlotCount)) != 0;
   }
   c.esp = esp;
   g_loaded = true;
+  g_diagrams_loaded = diagrams != 0;
   g_shown = 0;
-  WarnF("gtaiv: pad icons: %d sets\n", complete);
+  WarnF("gtaiv: pad icons: %d sets, %d diagrams\n", complete, diagrams);
+}
+
+// Controller Configuration loads its stock diagram after the button archive.
+// Keep that load: the diagram's draw call uses its slot, while the alternate
+// diagrams above are loaded from FusionFix's button archive.
+void hook_007C5B03(Ctx& c) {
+  CallGuest(c, kLoadTexture, {Rd32(c.esp)});
+  c.esp += 4;  // the original thiscall consumed its pushed texture name
+  int diagrams = 0;
+  if (g_slots)
+    for (size_t p = 1; p < kPrefixCount; ++p)
+      diagrams += Rd32(SlotOf(p, kSlotCount)) != 0;
+  WarnF("gtaiv: controller diagrams: %d alternate sets (stock %s)\n", diagrams,
+        Rd32(kControllerDiagram) ? "loaded" : "missing");
 }
 
 // The game releasing its button textures (CMenuManager's, before a reload or
@@ -170,6 +188,11 @@ void f_00887E80(Ctx& c) {
         CallGuest(c, kReleaseTexture, {});
         Wr32(SlotOf(p, s), 0);
       }
+    }
+    if (g_diagrams_loaded) {
+      c.ecx = SlotOf(0, kSlotCount);
+      CallGuest(c, kReleaseTexture, {});
+      g_diagrams_loaded = false;
     }
     g_loaded = false;
     g_shown = 0;
